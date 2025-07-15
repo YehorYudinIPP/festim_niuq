@@ -1,0 +1,12 @@
+Using Python executable: /home/yehor/miniconda3/envs/festim-env/bin/python
+Using FESTIM model from: /home/yehor/workspace/tritium_transp/festim_niuq/festim_model
+Using configuration file: /home/yehor/workspace/tritium_transp/festim_niuq/uq/config.yaml
+Current working directory: /home/yehor/workspace/tritium_transp/festim_niuq/uq/festim_campaign_vs00ldxe/runs/runs_0-100000000/runs_0-1000000/runs_0-10000/runs_0-100/run_4
+Loaded configuration from: /home/yehor/workspace/tritium_transp/festim_niuq/uq/config.yaml
+Configuration parameters:
+  Temperature: Not specified K
+  Time step: Not specified s
+  Total time: 10.0 s
+  Material: Not specified
+  Mesh size: Not specified
+Invoking execute_qcgpj_task with arguments: ['/home/yehor/workspace/vvuq/EasyVVUQ/src/easyvvuq/actions/execute_qcgpj_task.py', '/home/yehor/workspace/tritium_transp/festim_niuq/uq/festim_campaign_vs00ldxe/.qcgpj_in_act_4', '/home/yehor/workspace/tritium_transp/festim_niuq/uq/festim_campaign_vs00ldxe/.qcgpj_in_prev_4']

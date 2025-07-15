@@ -1,0 +1,36 @@
+# FESTIM Model Configuration
+model_parameters:
+  total_time: 10.0 #100.0   # s
+  
+geometry:
+  length: 1.0e-3      # m
+  #thickness: 1.0e-6   # m
+  
+materials:
+
+  # material_name: "tungsten"
+  # diffusivity: 4.1e-7  # m²/s
+  # solubility: 1.87e24  # H/m³/Pa^0.5
+
+  D_0: 1.0e-7  # diffusion coefficient in [m²/s]
+  E_D: 0.2    # activation energy in [eV]
+  T: 300.0    # temperature in [K]
+  
+simulation:
+  n_elements: 128  # number of mesh elements
+  time_step: 0.05      # s
+  absolute_tolerance: 1.0e+6
+  relative_tolerance: 1.0e-6
+  output_directory: "results/"
+  milestone_times: [0.1, 0.2, 0.5, 1.0, 5.0, 10.0] # times at which results are saved [s]
+
+  
+boundary_conditions:
+  left_bc_type: "dirichlet"
+  left_bc_value: 1.0e15
+  right_bc_type: "neumann"
+  right_bc_value: 0.0
+
+source_terms:
+  source_type: "constant"
+  source_value: 1.0e20  # source term value in [m

@@ -1,0 +1,4 @@
+PyYAML>=6.0
+festim
+numpy
+matplotlib

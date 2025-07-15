@@ -1,0 +1,24 @@
+2025-07-15 16:33:20,072: 2025-07-15 16:33:20.072099 waiting 300 secs for service start ...
+2025-07-15 16:33:20,085: service started after 0.013309 secs
+2025-07-15 16:33:20,085: manager zmq iface address: tcp://0.0.0.0:8195
+2025-07-15 16:33:20,085: connecting to the PJM @ tcp://0.0.0.0:8195
+2025-07-15 16:33:20,086: connection created
+2025-07-15 16:33:20,086: checking system status
+2025-07-15 16:33:20,088: successfully connected to the instance yehorlenovotb.7092 @ yehorlenovotb
+2025-07-15 16:33:20,088: created subscription socket for job status changed @ tcp://127.0.1.1:8269
+2025-07-15 16:33:33,283: waiting for finish of 1 jobs
+2025-07-15 16:33:33,284: all jobs finished
+2025-07-15 16:33:33,287: waiting for finish of 1 jobs
+2025-07-15 16:33:33,288: all jobs finished
+2025-07-15 16:33:33,288: waiting for finish of 1 jobs
+2025-07-15 16:33:33,289: all jobs finished
+2025-07-15 16:33:33,290: waiting for finish of 1 jobs
+2025-07-15 16:33:33,291: all jobs finished
+2025-07-15 16:33:33,291: waiting for finish of 1 jobs
+2025-07-15 16:33:33,292: all jobs finished
+2025-07-15 16:33:33,292: waiting for finish of 1 jobs
+2025-07-15 16:33:33,293: all jobs finished
+2025-07-15 16:33:33,294: waiting for finish of 1 jobs
+2025-07-15 16:33:33,294: all jobs finished
+2025-07-15 16:33:33,295: waiting for finish of 1 jobs
+2025-07-15 16:33:33,295: all jobs finished
