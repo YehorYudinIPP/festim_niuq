@@ -1,6 +1,0 @@
-/home/yehor/workspace/vvuq/EasyVVUQ/.venv/lib/python3.11/site-packages/chaospy/__init__.py:9: UserWarning: pkg_resources is deprecated as an API. See https://setuptools.pypa.io/en/latest/pkg_resources.html. The pkg_resources package is slated for removal as early as 2025-11-30. Refrain from using this package or pin to Setuptools<81.
-  import pkg_resources
-/home/yehor/miniconda3/envs/festim-env/lib/python3.13/site-packages/ufl/__init__.py:250: UserWarning: pkg_resources is deprecated as an API. See https://setuptools.pypa.io/en/latest/pkg_resources.html. The pkg_resources package is slated for removal as early as 2025-11-30. Refrain from using this package or pin to Setuptools<81.
-  import pkg_resources
-/home/yehor/miniconda3/envs/festim-env/lib/python3.13/site-packages/festim/generic_simulation.py:439: UserWarning: To ensure that TXTExport exports data at the desired times TXTExport.times are added to milestones
-  warnings.warn(msg)
