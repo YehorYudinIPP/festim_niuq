@@ -2,8 +2,15 @@ import os
 import sys
 import subprocess
 
-import chaospy as cp
+# Add parent directory to path for custom encoder
+parent_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+if parent_dir not in sys.path:
+    sys.path.insert(0, parent_dir)
 
+# Import custom YAML encoder
+from util.Encoder import YAMLEncoder, AdvancedYAMLEncoder
+
+import chaospy as cp
 import easyvvuq as uq
 
 from easyvvuq.actions import Encode, Decode, ExecuteLocal, Actions, CreateRunDirectory
@@ -58,9 +65,11 @@ def validate_execution_setup():
 
 
 parameters = {
-    "D_0": {"type": "float", "default": 1.0e-6,},
-    "E_D": {"type": "float", "default": 0.5,},
+    "D_0": {"type": "float", "default": 1.0e-7,},
+    "E_D": {"type": "float", "default": 0.2,},
     "T": {"type": "float", "default": 300.0,},
+    "source_value": {"type": "float", "default": 1.0e20,},
+    "left_bc_value": {"type": "float", "default": 1e15},  # Boundary condition value
 }
 
 qois = [
@@ -69,12 +78,39 @@ qois = [
 
 # Set up necessary elements for the EasyVVUQ campaign
 
-# Encoder
-encoder = uq.encoders.GenericEncoder(
-    template_fname="festim.template", 
-    delimiter='$', 
-    target_filename="config.yaml"
+# Option 1: Simple YAML Encoder
+# encoder = YAMLEncoder(
+#     template_fname="festim_yaml.template",
+#     target_filename="config.yaml",
+#     delimiter="$"
+# )
+
+# Option 2: Advanced YAML Encoder (alternative)
+encoder = AdvancedYAMLEncoder(
+    template_fname="festim_yaml.template",
+    target_filename="config.yaml",
+    parameter_map={
+        "D_0": "materials.D_0",
+        "E_D": "materials.E_D",
+        "T": "materials.T",
+        "source_value": "source_terms.source_value",
+        "left_bc_value": "boundary_conditions.left_bc_value"
+    },
+    type_conversions={
+        "D_0": float,
+        "E_D": float,
+        "T": float,
+        "source_value": float,
+        "left_bc_value": float
+    }
 )
+print(f"Using encoder: {encoder.__class__.__name__}") ###DEBUG
+
+# Option 3: Use built-in EasyVVUQ encoder
+# encoder = uq.encoders.JinjaEncoder(
+#     template_fname="festim.template", 
+#     target_filename="config.yaml"
+# )
 
 # Decoder
 # TODO change the output and decoder to YAML
@@ -84,8 +120,10 @@ decoder = uq.decoders.SimpleCSV(target_filename="output.csv", output_columns=qoi
 python_exe, script_path = validate_execution_setup()
 
 # Use the filename that the encoder creates (config.yaml)
-exec_command_line = f"{python_exe} {script_path} --config {os.path.join(os.getcwd(), 'config.yaml')}"
+exec_command_line = f"{python_exe} {script_path} --config config.yaml"
 print(f"Execution command line: {exec_command_line}")
+
+# Execute the script locally
 execute = ExecuteLocal(exec_command_line)
 
 # Set up actions for the campaign
@@ -108,9 +146,11 @@ campaign = uq.Campaign(
 
 # Define uncertain parameters distributions
 distributions = {
-    "D_0": cp.Uniform(1.0e-7, 1.0e-5),
-    "E_D": cp.Uniform(0.1, 1.0),
-    "T": cp.Uniform(250.0, 350.0),
+    #"D_0": cp.Uniform(1.0e-7, 1.0e-5), # Diffusion coefficient base value
+    #"E_D": cp.Uniform(0.1, 1.0), # Activation energy
+    "T": cp.Uniform(200.0, 400.0), # Temperature
+    "source_value": cp.Uniform(1.0e19, 1.0e21),  # Assuming source_value is also a parameter
+    "left_bc_value": cp.Uniform(1e14, 1e16),  # Boundary condition value
 }
 
 # Define sampling method
@@ -164,3 +204,11 @@ for qoi in qois:
         qoi=qoi,
         filename=f"{qoi}_sobols_treemap.png",
     )
+
+# TODO:
+# 0) Double chekc everything and clean up the code
+# 1) Plot uncertainty in single scalar QoI
+# 2) Plot uncertainty in profile QoI as a function of radius
+# 3) Plot uncertainty in scalar QoI as a function of time
+# 4) Plot Sobol indices as a function of radius
+# 5) Plot Sobol indices as a function of time
