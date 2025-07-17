@@ -1,0 +1,29 @@
+boundary_conditions:
+  left_bc_type: dirichlet
+  left_bc_value: 2.0e+20
+  right_bc_type: neumann
+  right_bc_value: 0.0
+geometry:
+  length: 0.001
+  thickness: 1.0e-06
+materials:
+  D_0: 1.5e-06
+  E_D: 0.7
+  T: 350.0
+model_parameters:
+  total_time: 10.0
+simulation:
+  absolute_tolerance: 10000000000.0
+  milestone_times:
+  - 0.5
+  - 1.0
+  - 2.0
+  - 5.0
+  - 1.0
+  n_elements: 1024
+  output_directory: results/
+  relative_tolerance: 1.0e-10
+  time_step: 0.05
+source_terms:
+  source_type: constant
+  source_value: 1.5e+18
