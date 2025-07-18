@@ -2,6 +2,10 @@
 import sys
 import os
 
+# Set environment variables to suppress Qt warnings
+os.environ['QT_LOGGING_RULES'] = '*.debug=false;qt.qpa.*=false'
+os.environ['XDG_RUNTIME_DIR'] = '/tmp/runtime-' + str(os.getuid())
+
 import yaml
 import argparse
 from pathlib import Path
@@ -13,7 +17,7 @@ if parent_dir not in sys.path:
     
 # Now we can import festim_model from parent directory
 from festim_model import Model
-
+from festim_model.diagnostics import Diagnostics
 
 def load_config(config_file):
     """Load configuration from YAML file."""
@@ -32,6 +36,7 @@ def load_config(config_file):
 def main():
 
     # Set up command line argument parsing
+    print(f"> Entering the main function")
 
     parser = argparse.ArgumentParser(description='Run FESTIM model with YAML configuration')
     
@@ -78,6 +83,11 @@ def main():
     
     # Save results to a file (for EasyVVUQ integration)
     save_results_for_uq(results, config)
+
+    # Visualise results
+    diagnostics = Diagnostics(model, results=results, result_folder=model.result_folder)
+    diagnostics.visualise()
+
     
     print("FESTIM simulation completed successfully!")
     return results
