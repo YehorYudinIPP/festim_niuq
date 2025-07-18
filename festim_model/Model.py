@@ -1,11 +1,14 @@
 #!/home/yehor/miniconda3/envs/festim-env/bin/python3
-import numpy as np
+import warnings
+warnings.filterwarnings("ignore", message="pkg_resources is deprecated as an API")
 
-import matplotlib.pyplot as plt
+import numpy as np
 
 # Import FESTIM library
 import festim as F
 
+# Local imports
+from .diagnostics import Diagnostics
 
 class Model():
     """
@@ -18,6 +21,8 @@ class Model():
 
         self.name = "FESTIM Model"
         self.description = "Model for FESTIM simulation"
+
+        self.config = config if config else {}
 
         # Create a FESTIM model instance
         self.model = F.Simulation()
@@ -127,40 +132,7 @@ class Model():
         # Export results
         # self.model.export_results()
 
-        # Visualize results
-        self.visualise()
-
         return self.results
-
-    def visualise(self):
-        """
-        Visualize the results of the FESTIM simulation.
-        This method can be extended to include specific visualization logic.
-        """
-        print("Visualizing results...")
-        print(f"Reading results from {self.result_folder}/results.txt")
-
-        if self.result_flag is not None:
-
-            print("> Visualizing results")
-
-            data = np.genfromtxt(self.result_folder+"/results.txt", skip_header=True, delimiter=',')
-            
-            for (i,time) in enumerate(self.milestone_times):
-                print(f"> Reading results for time {time} s")
-                #print(data[:,i])
-                plt.semilogy(self.vertices[:], data[:, i], label=f"t={time} s")
-
-            plt.xlabel("r [m]")
-            plt.ylabel("Concentration [m^-3]")
-            plt.title("Concentration vs Radius at Different Times")
-            plt.legend([f"t={time}" for time in self.milestone_times])
-            #plt.show()
-
-            plt.savefig(f"{self.result_folder}/results.png")
-
-        else:
-            print("No results to visualize. Please run the simulation first.")
 
     def inspect_object_structure(self):
         """Print detailed structure of the FESTIM model object."""
