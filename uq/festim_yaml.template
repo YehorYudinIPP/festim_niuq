@@ -5,12 +5,12 @@ model_parameters:
   total_time: 10.0
 
 geometry:
-  length: 1.0e-3
+  length: 3.5e-6
   thickness: 1.0e-6
 
 materials:
-  D_0: $D_0$  # Diffusion coefficient
-  E_D: $E_D$  # Activation energy
+  D_0: 1.0e-7  # Diffusion coefficient
+  E_D: 0.2  # Activation energy
   T: $T$      # Temperature
 
 simulation:
