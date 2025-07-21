@@ -29,13 +29,28 @@ class Model():
 
         # Define model geometry and its mesh
         # 1D case
+
         # TODO figure out if there is sperical geometry support in FESTIM and apply for an isotropic case
+
+        # Specifying numerical parameters of mesh: physical size and number of elements
         self.n_elements = int(config['simulation']['n_elements'])
         self.length = float(config['geometry']['length'])  # Length of the geometry [m]
+
         # Create vertices for the mesh
         # Assuming a 1D geometry, vertices are evenly spaced along the length
         self.vertices = np.linspace(0., self.length, self.n_elements + 1)
-        self.model.mesh = F.MeshFromVertices(vertices=self.vertices)
+
+        # Create a mesh object  from the vertices
+        # Option 1) for mesh: use FESTIM's MeshFromVertices
+        self.model.mesh = F.MeshFromVertices(
+            vertices=self.vertices,
+            #type="cylindrical",  # Specify cylindrical mesh type
+            type="spherical",  # Specify spherical mesh type
+            )
+        # Option 2) for mesh: use FESTIM's Mesh  - and FeniCS objects - specific for spherical geometry
+        # self.model.mesh = F.Mesh(
+        #     type="spherical",  # Specify spherical mesh type
+        # )
 
         self.results = None # Placeholder for results
 
@@ -81,7 +96,9 @@ class Model():
         print(f"Using boundary value at outer surfaces: {self.model.boundary_conditions[0].__dict__}") ###DEBUG
         print(f"Using constant volumetric source term with values: {self.model.sources[0].__dict__}") ###DEBUG
 
-        # Define model settings: solver and time
+        #TODO: Add model for temperature!
+
+        # Define model numerical settings for a simulation: solver and time
         self.model.settings = F.Settings(
             final_time=float(config['model_parameters']['total_time']),  # final time
             absolute_tolerance=float(config['simulation']['absolute_tolerance']),  #  absolute tolerance
@@ -131,6 +148,13 @@ class Model():
 
         # Export results
         # self.model.export_results()
+
+        #TODO: Think of better BCs
+        #TODO: Read Lithium data from HTM DataBase
+        #TODO: Use proprietary visualisation and diagnostics tools
+        #TODO: Explore cartesian/cylindrical/spherical geometries/coordinates/curvatures
+        #TODO: Add important physical effects
+        #TODO: Couple with heat conductivity and temperature
 
         return self.results
 
