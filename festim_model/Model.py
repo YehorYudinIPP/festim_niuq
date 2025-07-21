@@ -52,15 +52,15 @@ class Model():
         print(f"Using material properties: D_0={self.model.materials[0].D_0}, E_D={self.model.materials[0].E_D}, T={self.model.T.__dict__}") ###DEBUG
 
         # Define Boundary conditions
-        #TODO for a sperical case, apply DirichletBC at boundary, NeumannBC at the center
+        #TODO for a sperical case, apply DirichletBC at boundary (in relative terms, r=1.0), NeumannBC (FluxBC) at the center (r=0.0)
         self.model.boundary_conditions = [
-            F.DirichletBC(
-                surfaces=[1],  # Assuming a single surface at the start of the mesh
+            F.FluxBC(
+                surfaces=[1],  # Assuming a single surface at the end of the mesh
                 value=float(config['boundary_conditions']['left_bc_value']),  # boundary value
                 field=0,
             ),
-            F.FluxBC(
-                surfaces=[2],  # Assuming a single surface at the end of the mesh
+            F.DirichletBC(
+                surfaces=[2],  # Assuming a single surface at the start of the mesh
                 value=float(config['boundary_conditions']['right_bc_value']),  # boundary value
                 field=0,
             ),

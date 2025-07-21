@@ -22,10 +22,10 @@ simulation:
   milestone_times: [0.5, 1.0, 2.0, 5.0, 10.0]
 
 boundary_conditions:
-  left_bc_type: "dirichlet"
-  left_bc_value: $left_bc_value$
-  right_bc_type: "neumann"
-  right_bc_value: 0.0
+  left_bc_type: "neumann"
+  left_bc_value: 0.0
+  right_bc_type: "dirichlet"
+  right_bc_value: $right_bc_value$
 
 source_terms:
   source_type: "constant"

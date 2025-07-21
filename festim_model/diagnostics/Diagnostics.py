@@ -92,7 +92,7 @@ class Diagnostics:
 
             plt.xlabel("r [m]")
             plt.ylabel("Concentration [m^-3]")
-            plt.title(f"Concentration vs Radius at different times. \n Param-s: T={self.model.config['materials']['T']:.2f} K, G={float(self.model.config['source_terms']['source_value']):.2e} m^-3s^-1, C(a)={float(self.model.config['boundary_conditions']['left_bc_value']):.2e} m^-3")
+            plt.title(f"Concentration vs Radius at different times. \n Param-s: T={self.model.config['materials']['T']:.2f} K, G={float(self.model.config['source_terms']['source_value']):.2e} m^-3s^-1, C(a)={float(self.model.config['boundary_conditions']['right_bc_value']):.2e} m^-3")
             plt.legend([f"t={time}" for time in self.milestone_times])
             #plt.show()
 
