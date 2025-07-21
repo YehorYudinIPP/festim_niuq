@@ -446,7 +446,7 @@ distributions = {
 # TODO: figure out how to get a timestamp at the very end of the run (+)
 
 # Define sampling method
-p_order = 1  # Polynomial order for PC expansion
+p_order = 2  # Polynomial order for PC expansion
 
 sampler = uq.sampling.PCESampler(
         vary=distributions,
