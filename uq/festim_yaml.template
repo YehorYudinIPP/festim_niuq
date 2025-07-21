@@ -6,7 +6,7 @@ model_parameters:
 
 geometry:
   length: 3.5e-6
-  thickness: 1.0e-6
+  #thickness: 1.0e-6
 
 materials:
   D_0: 1.0e-7  # Diffusion coefficient
@@ -19,7 +19,7 @@ simulation:
   absolute_tolerance: 1.0e+10
   relative_tolerance: 1.0e-10
   output_directory: "results/"
-  milestone_times: [0.5, 1.0, 2.0, 5.0, 1.0]
+  milestone_times: [0.5, 1.0, 2.0, 5.0, 10.0]
 
 boundary_conditions:
   left_bc_type: "dirichlet"
