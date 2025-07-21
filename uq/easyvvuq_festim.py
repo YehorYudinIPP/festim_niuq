@@ -108,10 +108,11 @@ def plot_unc_vs_r(r, y, sy, y10, y90, qoi_name, foldername, filename):
     ax.fill_between(r, y - sy, y + sy, alpha=0.3, label='+/- STD')
     ax.fill_between(r, y10, y90, alpha=0.1, label='10% - 90%')
 
-    ax.set_title(f"Uncertainty in {qoi_name} as a function of radius")
-    ax.set_xlabel("#Radius, vertices")
-    ax.set_ylabel(f"Concentration at {qoi_name}")
+    ax.set_title(f"Uncertainty at {qoi_name} as a function of radius")
+    ax.set_xlabel("#Radius, fraction of length")
+    ax.set_ylabel(f"Concentration [m^-3] at {qoi_name}")
     ax.legend()
+    ax.grid(True)
 
     fig.savefig(f"{foldername}/bespoke_{filename}")
 
@@ -119,34 +120,39 @@ def plot_unc_vs_r(r, y, sy, y10, y90, qoi_name, foldername, filename):
 
     return 0
 
-def plot_unc_qoi(r, y, sy, y10, y90, qoi_name, foldername, filename):
+def plot_unc_qoi(y, sy, y10, y90, qoi_name, ax=None, r_ind=0):
     """
     Plot uncertainty in the specific scalar QoIs.
     """
-    fig, ax = plt.subplots()
+    if ax is None:
+        fig, ax = plt.subplots()
+
+    # Assuming y, sy, y10, y90 are 1D arrays for a single QoI at a specific radius
 
     #Boxplotting the mean and std at a single radius
-    r_ind = -1  # Select the first radius (or any other index)
+    #r_ind = -1  # Select the last radius (or any other index)
 
-    ax.plot(r[r_ind], y[r_ind], 'o', label=f'<y> at r={r[r_ind]:.2f} and {qoi_name}')
-    ax.errorbar(r[r_ind], y[r_ind], yerr=sy[r_ind], fmt='o', label=f"+/- STD at r={r[r_ind]:.2f} and {qoi_name}")
-    ax.fill_betweenx([y10[r_ind], y90[r_ind]], r[r_ind] - 0.01, r[r_ind] + 0.01, alpha=0.1, label=f"10% - 90% at r={r[r_ind]:.2f} and {qoi_name}")
+    #ax.plot(qoi_name, y[r_ind], 'o', label=f"<y> at r={0} and {qoi_name}")
+    ax.errorbar(qoi_name, y[r_ind], yerr=sy[r_ind], fmt='o', label=f"+/- STD at r_ind={r_ind} and {qoi_name}")
+    #ax.fill_betweenx([y10[r_ind], y90[r_ind]], qoi - 0.01, qoi + 0.01, alpha=0.1, label=f"10% - 90% at r={0} and {qoi_name}")
 
-    ax.set_title(f"Uncertainty in {qoi_name} at radius {r[r_ind]:.2f}")
-    ax.set_ylabel(f"Concentration in {qoi_name} at radius {r[r_ind]:.2f}")
-    ax.legend()
-
-    fig.savefig(f"{foldername}/bespoke_qoi_{filename}")
-
-    plt.close()
+    #ax.set_ylabel(f"Concentration [m^-3] in {qoi_name} at radius {-1}")
+    #ax.set_title(f"Uncertainty in {qoi_name} at radius {r[r_ind]:.2f}")
+    #ax.legend()
+    #fig.savefig(f"{foldername}/bespoke_qoi_{filename}")
+    #plt.close()
 
     return 0
 
-def plot_stats_vs_r(results, distributions, qois, plot_folder_name, plot_timestamp):
+def plot_stats_vs_r(results, qois, plot_folder_name, plot_timestamp):
     """
     Plot statistics of the results as a function of radius (spatial coordinates).
     """
     
+    # Specific to bespoke plot for a list of QoIs
+    fig_qoi, ax_qoi = plt.subplots()
+    r_ind_qoi = 0  # Select the max radius values: r=0.0 should be physical centre of domain
+
     # Rund over QoIs in analysis results object
     for qoi in qois:
         # Generate filenames with timestamp
@@ -157,10 +163,13 @@ def plot_stats_vs_r(results, distributions, qois, plot_folder_name, plot_timesta
         # Default plotting of the moments
         results.plot_moments(
             qoi=qoi,
+            ylabel=f"Concentration [m^-3], {qoi}",
+            xlabel='Radius, #vertices',
             filename=f"{plot_folder_name}/{moments_vsr_filename}",
         )
 
         # Plotting Sobol indices as a treemap
+        #TODO: figure out how to plot treemaps at arbitrary locations
         results.plot_sobols_treemap(
             qoi=qoi,
             filename=f"{plot_folder_name}/{sobols_treemap_filename}",
@@ -181,42 +190,48 @@ def plot_stats_vs_r(results, distributions, qois, plot_folder_name, plot_timesta
         plot_unc_vs_r(r, y, sy, y10, y90, qoi_name=qoi, foldername=plot_folder_name, filename=moments_vsr_filename)
 
         # Bespoke plotting of uncertainty in QoI (at selected radius)
-        plot_unc_qoi(r, y, sy, y10, y90, qoi_name=qoi, foldername=plot_folder_name, filename=moments_vsr_filename)
+        plot_unc_qoi(y, sy, y10, y90, qoi_name=qoi, ax=ax_qoi, r_ind=r_ind_qoi)
 
         # Plotting Sobol indices as a function of radius
         results.plot_sobols_first(
-        qoi=qoi,
-        withdots=False,  # Show dots for each Sobol index
-        xlabel='Radius, #vertices',
-        ylabel='Sobol Index (first)',
-        filename=f"{plot_folder_name}/{sobols_filename}",  # Save with bespoke prefix
-    )
+            qoi=qoi,
+            withdots=False,  # Show dots for each Sobol index
+            xlabel='Radius, #vertices',
+            ylabel='Sobol Index (first)',
+            filename=f"{plot_folder_name}/{sobols_filename}",  # Save with bespoke prefix
+        )
 
-    print(f"Plots (for spatially resolved functions) saved: {moments_vsr_filename}, {sobols_treemap_filename}, {sobols_filename}")
+        print(f"Plots (for spatially resolved functions) saved: {moments_vsr_filename}, {sobols_treemap_filename}, {sobols_filename}")
+        #TODO compare those in absolute values - fix the y axis limits?
+
+    # Save plot common for QoIs: specific for bespoke QoI uncertainty plotting
+    ax_qoi.set_ylabel(f"Concentration [m^-3] at {qois[0]}")  # Assuming all QoIs have the same units
+    ax_qoi.set_xlabel(f"QoIs (concentration at different times at r={r[r_ind_qoi]})")
+    ax_qoi.set_title(f"Uncertainty in QoIs at selected radius r={r[r_ind_qoi]}")
+    ax_qoi.legend(loc='best')
+    ax_qoi.grid(axis='y')
+    #fig_qoi.suptitle("Uncertainty in QoIs at selected radius")
+    qoi_filename = add_timestamp_to_filename("qoi_uncertainty_vs_r.png", plot_timestamp)
+    fig_qoi.savefig(f"{plot_folder_name}/{qoi_filename}")
 
     return 0
 
-def plot_unc_vs_t(t_s, y_s, sy_s, y10_s, y90_s, foldername="", filename="", r_ind=0):
+def plot_unc_vs_t(r_at_r, t_s, y_at_r, sy_at_r, y10_at_r, y90_at_r, foldername="", filename=""):
     """
     Plot uncertainty in the results as a function of time.
     """
     fig, ax = plt.subplots()
     # print(f"Shapes of the lists: y_s: {len(y_s)}, sy_s: {len(sy_s)}, y10_s: {len(y10_s)}, y90_s: {len(y90_s)}") ###DEBUG
-    
-    # Extract r_ind-th element from each time step (array) to get time series at fixed radius
-    y_at_r = [y_timestep[r_ind] for y_timestep in y_s]
-    sy_at_r = [sy_timestep[r_ind] for sy_timestep in sy_s]
-    y10_at_r = [y10_timestep[r_ind] for y10_timestep in y10_s]
-    y90_at_r = [y90_timestep[r_ind] for y90_timestep in y90_s]
-    
-    ax.plot(t_s, y_at_r, label=f'<y> at r_index={r_ind}')
+
+    ax.plot(t_s, y_at_r, label=f'<y> at r={r_at_r}')
     ax.fill_between(t_s, np.array(y_at_r) - np.array(sy_at_r), np.array(y_at_r) + np.array(sy_at_r), alpha=0.3, label='+/- STD')
     ax.fill_between(t_s, y10_at_r, y90_at_r, alpha=0.1, label='10% - 90%')
 
-    ax.set_title(f"Uncertainty as a function of time at radius index {r_ind}")
+    ax.set_title(f"Uncertainty as a function of time at r={r_at_r}")
     ax.set_xlabel("Time [s]")
-    ax.set_ylabel(f"Concentration")
-    ax.legend()
+    ax.set_ylabel(f"Concentration [m^-3] at {r_at_r}")
+    ax.legend(loc='best')
+    ax.grid(True)
 
     fig.savefig(f"{foldername}/{filename}")
 
@@ -224,21 +239,25 @@ def plot_unc_vs_t(t_s, y_s, sy_s, y10_s, y90_s, foldername="", filename="", r_in
 
     return 0
 
-def plot_sobols_vs_t(t_s, s1_s, foldername="", filename="", r_ind=0):
+def plot_sobols_vs_t(r_s, t_s, s1_s, foldername="", filename="", r_ind=0):
     """
     Plot Sobol indices as a function of time.
     """
     fig, ax = plt.subplots()
     # print(s1_s[-1]) ### DEBUG
+
     for i, param_name in enumerate(distributions.keys()):
         # Extract r_ind-th element from each Sobol array to get time series at fixed radius
         s1_at_r = [s1_timestep[r_ind] for s1_timestep in s1_s[i]]
         ax.plot(t_s, s1_at_r, label=f'Sobol Index (first) for {param_name}')
-    ax.set_title(f"Sobol Indices as a function of time at radius index {r_ind}")
+
+    ax.set_title(f"Sobol Indices as a function of time at r={r_s}")
     ax.set_xlabel("Time [s]")
-    ax.set_ylabel(f"Sobol Index (first)")
+    ax.set_ylabel(f"Sobol Index (first), fraction of unity")
     ax.legend()
+
     fig.savefig(f"{foldername}/{filename}")
+
     plt.close()
 
     return 0
@@ -249,7 +268,7 @@ def plot_stats_vs_t(results, distributions, qois, plot_folder_name, plot_timesta
     """
 
     # Select - uncertainty at the depth of the specimen (r=0.)
-    r_ind_selected = [-1] # Select the first radius (or any other index)
+    r_ind_selected = [0, -1] # Select the first radius (or any other index)
 
     # Read the results for all times and align data for plotting against time
     y_s = []
@@ -265,11 +284,11 @@ def plot_stats_vs_t(results, distributions, qois, plot_folder_name, plot_timesta
     # op2) read from results
     t_s = []
 
-    # Run over QoIs in analysis results object
+    # Run over QoIs in analysis results object and read statistics
     for qoi in qois:
         # Every element in qois list is a single time step
         # Read every time step from results in a list-of-lists [n_timesteps x n_elements]
-        t_s.append(float(qoi.split('=')[1].strip()[:-1]))  # Extract time from QoI names
+        t_s.append(float(qoi.split('=')[1].strip()[:-1]))  # Extract time from QoI names, strp 's' at the end and '='
         y_s.append(results.describe(qoi, 'mean'))
         sy_s.append(results.describe(qoi, 'std'))
         y10_s.append(results.describe(qoi, '10%'))
@@ -278,30 +297,42 @@ def plot_stats_vs_t(results, distributions, qois, plot_folder_name, plot_timesta
         for i,param_name in enumerate(distributions.keys()):
             # Assuming each distribution is a valid QoI descriptor
             s1_s[i].append(s1[param_name])  # Assuming 'first' is a valid QoI descriptor
-        r_s.append(np.linspace(0., 1., len(y_s[-1])))  # Assuming a simple range for x-axis
+        r_s.append(np.linspace(0., 1., len(y_s[-1])))  # Assuming a simple range for x-axis. Here - vertex number, not physical coordinate
 
+    # Run over selected radius indices
     for r_ind in r_ind_selected:
         # Generate filenames with timestamp for time series plots
-        moments_vst_filename = add_timestamp_to_filename(f"{qoi}_at{r_ind}_moments_vs_t.png", plot_timestamp)
-        sobols_vst_filename = add_timestamp_to_filename(f"{qoi}_at{r_ind}_sobols_first_vs_t.png", plot_timestamp)
+        moments_vst_filename = add_timestamp_to_filename(f"moments_vs_t_at_{r_ind}.png", plot_timestamp)
+        sobols_vst_filename = add_timestamp_to_filename(f"sobols_first_vs_t_at_{r_ind}.png", plot_timestamp)
+
+        # Extract r_ind-th element from each time step (array) to get time series at fixed radius
+        y_at_r = [y_timestep[r_ind] for y_timestep in y_s]
+        sy_at_r = [sy_timestep[r_ind] for sy_timestep in sy_s]
+        y10_at_r = [y10_timestep[r_ind] for y10_timestep in y10_s]
+        y90_at_r = [y90_timestep[r_ind] for y90_timestep in y90_s]
+        r_at_r = [r_timestep[r_ind] for r_timestep in r_s]  # Assuming r_s is a list of lists with radius values
+        #TODO check if r_at_r changes with time, or is constant
 
         # Plotting of moments as a function of time
-        # TODO: plot those in a single figure
-        plot_unc_vs_t(t_s, y_s, sy_s, y10_s, y90_s, foldername=plot_folder_name, filename=moments_vst_filename, r_ind=r_ind)
+        plot_unc_vs_t(r_at_r[0], t_s, y_at_r, sy_at_r, y10_at_r, y90_at_r, foldername=plot_folder_name, filename=moments_vst_filename)
 
         # Plotting Sobol indices as a function of time
-        plot_sobols_vs_t(t_s, s1_s, foldername=plot_folder_name, filename=sobols_vst_filename, r_ind=r_ind)
+        plot_sobols_vs_t(r_at_r[0], t_s, s1_s, foldername=plot_folder_name, filename=sobols_vst_filename, r_ind=r_ind)
 
-    print(f"Plots (for time series) saved: {moments_vst_filename}, {sobols_vst_filename}")
+        print(f"Plots (for time series) saved: {moments_vst_filename}, {sobols_vst_filename}")
 
     return 0
+
+# EasyVVUQ script
+# Single out parts into function / methods of a class
 
 parameters = {
     "D_0": {"type": "float", "default": 1.0e-7,},
     "E_D": {"type": "float", "default": 0.2,},
     "T": {"type": "float", "default": 300.0,},
     "source_value": {"type": "float", "default": 1.0e20,},
-    "left_bc_value": {"type": "float", "default": 1e15},  # Boundary condition value
+    #"left_bc_value": {"type": "float", "default": 1.0e15},  # Boundary condition value: better to specify centre at r=0.0
+    "right_bc_value": {"type": "float", "default": 1.0e15},  # Boundary condition value
 }
 
 # TODO rearange FESTIM data output, figure out how to specify multiple quantities at different times, all vs a coordinate
@@ -312,18 +343,21 @@ qois = [
     "t=1.00e+00s",
     "t=2.00e+00s",
     "t=5.00e+00s",
+    "t=1.00e+01s",
 ]
 
 # Set up necessary elements for the EasyVVUQ campaign
 
-# Option 1: Simple YAML Encoder
+# Create an encoder object
+
+# Option 1): Simple YAML Encoder
 # encoder = YAMLEncoder(
 #     template_fname="festim_yaml.template",
 #     target_filename="config.yaml",
 #     delimiter="$"
 # )
 
-# Option 2: Advanced YAML Encoder (alternative)
+# Option 2): Advanced YAML Encoder (alternative)
 encoder = AdvancedYAMLEncoder(
     template_fname="festim_yaml.template",
     target_filename="config.yaml",
@@ -332,19 +366,21 @@ encoder = AdvancedYAMLEncoder(
         "E_D": "materials.E_D",
         "T": "materials.T",
         "source_value": "source_terms.source_value",
-        "left_bc_value": "boundary_conditions.left_bc_value"
+        "left_bc_value": "boundary_conditions.left_bc_value",
+        "right_bc_value": "boundary_conditions.right_bc_value"
     },
     type_conversions={
         "D_0": float,
         "E_D": float,
         "T": float,
         "source_value": float,
-        "left_bc_value": float
+        "left_bc_value": float,
+        "right_bc_value": float, 
     }
 )
-print(f"Using encoder: {encoder.__class__.__name__}") ###DEBUG
+#print(f"Using encoder: {encoder.__class__.__name__}") ###DEBUG
 
-# Option 3: Use built-in EasyVVUQ encoder
+# Option 3): Use built-in EasyVVUQ encoder
 # encoder = uq.encoders.JinjaEncoder(
 #     template_fname="festim.template", 
 #     target_filename="config.yaml"
@@ -392,15 +428,22 @@ CoV = 0.25
 means = {
     "T": 300.0,  # Mean temperature
     "source_value": 1.0e20,  # Mean source value
-    "left_bc_value": 1.0e15,  # Mean boundary condition value
+    #"left_bc_value": 1.0e15,  # Mean boundary condition value: better to keep right side as the domain boundary and left as centre
+    "right_bc_value": 1.0e15,  # Mean boundary condition value
 }
 distributions = {
     #"D_0": cp.Uniform(1.0e-7, 1.0e-5), # Diffusion coefficient base value
     #"E_D": cp.Uniform(0.1, 1.0), # Activation energy
     "T": cp.Uniform(means["T"]*(1.-CoV), means["T"]*(1.+CoV)), # Temperature [K]
     "source_value": cp.Uniform(means["source_value"]*(1.-CoV), means["source_value"]*(1.+CoV)),  # Assuming source_value is also a parameter
-    "left_bc_value": cp.Uniform(means["left_bc_value"]*(1.-CoV), means["left_bc_value"]*(1.+CoV)),  # Boundary condition value
+    #"left_bc_value": cp.Uniform(means["left_bc_value"]*(1.-CoV), means["left_bc_value"]*(1.+CoV)),  # Boundary condition value: see on choice of left/right BC
+    "right_bc_value": cp.Uniform(means["right_bc_value"]*(1.-CoV), means["right_bc_value"]*(1.+CoV)),  # Boundary condition value
 }
+# TODO: add more parameter fo Arrhenious law
+# TODO: try higher BC concentration values - does it even make sense to have such low BC
+# TODO: run with higher polynomial degree
+# TODO: check if there are actually negative concentrations, if yes - check model and specify correct params ranges
+# TODO: figure out how to get a timestamp at the very end of the run (+)
 
 # Define sampling method
 p_order = 1  # Polynomial order for PC expansion
@@ -460,7 +503,7 @@ if not os.path.exists("plots_festim_uq_" + plot_timestamp):
     # Save plots in this folder
 
 # Plotting statistics of the results as a function of radius (spatial coordinates)
-plot_stats_vs_r(results, distributions, qois, plot_folder_name, plot_timestamp)
+plot_stats_vs_r(results, qois, plot_folder_name, plot_timestamp)
 
 # Bespoke plotting of uncertainty and Sobol indices in QoI as a function of TIME
 plot_stats_vs_t(results, distributions, qois, plot_folder_name, plot_timestamp)
@@ -477,9 +520,9 @@ print("FESTIM UQ campaign completed successfully!")
 
 # 0) Double check everything and clean up the code
 
-# 1) Plot uncertainty in single scalar QoI (+/-)
+# 1) Plot uncertainty in single scalar QoI (+)
 # 2) Plot uncertainty in profile QoI as a function of radius (+)
 # 3) Plot uncertainty in scalar QoI as a function of time (+)
 # 4) Plot Sobol indices as a function of radius (+)
-# 5) Plot Sobol indices as a function of time
+# 5) Plot Sobol indices as a function of time (+)
 # 6*) Add convergence (to the steady state) as a QoI
