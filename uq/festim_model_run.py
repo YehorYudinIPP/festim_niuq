@@ -128,15 +128,38 @@ def extract_tritium_inventory(results, model):
             import numpy as np
             data = np.genfromtxt(result_file, skip_header=1, delimiter=',')
             
-            # Simple example: sum of final concentrations
-            # Replace with a better inventory calculation
-            volume_elem = model.config['geometry']['length'] / model.config['simulation']['n_elements']  # Example volume element in m^3 #TODO make calculate volume of an actual local element
+            # Option 1) simple example: sum of final concentrations
+            #TODO: Replace with a better inventory calculation
 
+            ds = 1.0e-12 # a test area of a squared micron [m^2]
+
+            # Option 1.1) assume flat geometry and uniform (1D) mesh (~hexahedral in 3D)
+            # length_elem = model.config['geometry']['length'] / model.config['simulation']['n_elements']  # Example length element [m]
+            # volume_elem = ds * length_elem  # Volume of an element [m^3]
+            # if len(data.shape) > 1 and data.shape[0] > 0:
+            #     final_concentrations = data[:, -1]  # Last time step
+            #     inventory = np.sum(final_concentrations) * volume_elem  
+            # else:
+            #     inventory = 1.0e20  # Default value
+
+            # Option 1.2) assume flat geometry and non-uniform mesh
+            # Calculate volume of an actual local element - important for a) sph. geometry and b) non-uniform mesh
+            #TODO test this
+            length_elem_s = model.vertices[1:] - model.vertices[:-1]  # length of each (1D) element [m]
+            volume_elem = ds * length_elem_s  # Volume of each element [m^3]
+            #TODO figure out correct dimensionality of the output data
             if len(data.shape) > 1 and data.shape[0] > 0:
-                final_concentrations = data[:, -1]  # Last time step
-                inventory = np.sum(final_concentrations) * volume_elem  
+                final_concentrations = data[:-1, -1]  # Last time step
+                #TODO find correct resolution beteen vertices and elements
+                inventory = np.sum(final_concentrations * volume_elem)
             else:
                 inventory = 1.0e20  # Default value
+
+            # Option 1.3) assume spherical geometry and uniform mesh
+            # TODO: implement and test this
+            # volume_elem = ds * (4/3) * np.pi * (length_elem / 2)**3  # Volume of a spherical element [m^3]
+
+
         else:
             print(f"Warning: Results file not found: {result_file}")
             inventory = 1.0e20  # Default value
