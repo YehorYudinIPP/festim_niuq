@@ -123,6 +123,7 @@ class Model():
             absolute_tolerance=float(config['simulation']['absolute_tolerance']),  #  absolute tolerance
             relative_tolerance=float(config['simulation']['relative_tolerance']),  #  relative tolerance
         )
+        #TODO: estimate good simulation time via diffusion and other transport coefficients, dimensions of domain, and source term etc.
 
         # Define exports: result format
         self.result_folder = config['simulation']['output_directory']
