@@ -18,9 +18,14 @@ materials:
   
 simulation:
   n_elements: 1024  # number of mesh elements
+
   time_step: 0.05      # s
+  max_stepsize: 0.1   # s
+  stepsize_change_ratio: 1.1
+
   absolute_tolerance: 1.0e+10
   relative_tolerance: 1.0e-10
+
   output_directory: "results/"
   milestone_times: [0.1, 0.2, 0.5, 1.0, 5.0, 10.0] # times at which results are saved [s]
 
