@@ -82,24 +82,23 @@ def main():
     results = model.run()
     
     # Save results to a file (for EasyVVUQ integration)
-    save_results_for_uq(results, config)
+    save_results_for_uq(results, model)
 
     # Visualise results
     diagnostics = Diagnostics(model, results=results, result_folder=model.result_folder)
     diagnostics.visualise()
-
     
     print("FESTIM simulation completed successfully!")
     return results
 
-def save_results_for_uq(results, config):
+def save_results_for_uq(results, model):
     """Save results in format expected by EasyVVUQ."""
     import json
     import csv
     
     # Extract quantities of interest (QoIs)
     # TODO: double-check the implementation; think of a good integration scheme
-    tritium_inventory = extract_tritium_inventory(results, config)
+    tritium_inventory = extract_tritium_inventory(results, model)
     
     # Save as CSV for EasyVVUQ decoder
     output_file = "output.csv"
@@ -111,7 +110,7 @@ def save_results_for_uq(results, config):
     print(f"Results saved to {output_file}")
     print(f"Tritium inventory: {tritium_inventory:.2e}")
 
-def extract_tritium_inventory(results, config):
+def extract_tritium_inventory(results, model):
     """Extract tritium inventory from FESTIM results."""
     # This is a most primitive version - implement based on your specific FESTIM model
     # You might need to:
@@ -121,7 +120,7 @@ def extract_tritium_inventory(results, config):
     
     try:
         # Example: Read from the results file
-        result_folder = config.get('simulation', {}).get('output_directory', './results')
+        result_folder = model.result_folder
         result_file = os.path.join(result_folder, 'results.txt')
         
         if os.path.exists(result_file):
@@ -131,8 +130,8 @@ def extract_tritium_inventory(results, config):
             
             # Simple example: sum of final concentrations
             # Replace with a better inventory calculation
-            volume_elem = config['geometry']['length'] / config['simulation']['n_elements']  # Example volume element in m^3 #TODO make calculate volume of an actual local element
-            
+            volume_elem = model.config['geometry']['length'] / model.config['simulation']['n_elements']  # Example volume element in m^3 #TODO make calculate volume of an actual local element
+
             if len(data.shape) > 1 and data.shape[0] > 0:
                 final_concentrations = data[:, -1]  # Last time step
                 inventory = np.sum(final_concentrations) * volume_elem  
@@ -145,6 +144,10 @@ def extract_tritium_inventory(results, config):
     except Exception as e:
         print(f"Error extracting tritium inventory: {e}")
         inventory = 1.0e20  # Default value
+
+    # TODO: figure out how to use FESTIM's DerivedQuantities to compute inventory
+    diagnostics = Diagnostics(model, results=results, result_folder=model.result_folder)
+    tritium_inventory_obj = diagnostics.compute_total_tritium_inventory()
     
     return inventory
 
