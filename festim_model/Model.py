@@ -38,15 +38,33 @@ class Model():
 
         # Create vertices for the mesh
         # Assuming a 1D geometry, vertices are evenly spaced along the length
-        self.vertices = np.linspace(0., self.length, self.n_elements + 1)
 
-        # Create a mesh object  from the vertices
+        # Option 1) for vertices: uniform mesh
+        # self.vertices = np.linspace(0., self.length, self.n_elements + 1)
+
+        # TODO: since the BC uncertainty influence fall-off quickly, try refined mesh at the domain boundary - was not run yet
+        # Option 2) mesh refined at the boundary (right side)
+        refined_length_fraction = 0.1  # Fraction of the length to refine
+        refined_elements_fraction = 0.25  # Fraction of elements to refine
+
+        refined_elements_count = int(self.n_elements * refined_elements_fraction)
+        self.vertices = np.concatenate((
+            np.linspace(0., self.length * (1. - refined_length_fraction), self.n_elements - refined_elements_count + 1), # inner (larger) part of the mesh
+            np.linspace(self.length * (1. - refined_length_fraction), self.length, refined_elements_count + 1)[1:] # refined (smaller outer) part of the mesh
+        ))
+        #TODO mind round-off errors in the mesh size
+
+        print(f"Using vertices: {self.vertices}")  ### Debugging output
+
+        # Create a Mesh object from the vertices
+
         # Option 1) for mesh: use FESTIM's MeshFromVertices
         self.model.mesh = F.MeshFromVertices(
             vertices=self.vertices,
             #type="cylindrical",  # Specify cylindrical mesh type
             type="spherical",  # Specify spherical mesh type
             )
+        
         # Option 2) for mesh: use FESTIM's Mesh  - and FeniCS objects - specific for spherical geometry
         # self.model.mesh = F.Mesh(
         #     type="spherical",  # Specify spherical mesh type
@@ -60,6 +78,7 @@ class Model():
                 D_0=float(config['materials']['D_0']),  # diffusion coefficient
                 E_D=float(config['materials']['E_D']),  # activation energy
             )
+        # TODO: fetch data from HTM DataBase - LiO2 as an example
 
         # Define model parameters: temperature
         self.model.T = config['materials']['T']
@@ -82,7 +101,7 @@ class Model():
         ]
 
         # Define model parameters: source terms
-        print(f"Passing the source term value: {config['source_terms']['source_value']}") ###DEBUG
+        #print(f"Passing the source term value: {config['source_terms']['source_value']}") ###DEBUG
         
         self.model.sources = [
             F.Source(
@@ -93,7 +112,7 @@ class Model():
             ),
         ]
 
-        print(f"Using boundary value at outer surfaces: {self.model.boundary_conditions[0].__dict__}") ###DEBUG
+        print(f"Using boundary value at outer surfaces: {self.model.boundary_conditions[1].__dict__}") ###DEBUG
         print(f"Using constant volumetric source term with values: {self.model.sources[0].__dict__}") ###DEBUG
 
         #TODO: Add model for temperature!
@@ -115,6 +134,10 @@ class Model():
             #     filename=f"{self.result_folder}/results.xdmf",
             #     checkpoint=True,
             # )
+            # TODO figure out Python API for XDMF export and import
+            # TODO look up / brush up Pythonic VTK API
+            # TODO figure out HDF5 export and import
+            # TODO chose result data format to store numerical tensor of data of dimansions [quantity x time x elements]
             F.TXTExport(
                 field="solute",
                 filename=f"{self.result_folder}/results.txt",
@@ -124,10 +147,21 @@ class Model():
     
         # Define time step
         self.model.dt = F.Stepsize(
-            float(config['simulation']['time_step']),
-            milestones=self.milestone_times,
-        )  # time step size
+            #float(config['simulation']['time_step']), # op1) fixed time step size
+
+            initial_value=float(config['simulation']['time_step']),  # op2) initial time step size for adaptive dt
+            stepsize_change_ratio=float(config['simulation']['stepsize_change_ratio']),  # ratio for adaptive time stepping
+            #min_value=float(config['simulation']['min_time_step']),  # minimum time step size
+            max_stepsize=float(config['simulation']['max_stepsize']),  # maximum time step size
+            dt_min=1e-05,  # minimum time step size for adaptive time stepping
+
+            milestones=self.milestone_times, # check points for results export
+        ) 
+        #TODO: since model convergence so quickly make time step adaptive, based on the model parameters and mesh size
+
         #milestones=self.milestone_times  
+
+        print(f"Initialisation finished! Model initialized with {self.n_elements} elements")  ###DEBUG
 
     def run(self):
         """
@@ -137,13 +171,16 @@ class Model():
         # Initialize the model
         self.model.initialise()
 
-        #  self.inspect_object_structure()  # Print the structure of the model for debugging
+        # Input and initalisation verification
+        # self.inspect_object_structure()  ### Print the structure of the model for debugging
 
         # Run the simulation
         self.results = self.model.run()
 
         print("FESTIM simulation completed successfully!")
-        #print(f"Results: {self.results}")
+
+        # Output verification
+        #print(f"Results: {self.results}") ### DEBUG
         self.result_flag = True
 
         # Export results
