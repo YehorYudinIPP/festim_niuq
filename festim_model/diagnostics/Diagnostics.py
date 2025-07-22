@@ -1,5 +1,5 @@
 
-# TODO make a class to compute qualities of interest using FESTIM results
+# A class to compute qualities of interest using FESTIM results
 
 import numpy as np
 import os
@@ -59,8 +59,8 @@ class Diagnostics:
         """
         # Placeholder for actual QoI computation logic
         return self.results.get(qoi_name, None)
-    
-    #TODO function to compute total tritium inverntory inside simualted volume
+
+    # Function to compute total tritium inventory inside simulated volume - TODO try out different integration schemes
     def compute_total_tritium_inventory(self):
         """
         Compute the total tritium inventory in the simulated volume.

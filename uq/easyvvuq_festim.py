@@ -143,7 +143,6 @@ def plot_unc_qoi(stats_dict_s, qoi_name, r_ind=0):
         label=f"QoI at r index {r_ind} and {qoi_name}",
         #label=f"Mean, 95% CI, 10% - 90%, min - max",
     )
-    #TODO: split boxplots in X axis: 1) create a common list of dicts, then plot
 
     #ax.fill_betweenx([y10[r_ind], y90[r_ind]], qoi - 0.01, qoi + 0.01, alpha=0.1, label=f"10% - 90% at r={0} and {qoi_name}")
 
@@ -469,9 +468,8 @@ distributions = {
 
 # TODO: add more parameter for Arrhenious law
 # TODO: try higher BC concentration values - does it even make sense to have such low BC
-# TODO: run with higher polynomial degree
+# TODO: run with higher polynomial degree (+: now 2)
 # TODO: check if there are actually negative concentrations, if yes - check model and specify correct params ranges
-# TODO: figure out how to get a timestamp at the very end of the run (+)
 
 # Define sampling method
 p_order = 2  # Polynomial order for PC expansion
@@ -553,14 +551,9 @@ print("FESTIM UQ campaign completed successfully!")
 
 ##################################
 # TODO:
-# add legends to bespoke codes
+
 # make sobol plots more clear; figure out disparity!
 
 # 0) Double check everything and clean up the code
 
-# 1) Plot uncertainty in single scalar QoI (+)
-# 2) Plot uncertainty in profile QoI as a function of radius (+)
-# 3) Plot uncertainty in scalar QoI as a function of time (+)
-# 4) Plot Sobol indices as a function of radius (+)
-# 5) Plot Sobol indices as a function of time (+)
 # 6*) Add convergence (to the steady state) as a QoI

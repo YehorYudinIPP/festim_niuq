@@ -42,7 +42,7 @@ class Model():
         # Option 1) for vertices: uniform mesh
         # self.vertices = np.linspace(0., self.length, self.n_elements + 1)
 
-        # TODO: since the BC uncertainty influence fall-off quickly, try refined mesh at the domain boundary - was not run yet
+        # When the BC uncertainty influence fall-off quickly, try refined mesh at the domain boundary
         # Option 2) mesh refined at the boundary (right side)
         refined_length_fraction = 0.1  # Fraction of the length to refine
         refined_elements_fraction = 0.25  # Fraction of elements to refine
@@ -86,7 +86,7 @@ class Model():
         print(f"Using material properties: D_0={self.model.materials[0].D_0}, E_D={self.model.materials[0].E_D}, T={self.model.T.__dict__}") ###DEBUG
 
         # Define Boundary conditions
-        #TODO for a sperical case, apply DirichletBC at boundary (in relative terms, r=1.0), NeumannBC (FluxBC) at the center (r=0.0)
+        # Sperical case, apply DirichletBC at boundary (in relative terms, r=1.0), NeumannBC (FluxBC) at the center (r=0.0)
         self.model.boundary_conditions = [
             F.FluxBC(
                 surfaces=[1],  # Assuming a single surface at the end of the mesh
@@ -158,7 +158,7 @@ class Model():
 
             milestones=self.milestone_times, # check points for results export
         ) 
-        #TODO: since model convergence so quickly make time step adaptive, based on the model parameters and mesh size
+        #TODO: since model convergence so quickly make time step adaptive, based on the model parameters and mesh size - exam the influence of the time step on the results
 
         #milestones=self.milestone_times  
 
