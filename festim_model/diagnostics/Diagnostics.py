@@ -10,6 +10,8 @@ import matplotlib
 matplotlib.use('Agg')  # Use non-GUI backend for headless environments
 import matplotlib.pyplot as plt
 
+import festim as F
+
 class Diagnostics:
 
     def __init__(self, model, results=None, result_folder=None):
@@ -62,12 +64,27 @@ class Diagnostics:
     def compute_total_tritium_inventory(self):
         """
         Compute the total tritium inventory in the simulated volume.
-        
-        :return: Total tritium inventory.
+
+        :return: Total tritium inventory (FESTIM DerivedQuantities object).
         """
-        # Assuming results has a 'tritium_inventory' key with the inventory data
-        # ATTENTION: Placeholeder (there is an implementation in a wrapper)
-        return self.results.get('tritium_inventory', 0.0)
+        # ATTENTION: Placeholeder - need to be passed during the model initialisation
+        # there is an implementation in a wrapper
+
+        derived_quantity_types = [
+            F.TotalVolume(
+                field=0, 
+                volume=1,
+                #name='tritium_inventory', 
+                #description='Total tritium inventory in the volume'
+            )
+        ]
+
+        derived_quantities = F.DerivedQuantities(
+            derived_quantity_types,
+            show_units=True,
+        )
+
+        return derived_quantities
     
     def visualise(self):
         """
@@ -92,7 +109,7 @@ class Diagnostics:
 
             plt.xlabel("r [m]")
             plt.ylabel("Concentration [m^-3]")
-            plt.title(f"Concentration vs Radius at different times. \n Param-s: T={self.model.config['materials']['T']:.2f} K, G={float(self.model.config['source_terms']['source_value']):.2e} m^-3s^-1, C(a)={float(self.model.config['boundary_conditions']['right_bc_value']):.2e} m^-3")
+            plt.title(f"Concentration vs Radius at different times. \n Param-s: T={self.model.config['materials']['T']:.2f} [K], G={float(self.model.config['source_terms']['source_value']):.2e} [m^-3s^-1], C(a)={float(self.model.config['boundary_conditions']['right_bc_value']):.2e} [m^-3]")
             plt.legend([f"t={time}" for time in self.milestone_times])
             #plt.show()
 
