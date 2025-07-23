@@ -6,6 +6,7 @@ import os
 os.environ['QT_LOGGING_RULES'] = '*.debug=false;qt.qpa.*=false'
 os.environ['XDG_RUNTIME_DIR'] = '/tmp/runtime-' + str(os.getuid())
 
+import numpy as np
 import yaml
 import argparse
 from pathlib import Path
@@ -36,7 +37,7 @@ def load_config(config_file):
 def main():
 
     # Set up command line argument parsing
-    print(f"> Entering the main function")
+    print(f"> Entering the main function: EasyVVUQ FESTIM model wrapper")
 
     parser = argparse.ArgumentParser(description='Run FESTIM model with YAML configuration')
     
