@@ -4,6 +4,9 @@ import subprocess
 from datetime import datetime
 import numpy as np
 
+# consider import visualisation libraries optional
+import matplotlib.pyplot as plt
+
 # Add parent directory to path for custom encoder
 parent_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 if parent_dir not in sys.path:
@@ -98,7 +101,7 @@ def define_phys_conv_rate(results):
     print(f"Convergence rate esttimate: not implemented yet!")
     return 0
 
-def plot_unc_vs_r(r, y, sy, y10, y90, qoi_name, foldername, filename):
+def plot_unc_vs_r(r, y, sy, y10, y90, qoi_name, foldername="", filename=""):
     """
     Plot uncertainty in the results as a function of radius (spatial coordinates).
     """
@@ -120,7 +123,7 @@ def plot_unc_vs_r(r, y, sy, y10, y90, qoi_name, foldername, filename):
 
     return 0
 
-def plot_unc_qoi(stats_dict_s, qoi_name, r_ind=0):
+def plot_unc_qoi(stats_dict_s, qoi_name, foldername="", filename="", r_ind=0):
     """
     Plot uncertainty in the specific scalar QoIs.
     """
@@ -140,21 +143,21 @@ def plot_unc_qoi(stats_dict_s, qoi_name, r_ind=0):
         showmeans=True,
         shownotches=True,
         #meanline=True,  # Show mean line
-        label=f"QoI at r index {r_ind} and {qoi_name}",
+        label=f"QoIs at r.ind {r_ind}",
         #label=f"Mean, 95% CI, 10% - 90%, min - max",
     )
 
     #ax.fill_betweenx([y10[r_ind], y90[r_ind]], qoi - 0.01, qoi + 0.01, alpha=0.1, label=f"10% - 90% at r={0} and {qoi_name}")
 
     ax.set_ylabel(f"Concentration [m^-3] at {qois[0]} at radius r index [{r_ind}]")  # Assuming all QoIs have the same units
-    ax.set_xlabel(f"QoIs (concentration at different times at r index [{r_ind}])")
+    ax.set_xlabel(f"Different times of a simulation")
     ax.set_title(f"Uncertainty in QoIs: mean, median, 95% CI, 10% - 90%, min - max")
     ax.legend(loc='best')
     ax.grid(axis='y')
 
     #fig_qoi.suptitle("Uncertainty in QoIs at selected radius")
-    qoi_filename = add_timestamp_to_filename("qoi_uncertainty_vs_r.png", plot_timestamp)
-    fig.savefig(f"{plot_folder_name}/{qoi_filename}")
+    
+    fig.savefig(f"{foldername}/{filename}")
 
     return 0
 
@@ -178,7 +181,7 @@ def plot_stats_vs_r(results, qois, plot_folder_name, plot_timestamp, rs=None):
         results.plot_moments(
             qoi=qoi,
             ylabel=f"Concentration [m^-3], {qoi}",
-            xlabel='Radius, #vertices',
+            xlabel=f"Radius, #vertices",
             filename=f"{plot_folder_name}/{moments_vsr_filename}",
         )
 
@@ -188,7 +191,7 @@ def plot_stats_vs_r(results, qois, plot_folder_name, plot_timestamp, rs=None):
             qoi=qoi,
             filename=f"{plot_folder_name}/{sobols_treemap_filename}",
         )
-        plt.close()  # Close the plot to avoid display issues in some environments
+        #plt.close()  # Close the plot to avoid display issues in some environments
 
         # Read out the arrays of stats from the results object
         y = results.describe(qoi, 'mean')
@@ -212,7 +215,7 @@ def plot_stats_vs_r(results, qois, plot_folder_name, plot_timestamp, rs=None):
             'whislo': [y01[r_ind_qoi]],
             'whishi': [y99[r_ind_qoi]],
             'fliers': [ymin[r_ind_qoi], ymax[r_ind_qoi]],
-            'label': f"QoI at r.ind {r_ind_qoi} and {qoi}",
+            'label': f"{qoi}",
         })
 
         # Define a simple range for x-axis
@@ -225,8 +228,8 @@ def plot_stats_vs_r(results, qois, plot_folder_name, plot_timestamp, rs=None):
         results.plot_sobols_first(
             qoi=qoi,
             withdots=False,  # Show dots for each Sobol index
-            xlabel='Radius, #vertices',
-            ylabel='Sobol Index (first)',
+            xlabel=f"Radius, #vertices",
+            ylabel=f"Sobol Index (first) at {qoi}",
             filename=f"{plot_folder_name}/{sobols_filename}",  # Save with bespoke prefix
         )
 
@@ -235,7 +238,7 @@ def plot_stats_vs_r(results, qois, plot_folder_name, plot_timestamp, rs=None):
 
     # Save plot common for QoIs: specific for bespoke QoI uncertainty plotting
     #  - bespoke plotting of uncertainty in QoI (at selected radius)
-    plot_unc_qoi(stats_dict_s, qoi_name=qoi, r_ind=r_ind_qoi)
+    plot_unc_qoi(stats_dict_s, qoi_name=qoi, foldername=plot_folder_name, filename=add_timestamp_to_filename("qoi_uncertainty_vs_r.png", plot_timestamp),r_ind=r_ind_qoi)
 
     return 0
 
@@ -347,6 +350,88 @@ def plot_stats_vs_t(results, distributions, qois, plot_folder_name, plot_timesta
 
     return 0
 
+def visualisation_of_results(results, qois, plot_folder_name):
+    """
+    Visualize the results of the EasyVVUQ campaign.
+    This function is a placeholder for future visualization methods.
+    """
+
+    print("Visualizing results...")
+    # Plot the results: error bar for each QoI + other plots
+
+    # Create a common timestamp for all plots from this run
+    plot_timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+
+    # Create a folder to save plots
+    if not os.path.exists("plots_festim_uq_" + plot_timestamp):
+        plot_folder_name = "plots_festim_uq_" + plot_timestamp
+        os.makedirs(plot_folder_name)
+        # Save plots in this folder
+    #TODO: assumes that by default there is no folder with plots, and creates a new one
+
+    # Read the vertices from the results
+    vertices = results.describe('x', 'mean')  # Assuming 'x' is the vertex coordinate in results
+    if vertices is None:
+        print("No vertices found in the results. Using a simple range for plotting.")
+        rs = np.linspace(0., 1., len(qois))  # Assuming a simple range for x-axis - false, qois is number of checkpoints + 1
+    else:
+        rs = vertices
+
+    # Plotting statistics of the results as a function of radius (spatial coordinates)
+    plot_stats_vs_r(results, qois[1:], plot_folder_name, plot_timestamp, rs=rs)
+
+    # Bespoke plotting of uncertainty and Sobol indices in QoI as a function of TIME
+    plot_stats_vs_t(results, distributions, qois[1:], plot_folder_name, plot_timestamp, rs=rs)
+
+    print(f"Plots saved in folder: {plot_folder_name}")
+    return 0
+
+def define_parameter_uncertainty(CoV=0.25):
+    """
+    Define the uncertain parameters and their distributions for the FESTIM model and EasyVVUQ uncertainty propagations.
+    """
+
+    # define common coefficient of variation (CoV) for all parameters
+    if CoV < 0.0 or CoV > 1.0:
+        raise ValueError("Coefficient of variation (CoV) must be in the range [0, 1].")
+    
+    print(f"Defining uncertain parameters with CoV={CoV}")
+
+    # Define default mean values for parameters
+    # - These values can be adjusted based on the specific model requirements and the physical properties of the system being simulated.
+    means = {
+        "T": 300.0,  # Mean temperature
+        "source_value": 1.0e18, #1.0e19, #,1.0e20,  # Mean source value
+        "left_bc_value": 1.0e15,  # Mean boundary condition value: better to keep right side as the domain boundary and left as centre
+        "right_bc_value": 1.0e17, #1.0e16, #1.0e15,  # Mean boundary condition value
+    }
+
+    # Define the distributions for uncertain parameters
+    # -  These distributions can be adjusted based on the specific model requirements and the physical properties of the system being simulated.
+
+    #TODO: here not coefficient of variation (CoV) is used, but the abcolute bounds of the Uniform distribution - change to use expresssion for COV of U[a,b]: STD = (b-a)/sqrt(12)
+    # Should be a=mean*(1-sqrt(3)CoV), b=mean*(1+sqrt(3)CoV)
+    parameters_distributions = {
+        #"D_0": cp.Uniform(1.0e-7, 1.0e-5), # Diffusion coefficient base value
+        #"E_D": cp.Uniform(0.1, 1.0), # Activation energy
+        "T": cp.Uniform(means["T"]*(1.-CoV), means["T"]*(1.+CoV)), # Temperature [K]
+        "source_value": cp.Uniform(means["source_value"]*(1.-CoV), means["source_value"]*(1.+CoV)),  # Assuming source_value is also a parameter
+        #"left_bc_value": cp.Uniform(means["left_bc_value"]*(1.-CoV), means["left_bc_value"]*(1.+CoV)),  # Boundary condition value: see on choice of left/right BC
+        "right_bc_value": cp.Uniform(means["right_bc_value"]*(1.-CoV), means["right_bc_value"]*(1.+CoV)),  # Boundary condition value
+}
+    
+    return parameters_distributions
+
+def prepare_uq_campaign():
+    """
+    Prepare the uncertainty quantification (UQ) campaign by creating necessary steps: set-up, parameter definitions, encoders, decoders, and actions.
+    """
+
+    parameters = define_parameter_uncertainty()
+    print(f"prepare_uq_campaign: not implemented yet!")
+    return 0
+
+
 # EasyVVUQ script
 # Single out parts into function / methods of a class
 
@@ -450,21 +535,7 @@ campaign = uq.Campaign(
 )
 
 # Define uncertain parameters distributions
-CoV = 0.25
-means = {
-    "T": 300.0,  # Mean temperature
-    "source_value": 1.0e20,  # Mean source value
-    #"left_bc_value": 1.0e15,  # Mean boundary condition value: better to keep right side as the domain boundary and left as centre
-    "right_bc_value": 1.0e15,  # Mean boundary condition value
-}
-distributions = {
-    #"D_0": cp.Uniform(1.0e-7, 1.0e-5), # Diffusion coefficient base value
-    #"E_D": cp.Uniform(0.1, 1.0), # Activation energy
-    "T": cp.Uniform(means["T"]*(1.-CoV), means["T"]*(1.+CoV)), # Temperature [K]
-    "source_value": cp.Uniform(means["source_value"]*(1.-CoV), means["source_value"]*(1.+CoV)),  # Assuming source_value is also a parameter
-    #"left_bc_value": cp.Uniform(means["left_bc_value"]*(1.-CoV), means["left_bc_value"]*(1.+CoV)),  # Boundary condition value: see on choice of left/right BC
-    "right_bc_value": cp.Uniform(means["right_bc_value"]*(1.-CoV), means["right_bc_value"]*(1.+CoV)),  # Boundary condition value
-}
+distributions = define_parameter_uncertainty()
 
 # TODO: add more parameter for Arrhenious law
 # TODO: try higher BC concentration values - does it even make sense to have such low BC
@@ -518,33 +589,7 @@ analysis_filename = add_timestamp_to_filename("analysis_results.hdf5")
 
 ### PLOTTING RESULTS ###
 
-# Plot the results: error bar for each QoI + other plots
-import matplotlib.pyplot as plt
-
-# Create a common timestamp for all plots from this run
-plot_timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-
-# Create a folder to save plots
-if not os.path.exists("plots_festim_uq_" + plot_timestamp):
-    plot_folder_name = "plots_festim_uq_" + plot_timestamp
-    os.makedirs(plot_folder_name)
-    # Save plots in this folder
-
-# Read the vertices from the results
-vertices = results.describe('x', 'mean')  # Assuming 'x' is the vertex coordinate in results
-if vertices is None:
-    print("No vertices found in the results. Using a simple range for plotting.")
-    rs = np.linspace(0., 1., len(qois))  # Assuming a simple range for x-axis - false, qois is number of checkpoints + 1
-else:
-    rs = vertices
-
-# Plotting statistics of the results as a function of radius (spatial coordinates)
-plot_stats_vs_r(results, qois[1:], plot_folder_name, plot_timestamp, rs=rs)
-
-# Bespoke plotting of uncertainty and Sobol indices in QoI as a function of TIME
-plot_stats_vs_t(results, distributions, qois[1:], plot_folder_name, plot_timestamp, rs=rs)
-
-print(f"Plots saved in folder: {plot_folder_name}")
+visualisation_of_results(results, qois, "plots_festim_uq_" + campaign_timestamp)
 
 print("FESTIM UQ campaign completed successfully!")
 
