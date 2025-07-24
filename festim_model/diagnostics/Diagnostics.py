@@ -114,7 +114,7 @@ class Diagnostics:
             for (i,time) in enumerate(self.milestone_times):
                 # The first column is the radial coordinate values
                 # TODO: read file a CSV
-                # TODO: considet that there might be no result data for a given milestone time
+                # TODO: consider that there might be no result data for a given milestone time
                 print(f"> Plotting results for time {time} s")
                 plt.plot(self.model.vertices[:], self.results[:, i+1], label=f"t={time} s")
 
