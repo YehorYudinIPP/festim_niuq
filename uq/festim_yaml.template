@@ -2,7 +2,8 @@
 # Parameters marked with $ will be replaced by EasyVVUQ
 
 model_parameters:
-  total_time: 10.0
+  total_time: 25.0
+  T_0: $T$      # Temperature
 
 geometry:
   length: 3.5e-6
@@ -11,7 +12,6 @@ geometry:
 materials:
   D_0: 1.0e-7  # Diffusion coefficient
   E_D: 0.2  # Activation energy
-  T: $T$      # Temperature
 
 simulation:
   n_elements: 1024
@@ -21,7 +21,7 @@ simulation:
   absolute_tolerance: 1.0e+10
   relative_tolerance: 1.0e-10
   output_directory: "results/"
-  milestone_times: [0.1, 0.2, 0.5, 1.0, 5.0, 10.0]
+  milestone_times: [0.1, 0.2, 0.5, 1.0, 5.0, 10.0,]
 
 boundary_conditions:
   left_bc_type: "neumann"
