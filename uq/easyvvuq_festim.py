@@ -149,7 +149,7 @@ def plot_unc_qoi(stats_dict_s, qoi_name, foldername="", filename="", r_ind=0):
 
     #ax.fill_betweenx([y10[r_ind], y90[r_ind]], qoi - 0.01, qoi + 0.01, alpha=0.1, label=f"10% - 90% at r={0} and {qoi_name}")
 
-    ax.set_ylabel(f"Concentration [m^-3] at {qois[0]} at radius r index [{r_ind}]")  # Assuming all QoIs have the same units
+    ax.set_ylabel(f"Concentration [m^-3] at radius r index [{r_ind}]")  # Assuming all QoIs have the same units
     ax.set_xlabel(f"Different times of a simulation")
     ax.set_title(f"Uncertainty in QoIs: mean, median, 95% CI, 10% - 90%, min - max")
     ax.legend(loc='best')
@@ -350,7 +350,7 @@ def plot_stats_vs_t(results, distributions, qois, plot_folder_name, plot_timesta
 
     return 0
 
-def visualisation_of_results(results, qois, plot_folder_name):
+def visualisation_of_results(results, distributions, qois, plot_folder_name, plot_timestamp):
     """
     Visualize the results of the EasyVVUQ campaign.
     This function is a placeholder for future visualization methods.
@@ -359,8 +359,9 @@ def visualisation_of_results(results, qois, plot_folder_name):
     print("Visualizing results...")
     # Plot the results: error bar for each QoI + other plots
 
-    # Create a common timestamp for all plots from this run
-    plot_timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+    # Create a common timestamp for all plots from this run, if none
+    if not plot_timestamp:
+        plot_timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
 
     # Create a folder to save plots
     if not os.path.exists("plots_festim_uq_" + plot_timestamp):
@@ -386,7 +387,7 @@ def visualisation_of_results(results, qois, plot_folder_name):
     print(f"Plots saved in folder: {plot_folder_name}")
     return 0
 
-def define_parameter_uncertainty(CoV=0.25):
+def define_parameter_uncertainty(CoV=0.1):
     """
     Define the uncertain parameters and their distributions for the FESTIM model and EasyVVUQ uncertainty propagations.
     """
@@ -409,195 +410,291 @@ def define_parameter_uncertainty(CoV=0.25):
     # Define the distributions for uncertain parameters
     # -  These distributions can be adjusted based on the specific model requirements and the physical properties of the system being simulated.
 
-    #TODO: here not coefficient of variation (CoV) is used, but the abcolute bounds of the Uniform distribution - change to use expresssion for COV of U[a,b]: STD = (b-a)/sqrt(12)
-    # Should be a=mean*(1-sqrt(3)CoV), b=mean*(1+sqrt(3)CoV)
+    # The absolute bounds of the distribution is a function of the mean and CoV
+    #  For COV of U[a,b]: STD = (b-a)/sqrt(12) , meaning it should be a=mean*(1-sqrt(3)CoV), b=mean*(1+sqrt(3)CoV)
+    expansion_factor_uniform = np.sqrt(3)
+
     parameters_distributions = {
         #"D_0": cp.Uniform(1.0e-7, 1.0e-5), # Diffusion coefficient base value
+
         #"E_D": cp.Uniform(0.1, 1.0), # Activation energy
-        "T": cp.Uniform(means["T"]*(1.-CoV), means["T"]*(1.+CoV)), # Temperature [K]
-        "source_value": cp.Uniform(means["source_value"]*(1.-CoV), means["source_value"]*(1.+CoV)),  # Assuming source_value is also a parameter
+
+        "T": cp.Uniform(means["T"]*(1.-expansion_factor_uniform*CoV), means["T"]*(1.+expansion_factor_uniform*CoV)), # Temperature [K]
+
+        "source_value": cp.Uniform(means["source_value"]*(1.-expansion_factor_uniform*CoV), means["source_value"]*(1.+expansion_factor_uniform*CoV)), 
+
         #"left_bc_value": cp.Uniform(means["left_bc_value"]*(1.-CoV), means["left_bc_value"]*(1.+CoV)),  # Boundary condition value: see on choice of left/right BC
-        "right_bc_value": cp.Uniform(means["right_bc_value"]*(1.-CoV), means["right_bc_value"]*(1.+CoV)),  # Boundary condition value
+
+        "right_bc_value": cp.Uniform(means["right_bc_value"]*(1.-expansion_factor_uniform*CoV), means["right_bc_value"]*(1.+expansion_factor_uniform*CoV)),  # Boundary condition value at the right (outer) surface of the sample
 }
     
     return parameters_distributions
+
+def define_festim_model_parameters():
+    """
+    Define the FESTIM model parameters and their default values.
+    """
+
+    # Define the model input parameters
+    parameters = {
+    "D_0": {"type": "float", "default": 1.0e-7,},
+
+    "E_D": {"type": "float", "default": 0.2,},
+
+    "T": {"type": "float", "default": 300.0,},
+
+    "source_value": {"type": "float", "default": 1.0e20,},
+
+    #"left_bc_value": {"type": "float", "default": 1.0e15},  # Boundary condition value: better to specify centre at r=0.0
+
+    "right_bc_value": {"type": "float", "default": 1.0e15},  # Boundary condition value at the right (outer) surface of the sample
+    }
+
+    # Define  output parameters / the quantities of interest (QoIs)
+    # TODO: read an (example) output file to get the QoI names
+    qois = [
+        #"tritium_inventory",
+        "x", # Mainly for (a) reading the vertices for postprocessing, (b) checking that grid has not changed
+        "t=1.00e-01s",
+        "t=2.00e-01s",
+        "t=5.00e-01s",
+        "t=1.00e+00s",
+        "t=5.00e+00s",
+        "t=1.00e+01s"
+        "t=2.50e+01s",
+        "t=1.00e+02s"
+    ]
+    
+    #print(f"Model parameters defined: {parameters}") ####DEBUG
+    #print(f"QoIs defined: {qois}") ####DEBUG
+    return parameters, qois
+
+def prepare_execution_command():
+    """
+    Prepare the execution command for the EasyVVUQ campaign.
+    """
+
+    # Get the Python executable and script path - validate and setup environment
+    python_exe, script_path = validate_execution_setup()
+
+    # Use the filename that the encoder creates (config.yaml)
+    exec_command_line = f"{python_exe} {script_path} --config config.yaml"
+    
+    print(f"Execution command line: {exec_command_line}")
+
+    # Execute the script locally - prepare the ExecuteLocal action
+    execute = ExecuteLocal(exec_command_line)
+    
+    return execute
 
 def prepare_uq_campaign():
     """
     Prepare the uncertainty quantification (UQ) campaign by creating necessary steps: set-up, parameter definitions, encoders, decoders, and actions.
     """
 
-    parameters = define_parameter_uncertainty()
-    print(f"prepare_uq_campaign: not implemented yet!")
-    return 0
+    # Define the model input and output parameters
+    parameters, qois = define_festim_model_parameters()
 
+    # TODO rearange FESTIM data output, figure out how to specify multiple quantities at different times, all vs a coordinate
 
-# EasyVVUQ script
-# Single out parts into function / methods of a class
+    # Set up necessary elements for the EasyVVUQ campaign
 
-parameters = {
-    "D_0": {"type": "float", "default": 1.0e-7,},
-    "E_D": {"type": "float", "default": 0.2,},
-    "T": {"type": "float", "default": 300.0,},
-    "source_value": {"type": "float", "default": 1.0e20,},
-    #"left_bc_value": {"type": "float", "default": 1.0e15},  # Boundary condition value: better to specify centre at r=0.0
-    "right_bc_value": {"type": "float", "default": 1.0e15},  # Boundary condition value
-}
+    # Create an Encoder object
 
-# TODO rearange FESTIM data output, figure out how to specify multiple quantities at different times, all vs a coordinate
-# TODO: read an (example) output file to get the QoI names
-qois = [
-    #"tritium_inventory",
-    "x", # Mainly for (a) reading the vertices for postprocessing, (b) checkin that grid has not changed
-    "t=1.00e-01s",
-    "t=2.00e-01s",
-    "t=5.00e-01s",
-    "t=1.00e+00s",
-    "t=5.00e+00s",
-    "t=1.00e+01s"
-]
+    # Option 1): Simple YAML Encoder
+    # encoder = YAMLEncoder(
+    #     template_fname="festim_yaml.template",
+    #     target_filename="config.yaml",
+    #     delimiter="$"
+    # )
 
-# Set up necessary elements for the EasyVVUQ campaign
+    # Option 2): Advanced YAML Encoder
+    encoder = AdvancedYAMLEncoder(
+        template_fname="festim_yaml.template",
+        target_filename="config.yaml",
+        parameter_map={
+            "D_0": "materials.D_0",
+            "E_D": "materials.E_D",
+            "T": "model_parameters.T_0",
+            "source_value": "source_terms.source_value",
+            "left_bc_value": "boundary_conditions.left_bc_value",
+            "right_bc_value": "boundary_conditions.right_bc_value"
+        },
+        type_conversions={
+            "D_0": float,
+            "E_D": float,
+            "T": float,
+            "source_value": float,
+            "left_bc_value": float,
+            "right_bc_value": float, 
+        }
+    )
 
-# Create an Encoder object
+    # Option 3): Use built-in EasyVVUQ encoder
+    # encoder = uq.encoders.JinjaEncoder(
+    #     template_fname="festim.template", 
+    #     target_filename="config.yaml"
+    # )
 
-# Option 1): Simple YAML Encoder
-# encoder = YAMLEncoder(
-#     template_fname="festim_yaml.template",
-#     target_filename="config.yaml",
-#     delimiter="$"
-# )
+    #print(f"Using encoder: {encoder.__class__.__name__}") ###DEBUG
+    print(f"Encoder prepared: {encoder}")
 
-# Option 2): Advanced YAML Encoder
-encoder = AdvancedYAMLEncoder(
-    template_fname="festim_yaml.template",
-    target_filename="config.yaml",
-    parameter_map={
-        "D_0": "materials.D_0",
-        "E_D": "materials.E_D",
-        "T": "materials.T",
-        "source_value": "source_terms.source_value",
-        "left_bc_value": "boundary_conditions.left_bc_value",
-        "right_bc_value": "boundary_conditions.right_bc_value"
-    },
-    type_conversions={
-        "D_0": float,
-        "E_D": float,
-        "T": float,
-        "source_value": float,
-        "left_bc_value": float,
-        "right_bc_value": float, 
-    }
-)
-#print(f"Using encoder: {encoder.__class__.__name__}") ###DEBUG
+    # Create a decoder object
+    # The decoder will read the results from the output file and extract the quantities of interest (QoIs)
+    # TODO change the output and decoder to YAML (for UQ derived quantities) or other format
+    decoder = uq.decoders.SimpleCSV(
+        #target_filename="output.csv", # option for synthetic diagnostics specifically chosen for UQ
+        target_filename="results/results.txt",  # Results from the base data of a simulation
+        output_columns=qois
+        )
+    
+    print(f"Decoder prepared: {decoder}")
 
-# Option 3): Use built-in EasyVVUQ encoder
-# encoder = uq.encoders.JinjaEncoder(
-#     template_fname="festim.template", 
-#     target_filename="config.yaml"
-# )
+    # Prepare execution command action
+    # This command will be used to run the FESTIM model with the generated configuration file
+    execute = prepare_execution_command()
 
-# Decoder
-# TODO change the output and decoder to YAML
-decoder = uq.decoders.SimpleCSV(
-    #target_filename="output.csv", # option for synthetic diagnostics specifically chosen for UQ
-    target_filename="results/results.txt",  # Results from the base data of a simulation
-    output_columns=qois
-      )
+    # Set up actions for the campaign
+    actions = Actions(
+        CreateRunDirectory('run_dir'),
+        # Copy config file to each run directory (alternative approach)
+        # CopyFile(config_file, 'config.yaml'),  # Uncomment if you want to copy config to each run
+        Encode(encoder),
+        execute,
+        Decode(decoder),
+    )
 
-# Execution script - validate and setup environment
-python_exe, script_path = validate_execution_setup()
+    print(f"Sequence of actions prepared: {actions}")
 
-# Use the filename that the encoder creates (config.yaml)
-exec_command_line = f"{python_exe} {script_path} --config config.yaml"
-print(f"Execution command line: {exec_command_line}")
+    # Define the campaign parameters and actions
+    # This includes the model parameters, quantities of interest (QoIs), and the actions to be performed during the campaign
+    # Note: The campaign name can be customized as needed
+    # Define the campaign
+    campaign_timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+    print(f"Campaign timestamp: {campaign_timestamp}")
 
-# Execute the script locally
-execute = ExecuteLocal(exec_command_line)
+    campaign = uq.Campaign(
+        name=f"festim_campaign_{campaign_timestamp}_",
+        params=parameters,
+        #qois=qois,
+        actions=actions,
+    )
 
-# Set up actions for the campaign
-actions = Actions(
-    CreateRunDirectory('run_dir'),
-    # Copy config file to each run directory (alternative approach)
-    # CopyFile(config_file, 'config.yaml'),  # Uncomment if you want to copy config to each run
-    Encode(encoder),
-    execute,
-    Decode(decoder),
-)
+    # Define uncertain parameters distributions
+    distributions = define_parameter_uncertainty()
+    print(f"Uncertain parameters distributions defined: {distributions}")
 
-# Define the campaign
-campaign_timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-campaign = uq.Campaign(
-    name=f"festim_campaign_{campaign_timestamp}_",
-    params=parameters,
-    #qois=qois,
-    actions=actions,
-)
+    # Define sampling method and create a sampler for the campaign
+    # This sampler will generate samples based on the defined distributions
 
-# Define uncertain parameters distributions
-distributions = define_parameter_uncertainty()
+    # Here we use a Polynomial Chaos Expansion (PCE) sampler!
+    p_order = 2  # Polynomial order for PC expansion
 
-# TODO: add more parameter for Arrhenious law
-# TODO: try higher BC concentration values - does it even make sense to have such low BC
-# TODO: run with higher polynomial degree (+: now 2)
-# TODO: check if there are actually negative concentrations, if yes - check model and specify correct params ranges
-
-# Define sampling method
-p_order = 2  # Polynomial order for PC expansion
-
-sampler = uq.sampling.PCESampler(
+    sampler = uq.sampling.PCESampler(
         vary=distributions,
         polynomial_order=p_order,
-)
+    )
 
-campaign.set_sampler(sampler)
+    campaign.set_sampler(sampler)
+    print(f"Sampler prepared and set for the campaign: {sampler}")
 
-# Run the campaign
-with QCGPJPool() as qcjpool:
-    campaign_results = campaign.execute(pool=qcjpool)
-    campaign_results.collate()
+    print(f"Campaign and its elements are prepared!")
+    return campaign, qois, distributions, campaign_timestamp, sampler
 
-# Get results from the campaign
-# results = campaign_results.get_collation_results()
+def run_uq_campaign(campaign, resource_pool=None):
+    """
+    Run the UQ campaign using the specified resource pool.
+    If no resource pool is provided, it will use the default QCGPJPool.
+    """
+    if resource_pool is None:
+        resource_pool = QCGPJPool()
 
-# Save the results
-results_filename = add_timestamp_to_filename("results.hdf5")
-campaign.campaign_db.dump()
+    # Execute the campaign
+    with resource_pool as pool:
+        campaign_results = campaign.execute(pool=pool)
+        campaign_results.collate()
 
-#print(f"Results saved to: {results_filename}")
-# TODO: specify the results filename in the campaign or save it in a specific folder
+    # Get results from the campaign
+    # results = campaign_results.get_collation_results()
 
-# Perform the analysis
-analysis = uq.analysis.PCEAnalysis(sampler=sampler,
-                                   qoi_cols=qois,
-)
-campaign.apply_analysis(analysis)
+    return campaign, campaign_results
 
-results = campaign.get_last_analysis()
+def analyse_uq_results(campaign, qois, sampler):
+    """
+    Perform analysis on the UQ results.
+    This function is a placeholder for future analysis methods.
+    """
+    # Perform PCE analysis on the campaign results
+    analysis = uq.analysis.PCEAnalysis(sampler=sampler, qoi_cols=qois)
+    #TODO Probably get last analysis results from the campaign
+    campaign.apply_analysis(analysis)
 
-# Display the results of the analysis
-for qoi in qois[1:]:
-    print(f"Results for {qoi}:")
-    print(results.describe(qoi))
-    print("\n")
+    # Get the last analysis results
+    results = campaign.get_last_analysis()
 
-# Save the analysis results
-analysis_filename = add_timestamp_to_filename("analysis_results.hdf5")
+    # Display the results of the analysis
+    for qoi in qois[1:]:
+        print(f"Results for {qoi}:")
+        print(results.describe(qoi))
+        print("\n")
 
-#print(f"Analysis results saved to: {analysis_filename}")
-#TODO: save the analysis results in a specific folder
+    # Save the analysis results
+    analysis_filename = add_timestamp_to_filename("analysis_results.hdf5")
 
-### PLOTTING RESULTS ###
+    #print(f"Results saved to: {results_filename}")
+    # TODO: specify the results filename in the campaign or save it in a specific folder
+    # TODO: save the results of a campaign
+    # TODO: add config files and parameters distriubtions to the saved results
 
-visualisation_of_results(results, qois, "plots_festim_uq_" + campaign_timestamp)
+    return results
 
-print("FESTIM UQ campaign completed successfully!")
+def perform_uq_festim():
+    """
+    Main function to perform the UQ campaign for FESTIM.
+    This function orchestrates the preparation, execution, and analysis of the UQ campaign.
+    """
+    # EasyVVUQ script to be executed as a function
+    # TODO single out parts into function / methods of a class - test
+    print("Starting FESTIM UQ campaign...")
 
+    # Prepare the UQ campaign
+    # This includes defining parameters, encoders, decoders, and actions
+    campaign, qois, distributions, campaign_timestamp, sampler = prepare_uq_campaign()
+
+    # TODO: add more parameter for Arrhenious law
+    # TODO: try higher BC concentration values - does it even make sense to have such low BC
+    # TODO: run with higher polynomial degree (+: now 2)
+    # TODO: check if there are actually negative concentrations, if yes - check model and specify correct params ranges
+
+    # Run the campaign
+    campaign, campaign_results = run_uq_campaign(campaign)
+
+    # Save the results
+    results_filename = add_timestamp_to_filename("results.hdf5")
+    campaign.campaign_db.dump()
+
+    # Perform the analysis
+    results = analyse_uq_results(campaign, qois, sampler)
+
+    # Visualize the results
+    visualisation_of_results(results, distributions, qois, "plots_festim_uq_" + campaign_timestamp, plot_timestamp=campaign_timestamp)
+
+    print("FESTIM UQ campaign completed successfully!")
+
+
+if __name__ == "__main__":
+    """
+    Main entry point for the script.
+    This will execute the UQ campaign when the script is run directly.
+    """
+    try:
+        perform_uq_festim()
+    except Exception as e:
+        print(f"An error occurred during the UQ campaign: {e}")
+        sys.exit(1)
 
 ##################################
 # TODO:
-
-# make sobol plots more clear; figure out disparity!
 
 # 0) Double check everything and clean up the code
 
