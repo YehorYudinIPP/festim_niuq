@@ -2,6 +2,7 @@
 model_parameters:
   total_time: 100.0  # s
   T_0: 300.0  # initial temperature in [K]
+  'heat_model': 'heat_transfer'  # type of heat model to use, options: 'heat_transfer', 'none'
   
 geometry:
   length: 3.5e-5 #3.5e-6 #0.000007    # [m]
@@ -13,6 +14,11 @@ materials:
   # solubility: 1.87e24  # [H/m³/Pa^0.5]
   D_0: 1.0e-7  # diffusion coefficient in [m²/s]
   E_D: 0.2    # activation energy in [eV]
+  thermal_conductivity: 2.0  # thermal conductivity in [W/(m*K)]
+  rho: 534.0  # density in [kg/m³]
+  heat_capacity: 900.0  # specific heat capacity in [J/(kg*K)]
+  #h_coeff: 100.0  # convective heat transfer coefficient in [W/(m²*K)]
+  #T_ext: 300.0  # external temperature in [K]
   
 simulation:
   n_elements: 1024  # number of mesh elements

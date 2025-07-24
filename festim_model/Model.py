@@ -27,62 +27,33 @@ class Model():
         # Create a FESTIM model instance
         self.model = F.Simulation()
 
-        # Define model geometry and its mesh
-        # 1D case
-
-        # TODO figure out if there is sperical geometry support in FESTIM and apply for an isotropic case
-
-        # Specifying numerical parameters of mesh: physical size and number of elements
-        self.n_elements = int(config['simulation']['n_elements'])
-        self.length = float(config['geometry']['length'])  # Length of the geometry [m]
-
-        # Create vertices for the mesh
-        # Assuming a 1D geometry, vertices are evenly spaced along the length
-
-        # Option 1) for vertices: uniform mesh
-        # self.vertices = np.linspace(0., self.length, self.n_elements + 1)
-
-        # When the BC uncertainty influence fall-off quickly, try refined mesh at the domain boundary
-        # Option 2) mesh refined at the boundary (right side)
-        refined_length_fraction = 0.1  # Fraction of the length to refine
-        refined_elements_fraction = 0.25  # Fraction of elements to refine
-
-        refined_elements_count = int(self.n_elements * refined_elements_fraction)
-        self.vertices = np.concatenate((
-            np.linspace(0., self.length * (1. - refined_length_fraction), self.n_elements - refined_elements_count + 1), # inner (larger) part of the mesh
-            np.linspace(self.length * (1. - refined_length_fraction), self.length, refined_elements_count + 1)[1:] # refined (smaller outer) part of the mesh
-        ))
-        #TODO mind round-off errors in the mesh size
-
-        #print(f"Using vertices: {self.vertices}")  ### Debugging output
-
-        # Create a Mesh object from the vertices
-
-        # Option 1) for mesh: use FESTIM's MeshFromVertices
-        self.model.mesh = F.MeshFromVertices(
-            vertices=self.vertices,
-            #type="cylindrical",  # Specify cylindrical mesh type
-            type="spherical",  # Specify spherical mesh type
-            )
-        
-        # Option 2) for mesh: use FESTIM's Mesh  - and FeniCS objects - specific for spherical geometry
-        # self.model.mesh = F.Mesh(
-        #     type="spherical",  # Specify spherical mesh type
-        # )
-
         self.results = None # Placeholder for results
         # TODO find a way to fill this in from FESTIM Model object
+
+        # Define model geometry and its mesh
+        self.specify_geometry(config)
 
         # Define model parameters: material properties
         self.model.materials = F.Material(
                 id=1,
                 D_0=float(config['materials']['D_0']),  # diffusion coefficient
                 E_D=float(config['materials']['E_D']),  # activation energy
+                thermal_cond=float(config['materials']['thermal_conductivity']),  # thermal conductivity
+                rho=float(config['materials']['rho']),  # density
+                heat_capacity =float(config['materials']['heat_capacity']),  # specific heat capacity
+                #solubility=float(config['materials']['solubility']),  # solubility
             )
         # TODO: fetch data from HTM DataBase - LiO2 as an example
 
-        # Define model parameters: temperature
-        self.model.T = config['model_parameters']['T_0']
+        # Define model parameters: temperature (and heat transfer model)
+        if 'heat_model' in config['model_parameters'] and config['model_parameters']['heat_model'] == 'heat_transfer':
+            # Use heat transfer model
+            self.add_heat_conduction(config)
+            #TODO test thoroughly!
+        else:
+            self.model.T = config['model_parameters']['T_0']
+
+        print (f"Using heat transfer model: {self.model.T.__dict__}") ###DEBUG
 
         #print(f"Using material properties: D_0={self.model.materials[0].D_0}, E_D={self.model.materials[0].E_D}, T={self.model.T.__dict__}") ###DEBUG
 
@@ -115,8 +86,6 @@ class Model():
 
         #print(f"Using boundary value at outer surfaces: {self.model.boundary_conditions[1].__dict__}") ###DEBUG
         #print(f"Using constant volumetric source term with values: {self.model.sources[0].__dict__}") ###DEBUG
-
-        #TODO: Add model for temperature!
 
         # Define model numerical settings for a simulation: solver and time
         self.model.settings = F.Settings(
@@ -165,6 +134,128 @@ class Model():
 
         print(f"Initialisation finished! Model initialized with {self.n_elements} elements")  ###DEBUG
 
+    def specify_geometry(self, config):
+        """
+        Specify the geometry of the FESTIM model.
+        This method can be extended to include specific geometry logic.
+        """
+        print("Specifying geometry...")
+        # 1D case
+
+        # Specifying numerical parameters of mesh: physical size and number of elements
+        self.n_elements = int(config['simulation']['n_elements'])
+        self.length = float(config['geometry']['length'])  # Length of the geometry [m]
+
+        # Create vertices for the mesh
+        # Assuming a 1D geometry, vertices are evenly spaced along the length
+
+        # Option 1) for vertices: uniform mesh
+        # self.vertices = np.linspace(0., self.length, self.n_elements + 1)
+
+        # When the BC uncertainty influence fall-off quickly, try refined mesh at the domain boundary
+        # Option 2) mesh refined at the boundary (right side)
+        refined_length_fraction = 0.1  # Fraction of the length to refine
+        refined_elements_fraction = 0.25  # Fraction of elements to refine
+
+        refined_elements_count = int(self.n_elements * refined_elements_fraction)
+        self.vertices = np.concatenate((
+            np.linspace(0., self.length * (1. - refined_length_fraction), self.n_elements - refined_elements_count + 1), # inner (larger) part of the mesh
+            np.linspace(self.length * (1. - refined_length_fraction), self.length, refined_elements_count + 1)[1:] # refined (smaller outer) part of the mesh
+        ))
+        #TODO mind round-off errors in the mesh size
+
+        #print(f"Using vertices: {self.vertices}")  ### Debugging output
+
+        # Create a Mesh object from the vertices
+
+        # Option 1) for mesh: use FESTIM's MeshFromVertices
+        self.model.mesh = F.MeshFromVertices(
+            vertices=self.vertices,
+            #type="cylindrical",  # Specify cylindrical mesh type
+            type="spherical",  # Specify spherical mesh type
+            )
+        
+        # Option 2) for mesh: use FESTIM's Mesh  - and FeniCS objects - specific for spherical geometry
+        # self.model.mesh = F.Mesh(
+        #     type="spherical",  # Specify spherical mesh type
+        # )
+
+        return self.model.mesh
+
+    def specify_boundary_conditions(self):
+        """
+        Specify boundary conditions for the FESTIM model.
+        This method can be extended to include specific boundary condition logic.
+        """
+        print("Specifying boundary conditions...")
+
+        # Example: Set Dirichlet boundary condition at the right end of the mesh
+        # self.model.boundary_conditions[1].value = 1.0e20  # Example value
+
+    def add_source_terms(self):
+        """
+        Add source terms to the FESTIM model.
+        This method can be extended to include specific source term logic.
+        """
+        print("Adding source terms...")
+
+        # Example: Set a constant volumetric source term
+        # self.model.sources[0].value = 1.0e20  # Example value 
+
+    def add_heat_conduction(self, config):
+        """
+        Add heat conduction to the FESTIM model.
+        This method can be extended to include specific heat conduction logic.
+        """
+        print("Adding heat conduction model...")
+
+        # Example: Set a constant heat conduction coefficient
+
+        # Add model for T, temperature quantity, and redefine the model's attribute
+        self.model.T = F.HeatTransferProblem(
+            transient=True,
+            initial_condition=F.InitialCondition(
+                value=float(config['model_parameters']['T_0']),  # Initial temperature [K]
+                field="T",
+            ),
+        )
+        print(f" > Using initial temperature: {self.model.T.initial_condition.value} [K]")  # Debugging output
+
+        # Define heat transfer coefficient and external temperature - TODO add to the config
+        h_coeff = 1.0
+        T_ext = 650.0
+        Q_source = 1.0e+3
+        
+        # Apply appropriate boundary conditions for heat transfer
+        self.model.T.boundary_conditions.append(
+            F.DirichletBC(
+                value=config['model_parameters']['T_0'],  # Initial temperature [K]
+                surfaces=[1],  # Assuming a single surface at the right side of the mesh
+                field="T",
+            )
+        )
+        self.model.T.boundary_conditions.append(
+            F.ConvectiveFlux(
+                h_coeff=h_coeff,
+                T_ext=T_ext,  # External temperature [K]
+                surfaces=[2],  # Assuming a single surface at the left side of the mesh
+                #field="T",
+            )
+        )
+        print(f" > Using boundary conditions for temperature: T={self.model.T.boundary_conditions[0].value} [K] at surface 1, h_coeff={h_coeff}, T_ext={T_ext} [K] at surface 2")  # Debugging output
+
+        # Apply appropriate source terms for heat transfer
+        self.model.T.sources.append(
+            F.Source(
+                value=Q_source,
+                volume=1,  # Assuming a single volume for the entire mesh
+                field="T",
+            )
+        )   
+        print(f" > Using source term for heat transfer: Q_source={Q_source} [W/m³]")  # Debugging output
+        
+        return self.model.T
+    
     def run(self):
         """
         Run the FESTIM simulation.
