@@ -115,6 +115,16 @@ class Model():
                 times=self.milestone_times,
             )
         ]
+
+        # Add temperature export if heat transfer model is used
+        if 'heat_model' in config['model_parameters'] and config['model_parameters']['heat_model'] == 'heat_transfer':
+            self.model.exports.append(
+                F.TXTExport(
+                    field="T",
+                    filename=f"{self.result_folder}/temperature.txt",
+                    times=self.milestone_times,
+                )
+            )
     
         # Define time step
         self.model.dt = F.Stepsize(

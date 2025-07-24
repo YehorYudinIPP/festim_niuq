@@ -110,7 +110,14 @@ class Diagnostics:
         if self.result_flag is True and self.results is not None:
 
             print("> Visualizing results")
-   
+
+            # TODO add iteration over quantities of interest, or selection by name
+            #  - For now, we assume the first column is radial coordinates and the rest are concentrations at different times
+            
+            # Example: for basic temperature visualization at the last time step
+            # from fenics import plot
+            # plot(model.T.T, title="Temperature Distribution", mode='color', interactive=True)
+
             for (i,time) in enumerate(self.milestone_times):
                 # The first column is the radial coordinate values
                 # TODO: read file a CSV
