@@ -24,16 +24,21 @@ class Diagnostics:
         self.results = results
         self.result_folder = result_folder if result_folder else './results'
 
+        # TODO by default, try to read results from the model attribute
+
         # If result is none, read from the result folder
         if self.results is None:
+            print(f"Diagniostics: No results provided, trying to read from {self.result_folder}/results.txt")
             result_file = os.path.join(self.result_folder, 'results.txt')
             if os.path.exists(result_file):
                 self.results = np.genfromtxt(result_file, skip_header=True, delimiter=',')
+                print(f"Results loaded from {result_file}")
             else:
                 print(f"Warning: Results file not found: {result_file}")
                 self.results = None
 
         # Check if results are now present
+        # TODO think if the flag is needed
         self.result_flag = None  # Flag to check if results are available
         if self.results is not None:   
             self.result_flag = True
@@ -44,11 +49,14 @@ class Diagnostics:
         self.milestone_times = self.model.config.get('simulation', {}).get('milestone_times', [])
         if not self.milestone_times:
             print("Warning: No milestone times found in configuration. Using default values.")
-            self.milestone_times = [0, 10, 20, 30]
+            self.milestone_times = [1., 2., 3., 4., 5.]  # Default values for milestone times
         # Option 2) for milestone times: read from result file if available
         if self.milestone_times is None and self.results is not None and self.results.shape[1] > 1:
             # they are in the header of the results file 
             self.milestone_times = np.genfromtxt(result_file, max_rows=1, delimiter=',')[1:].tolist()
+
+        # n_elem_print = 3
+        # print(f">>> Diagnostics.__init__: Printing last {n_elem_print} elements of the results for last time of {self.milestone_times[-1]}: {self.results[-n_elem_print:, -1]}")  # Print last n elements of the results for the last time step ###DEBUG
 
     def compute_qoi(self, qoi_name):
         """
@@ -96,20 +104,26 @@ class Diagnostics:
         if self.result_flag is not True:
             # Attempt to fall back and read from results.txt
             print("No results found in the object during visualisation, reading from file...")
-            print(f"Reading results from {self.result_folder}/results.txt")
+            print(f">>> Diagnostics.visualise: Reading results from {self.result_folder}/results.txt")
             self.results = np.genfromtxt(self.result_folder+"/results.txt", skip_header=True, delimiter=',')
 
-        if self.result_flag is not None:
+        if self.result_flag is True and self.results is not None:
 
             print("> Visualizing results")
    
             for (i,time) in enumerate(self.milestone_times):
-                print(f"> Reading results for time {time} s")
-                plt.plot(self.model.vertices[:], self.results[:, i], label=f"t={time} s")
+                # The first column is the radial coordinate values
+                # TODO: read file a CSV
+                # TODO: considet that there might be no result data for a given milestone time
+                print(f"> Plotting results for time {time} s")
+                plt.plot(self.model.vertices[:], self.results[:, i+1], label=f"t={time} s")
+
+                # n_el_print = 3
+                # print(f"Last {n_el_print} elements at time {time} s: {self.results[-n_el_print:, i+1]}") ### DEBUG
 
             plt.xlabel("r [m]")
             plt.ylabel("Concentration [m^-3]")
-            plt.title(f"Concentration vs Radius at different times. \n Param-s: T={self.model.config['materials']['T']:.2f} [K], G={float(self.model.config['source_terms']['source_value']):.2e} [m^-3s^-1], C(a)={float(self.model.config['boundary_conditions']['right_bc_value']):.2e} [m^-3]")
+            plt.title(f"Concentration vs Radius at different times. \n Param-s: T={self.model.config['model_parameters']['T_0']:.2f} [K], G={float(self.model.config['source_terms']['source_value']):.2e} [m^-3s^-1], C(a)={float(self.model.config['boundary_conditions']['right_bc_value']):.2e} [m^-3]")
             plt.legend([f"t={time}" for time in self.milestone_times])
             #plt.show()
 

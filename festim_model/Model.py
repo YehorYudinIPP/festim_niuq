@@ -54,7 +54,7 @@ class Model():
         ))
         #TODO mind round-off errors in the mesh size
 
-        print(f"Using vertices: {self.vertices}")  ### Debugging output
+        #print(f"Using vertices: {self.vertices}")  ### Debugging output
 
         # Create a Mesh object from the vertices
 
@@ -71,6 +71,7 @@ class Model():
         # )
 
         self.results = None # Placeholder for results
+        # TODO find a way to fill this in from FESTIM Model object
 
         # Define model parameters: material properties
         self.model.materials = F.Material(
@@ -81,9 +82,9 @@ class Model():
         # TODO: fetch data from HTM DataBase - LiO2 as an example
 
         # Define model parameters: temperature
-        self.model.T = config['materials']['T']
+        self.model.T = config['model_parameters']['T_0']
 
-        print(f"Using material properties: D_0={self.model.materials[0].D_0}, E_D={self.model.materials[0].E_D}, T={self.model.T.__dict__}") ###DEBUG
+        #print(f"Using material properties: D_0={self.model.materials[0].D_0}, E_D={self.model.materials[0].E_D}, T={self.model.T.__dict__}") ###DEBUG
 
         # Define Boundary conditions
         # Sperical case, apply DirichletBC at boundary (in relative terms, r=1.0), NeumannBC (FluxBC) at the center (r=0.0)
@@ -112,8 +113,8 @@ class Model():
             ),
         ]
 
-        print(f"Using boundary value at outer surfaces: {self.model.boundary_conditions[1].__dict__}") ###DEBUG
-        print(f"Using constant volumetric source term with values: {self.model.sources[0].__dict__}") ###DEBUG
+        #print(f"Using boundary value at outer surfaces: {self.model.boundary_conditions[1].__dict__}") ###DEBUG
+        #print(f"Using constant volumetric source term with values: {self.model.sources[0].__dict__}") ###DEBUG
 
         #TODO: Add model for temperature!
 
@@ -188,11 +189,14 @@ class Model():
         # self.model.export_results()
 
         #TODO: Think of better BCs
-        #TODO: Read Lithium data from HTM DataBase
+        #TODO: Read Lithium (and LiTO) data from HTM DataBase
         #TODO: Use proprietary visualisation and diagnostics tools
         #TODO: Explore cartesian/cylindrical/spherical geometries/coordinates/curvatures
         #TODO: Add important physical effects
         #TODO: Couple with heat conductivity and temperature
+
+        # n_elem_print = 3
+        # print(f">>> Model.run: Printing last {n_elem_print} elements of the results for last time of {self.milestone_times[-1]}: {self.results[-n_elem_print:, -1]}")  # Print last n elements of the results for the last time step ###DEBUG
 
         return self.results
 
