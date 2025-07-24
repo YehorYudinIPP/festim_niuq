@@ -70,10 +70,11 @@ def main():
     boundary_conditions = config.get('boundary_conditions', {})
     
     # Print some key parameters
-    print(f"  Temperature: {materials.get('T', 'Not specified')} K")
+    print(f"  Temperature: {model_params.get('T_0', 'Not specified')} K")
     print(f"  Time step: {simulation.get('time_step', 'Not specified')} s")
     print(f"  Total time: {model_params.get('total_time', 'Not specified')} s")
     print(f"  Material: {materials.get('material_name', 'Not specified')}")
+    print(f"  Sample length: {geometry.get('length', 'Not specified')} m")
     print(f"  Number of elements: {simulation.get('n_elements', 'Not specified')}")
     
     # Create an instance of the FESTIM model with configuration
@@ -81,9 +82,13 @@ def main():
     
     # Run the FESTIM model with configuration
     results = model.run()
-    
+
+    # n_elem_print = 3
+    # print(f">>> festim_model_run: Printing last {n_elem_print} elements of the results for last time of {model.milestone_times[-1]}: {results[-n_elem_print:, -1]}")  # Print last n elements of the results for the last time step ###DEBUG
+
     # Save results to a file (for EasyVVUQ integration)
     save_results_for_uq(results, model)
+    #print(f">>> festim_model_run: Print results to the console: {results}") ###DEBUG
 
     # Visualise results
     diagnostics = Diagnostics(model, results=results, result_folder=model.result_folder)
