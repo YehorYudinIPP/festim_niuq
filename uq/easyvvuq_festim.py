@@ -363,11 +363,11 @@ def visualisation_of_results(results, distributions, qois, plot_folder_name, plo
         plot_timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
 
     # Create a folder to save plots
+    # Assumes that by default there is no folder with plots, and creates a new one
     if not os.path.exists("plots_festim_uq_" + plot_timestamp):
         plot_folder_name = "plots_festim_uq_" + plot_timestamp
         os.makedirs(plot_folder_name)
         # Save plots in this folder
-    #TODO: assumes that by default there is no folder with plots, and creates a new one
 
     # Read the vertices from the results
     vertices = results.describe('x', 'mean')  # Assuming 'x' is the vertex coordinate in results
@@ -496,6 +496,16 @@ def prepare_uq_campaign(*args, **kwargs):
     # TODO rearange FESTIM data output, figure out how to specify multiple quantities at different times, all vs a coordinate
 
     # Set up necessary elements for the EasyVVUQ campaign
+
+    # First, if the argument dictionary is not empty, get the parameters and their values from it, and modify the YAML encoder accordingly
+    if kwargs:
+        # Update parameters with the provided values
+        for key, value in kwargs.items():
+            if key in parameters:
+                parameters[key]['default'] = value
+            else:
+                print(f"Warning: Parameter '{key}' not found in model parameters. Skipping update.")
+    # TODO: could be done: (1) in the file at the harddrive, (2) in the YAML object read by the encoder, (3) as an UQ parameter that has to be set to a new default value
 
     # Create an Encoder object
 
@@ -652,17 +662,16 @@ def perform_uq_festim(*args, **kwargs):
     This function orchestrates the preparation, execution, and analysis of the UQ campaign.
     """
     # EasyVVUQ script to be executed as a function
-    # TODO single out parts into function / methods of a class - test
     print("Starting FESTIM UQ campaign...")
 
     # Prepare the UQ campaign
     # This includes defining parameters, encoders, decoders, and actions
-    campaign, qois, distributions, campaign_timestamp, sampler = prepare_uq_campaign()
+    campaign, qois, distributions, campaign_timestamp, sampler = prepare_uq_campaign(kwargs=kwargs)
 
     # TODO: add more parameter for Arrhenious law
-    # TODO: try higher BC concentration values - does it even make sense to have such low BC
+    # TODO: try higher BC concentration values - does it even make sense to have such low BC (+)
     # TODO: run with higher polynomial degree (+: now 2)
-    # TODO: check if there are actually negative concentrations, if yes - check model and specify correct params ranges
+    # TODO: check if there are actually negative concentrations, if yes - check model and specify correct params ranges - work out expressions for quantiles for unfiorm distribution based on PCE(p=2)
 
     # Run the campaign
     campaign, campaign_results = run_uq_campaign(campaign)

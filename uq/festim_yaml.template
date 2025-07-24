@@ -6,7 +6,7 @@ model_parameters:
   T_0: $T$      # Temperature
 
 geometry:
-  length: 3.5e-6
+  length: 3.5e-7
   #thickness: 1.0e-6
 
 materials:
