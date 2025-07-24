@@ -460,9 +460,8 @@ def define_festim_model_parameters():
         "t=5.00e-01s",
         "t=1.00e+00s",
         "t=5.00e+00s",
-        "t=1.00e+01s"
+        "t=1.00e+01s",
         "t=2.50e+01s",
-        "t=1.00e+02s"
     ]
     
     #print(f"Model parameters defined: {parameters}") ####DEBUG

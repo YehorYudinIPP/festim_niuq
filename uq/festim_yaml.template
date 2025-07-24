@@ -21,7 +21,7 @@ simulation:
   absolute_tolerance: 1.0e+10
   relative_tolerance: 1.0e-10
   output_directory: "results/"
-  milestone_times: [0.1, 0.2, 0.5, 1.0, 5.0, 10.0,]
+  milestone_times: [0.1, 0.2, 0.5, 1.0, 5.0, 10.0, 25.0]
 
 boundary_conditions:
   left_bc_type: "neumann"

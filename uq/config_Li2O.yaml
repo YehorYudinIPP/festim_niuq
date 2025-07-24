@@ -1,7 +1,7 @@
 # FESTIM Model Configuration
 model_parameters:
   total_time: 25.0  # [s]
-  T_0: 300.0  # initial temperature in [K]
+  T_0: 300.0  # initial temperature [K]
 
 geometry:
   length: 3.5e-4 # [m]
@@ -11,8 +11,8 @@ materials:
   material_name: "Li2O"
   # diffusivity: 4.1e-7  # [m²/s]
   # solubility: 1.87e24  # [H/m³/Pa^0.5]
-  D_0: 1.03613e-6  # diffusion coefficient in [m²/s]
-  E_D: 0.9028    # activation energy in [eV]
+  D_0: 1.03613e-6  # diffusion coefficient [m²/s]
+  E_D: 0.9028    # activation energy [eV]
   
 simulation:
   n_elements: 1024  # number of mesh elements
