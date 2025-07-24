@@ -187,11 +187,10 @@ def plot_stats_vs_r(results, qois, plot_folder_name, plot_timestamp, rs=None):
 
         # Plotting Sobol indices as a treemap
         #TODO: figure out how to plot treemaps at arbitrary locations
-        results.plot_sobols_treemap(
-            qoi=qoi,
-            filename=f"{plot_folder_name}/{sobols_treemap_filename}",
-        )
-        #plt.close()  # Close the plot to avoid display issues in some environments
+        # results.plot_sobols_treemap(
+        #     qoi=qoi,
+        #     filename=f"{plot_folder_name}/{sobols_treemap_filename}",
+        # )
 
         # Read out the arrays of stats from the results object
         y = results.describe(qoi, 'mean')
@@ -265,7 +264,7 @@ def plot_unc_vs_t(r_at_r, t_s, y_at_r, sy_at_r, y10_at_r, y90_at_r, foldername="
 
     return 0
 
-def plot_sobols_vs_t(r_s, t_s, s1_s, foldername="", filename="", r_ind=0):
+def plot_sobols_vs_t(r_s, t_s, s1_s, distributions, foldername="", filename="", r_ind=0):
     """
     Plot Sobol indices as a function of time.
     """
@@ -344,7 +343,7 @@ def plot_stats_vs_t(results, distributions, qois, plot_folder_name, plot_timesta
         plot_unc_vs_t(r_at_r[0], t_s, y_at_r, sy_at_r, y10_at_r, y90_at_r, foldername=plot_folder_name, filename=moments_vst_filename)
 
         # Plotting Sobol indices as a function of time
-        plot_sobols_vs_t(r_at_r[0], t_s, s1_s, foldername=plot_folder_name, filename=sobols_vst_filename, r_ind=r_ind)
+        plot_sobols_vs_t(r_at_r[0], t_s, s1_s, distributions, foldername=plot_folder_name, filename=sobols_vst_filename, r_ind=r_ind)
 
         print(f"Plots (for time series) saved: {moments_vst_filename}, {sobols_vst_filename}")
 
@@ -486,7 +485,7 @@ def prepare_execution_command():
     
     return execute
 
-def prepare_uq_campaign():
+def prepare_uq_campaign(*args, **kwargs):
     """
     Prepare the uncertainty quantification (UQ) campaign by creating necessary steps: set-up, parameter definitions, encoders, decoders, and actions.
     """
@@ -535,6 +534,8 @@ def prepare_uq_campaign():
     #     target_filename="config.yaml"
     # )
 
+    # TODO modify the YAML more arbitrartly - pass a parameter value from this function e.g. for the sample length scan
+
     #print(f"Using encoder: {encoder.__class__.__name__}") ###DEBUG
     print(f"Encoder prepared: {encoder}")
 
@@ -556,8 +557,6 @@ def prepare_uq_campaign():
     # Set up actions for the campaign
     actions = Actions(
         CreateRunDirectory('run_dir'),
-        # Copy config file to each run directory (alternative approach)
-        # CopyFile(config_file, 'config.yaml'),  # Uncomment if you want to copy config to each run
         Encode(encoder),
         execute,
         Decode(decoder),
@@ -647,7 +646,7 @@ def analyse_uq_results(campaign, qois, sampler):
 
     return results
 
-def perform_uq_festim():
+def perform_uq_festim(*args, **kwargs):
     """
     Main function to perform the UQ campaign for FESTIM.
     This function orchestrates the preparation, execution, and analysis of the UQ campaign.
