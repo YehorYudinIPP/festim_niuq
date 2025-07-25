@@ -30,16 +30,20 @@ class Model():
         self.results = None # Placeholder for results
         # TODO find a way to fill this in from FESTIM Model object
 
+        self.quantities_of_interest = {
+            'tritium_concentration': None,  # Placeholder for tritium concentration
+        }  # Dictionary to store quantities of interest (QoI)
+
         # Define model geometry and its mesh
-        self.specify_geometry(config)
+        self._specify_geometry(config)
 
         # Define material properties
-        self.specify_materials(config)
+        self._specify_materials(config)
 
         # Define model parameters: temperature (and heat transfer model)
         if 'heat_model' in config['model_parameters'] and config['model_parameters']['heat_model'] == 'heat_transfer':
             # Use heat transfer model
-            self.add_heat_conduction(config)
+            self._add_heat_conduction(config)
             #TODO test thoroughly!
         else:
             self.model.T = config['model_parameters']['T_0']
@@ -47,10 +51,10 @@ class Model():
         print (f"Using heat transfer model: {self.model.T.__dict__}") ###DEBUG
 
         # Define Boundary conditions
-        self.specify_boundary_conditions(config)
+        self._specify_boundary_conditions(config)
 
         # Define source terms
-        self.add_source_terms(config)
+        self._add_source_terms(config)
 
         # Define model numerical settings for a simulation: solver and time
         self.model.settings = F.Settings(
@@ -72,18 +76,18 @@ class Model():
         #self.derived_quantities = self.define_derived_quantities()
 
         # Define exports: result format
-        self.specify_outputs(config)
+        self._specify_outputs(config)
 
         # Define time stepping (for transient simulation)
         if self.model.settings.transient:
-            self.specify_time_integration_settings(config)
+            self._specify_time_integration_settings(config)
         else:
             self.model.dt = None
         #TODO: since model convergence so quickly make time step adaptive, based on the model parameters and mesh size - exam the influence of the time step on the results
 
         print(f"Initialisation finished! Model initialized with {self.n_elements} elements")  ###DEBUG
 
-    def specify_geometry(self, config):
+    def _specify_geometry(self, config):
         """
         Specify the geometry of the FESTIM model.
         This method can be extended to include specific geometry logic.
@@ -131,7 +135,7 @@ class Model():
 
         return self.model.mesh
 
-    def specify_boundary_conditions(self, config):
+    def _specify_boundary_conditions(self, config):
         """
         Specify boundary conditions for the FESTIM model.
         This method can be extended to include specific boundary condition logic.
@@ -157,7 +161,7 @@ class Model():
 
         return self.model.boundary_conditions
 
-    def specify_materials(self, config):
+    def _specify_materials(self, config):
         """
         Specify materials for the FESTIM model.
         This method can be extended to include specific material logic.
@@ -180,7 +184,7 @@ class Model():
 
         return self.model.materials
 
-    def add_source_terms(self, config):
+    def _add_source_terms(self, config):
         """
         Add source terms to the FESTIM model.
         This method can be extended to include specific source term logic.
@@ -201,12 +205,15 @@ class Model():
 
         return self.model.sources
 
-    def add_heat_conduction(self, config):
+    def _add_heat_conduction(self, config):
         """
         Add heat conduction to the FESTIM model.
         This method can be extended to include specific heat conduction logic.
         """
         print("Adding heat conduction model...")
+
+        # Add a new quantity of interest for temperature to analyse after the simulation
+        self.quantities_of_interest["temperature"] = None
 
         # Example: Set a constant heat conduction coefficient
 
@@ -223,8 +230,12 @@ class Model():
         # Define heat transfer coefficient and external temperature - TODO add to the config
         h_coeff = 1.0
         T_ext = 650.0
-        Q_source = 1.0e+3
-        
+        if 'source_type_heat' in config['source_terms']:
+            if config['source_terms']['source_type_heat'] == 'constant':
+                Q_source = float(config['source_terms']['source_value_heat'])  # Heat source term [W/m³]
+        else:
+            Q_source = 0.0
+
         # Apply appropriate boundary conditions for heat transfer
         self.model.T.boundary_conditions.append(
             F.DirichletBC(
@@ -246,7 +257,7 @@ class Model():
         # Apply appropriate source terms for heat transfer
         self.model.T.sources.append(
             F.Source(
-                value=Q_source,
+                value=Q_source,  # Heat source term [W/m³]
                 volume=1,  # Assuming a single volume for the entire mesh
                 field="T",
             )
@@ -255,7 +266,7 @@ class Model():
         
         return self.model.T
 
-    def specify_time_integration_settings(self, config):
+    def _specify_time_integration_settings(self, config):
         """
         Specify time integration settings for the FESTIM model.
         This method can be extended to include specific time integration logic.
@@ -277,7 +288,7 @@ class Model():
 
         return self.model.dt
 
-    def specify_outputs(self, config):
+    def _specify_outputs(self, config):
         """
         Specify outputs for the FESTIM model.
         This method can be extended to include specific output logic.
@@ -305,7 +316,7 @@ class Model():
                 # TODO chose result data format to store numerical tensor of data of dimansions [quantity x time x elements]
                 F.TXTExport(
                     field="solute",
-                    filename=f"{self.result_folder}/results.txt",
+                    filename=f"{self.result_folder}/results_tritium_concentration.txt",
                     times=self.milestone_times,
                 )
             ]
@@ -314,7 +325,7 @@ class Model():
             self.model.exports = [
                 F.TXTExport(
                     field="solute",
-                    filename=f"{self.result_folder}/results.txt",
+                    filename=f"{self.result_folder}/results_tritium_concentration.txt",
                 )
             ]
 
@@ -324,7 +335,7 @@ class Model():
                 self.model.exports.append(
                     F.TXTExport(
                         field="T",
-                        filename=f"{self.result_folder}/temperature.txt",
+                        filename=f"{self.result_folder}/results_temperature.txt",
                         times=self.milestone_times,
                     )
                 )
@@ -332,7 +343,7 @@ class Model():
                 self.model.exports.append(
                     F.TXTExport(
                         field="T",
-                        filename=f"{self.result_folder}/temperature.txt",
+                        filename=f"{self.result_folder}/results_temperature.txt",
                     )
                 )
 
