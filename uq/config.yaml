@@ -2,6 +2,7 @@
 model_parameters:
   total_time: 100.0  # s
   T_0: 300.0  # initial temperature in [K]
+  #T_ext: 300.0  # external temperature in [K]
   'heat_model': 'heat_transfer'  # type of heat model to use, options: 'heat_transfer', 'none'
   
 geometry:
@@ -18,7 +19,6 @@ materials:
   rho: 534.0  # density in [kg/m³]
   heat_capacity: 900.0  # specific heat capacity in [J/(kg*K)]
   #h_coeff: 100.0  # convective heat transfer coefficient in [W/(m²*K)]
-  #T_ext: 300.0  # external temperature in [K]
   
 simulation:
   n_elements: 1024  # number of mesh elements

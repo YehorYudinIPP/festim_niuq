@@ -33,17 +33,8 @@ class Model():
         # Define model geometry and its mesh
         self.specify_geometry(config)
 
-        # Define model parameters: material properties
-        self.model.materials = F.Material(
-                id=1,
-                D_0=float(config['materials']['D_0']),  # diffusion coefficient
-                E_D=float(config['materials']['E_D']),  # activation energy
-                thermal_cond=float(config['materials']['thermal_conductivity']),  # thermal conductivity
-                rho=float(config['materials']['rho']),  # density
-                heat_capacity =float(config['materials']['heat_capacity']),  # specific heat capacity
-                #solubility=float(config['materials']['solubility']),  # solubility
-            )
-        # TODO: fetch data from HTM DataBase - LiO2 as an example
+        # Define material properties
+        self.specify_materials(config)
 
         # Define model parameters: temperature (and heat transfer model)
         if 'heat_model' in config['model_parameters'] and config['model_parameters']['heat_model'] == 'heat_transfer':
@@ -55,37 +46,11 @@ class Model():
 
         print (f"Using heat transfer model: {self.model.T.__dict__}") ###DEBUG
 
-        #print(f"Using material properties: D_0={self.model.materials[0].D_0}, E_D={self.model.materials[0].E_D}, T={self.model.T.__dict__}") ###DEBUG
-
         # Define Boundary conditions
-        # Sperical case, apply DirichletBC at boundary (in relative terms, r=1.0), NeumannBC (FluxBC) at the center (r=0.0)
-        self.model.boundary_conditions = [
-            F.FluxBC(
-                surfaces=[1],  # Assuming a single surface at the end of the mesh
-                value=float(config['boundary_conditions']['left_bc_value']),  # boundary value
-                field=0,
-            ),
-            F.DirichletBC(
-                surfaces=[2],  # Assuming a single surface at the start of the mesh
-                value=float(config['boundary_conditions']['right_bc_value']),  # boundary value
-                field=0,
-            ),
-        ]
+        self.specify_boundary_conditions(config)
 
-        # Define model parameters: source terms
-        #print(f"Passing the source term value: {config['source_terms']['source_value']}") ###DEBUG
-        
-        self.model.sources = [
-            F.Source(
-                value=float(config['source_terms']['source_value']),  # source term value [m^-3 s^-1]
-                #value=1.0e20,  ###DEBUG
-                volume=1,
-                field=0,
-            ),
-        ]
-
-        #print(f"Using boundary value at outer surfaces: {self.model.boundary_conditions[1].__dict__}") ###DEBUG
-        #print(f"Using constant volumetric source term with values: {self.model.sources[0].__dict__}") ###DEBUG
+        # Define source terms
+        self.add_source_terms(config)
 
         # Define model numerical settings for a simulation: solver and time
         self.model.settings = F.Settings(
@@ -95,52 +60,26 @@ class Model():
         )
         #TODO: estimate good simulation time via diffusion and other transport coefficients, dimensions of domain, and source term etc.
 
+        # Define if the model is transient or steady-state
+        if 'transient' in config['model_parameters'] and config['model_parameters']['transient'] is True:
+            self.model.settings.transient = True
+            print("Model is set to transient simulation.")
+        else:
+            self.model.settings.transient = False
+            print("Model is set to steady-state simulation.")
+
+        # Define derived quantities - TODO implement
+        #self.derived_quantities = self.define_derived_quantities()
+
         # Define exports: result format
-        self.result_folder = config['simulation']['output_directory']
-        self.milestone_times = config['simulation']['milestone_times']  # List of times to export results
+        self.specify_outputs(config)
 
-        self.model.exports = [
-            # F.XDMFExport(
-            #     field=0,
-            #     filename=f"{self.result_folder}/results.xdmf",
-            #     checkpoint=True,
-            # )
-            # TODO figure out Python API for XDMF export and import
-            # TODO look up / brush up Pythonic VTK API
-            # TODO figure out HDF5 export and import
-            # TODO chose result data format to store numerical tensor of data of dimansions [quantity x time x elements]
-            F.TXTExport(
-                field="solute",
-                filename=f"{self.result_folder}/results.txt",
-                times=self.milestone_times,
-            )
-        ]
-
-        # Add temperature export if heat transfer model is used
-        if 'heat_model' in config['model_parameters'] and config['model_parameters']['heat_model'] == 'heat_transfer':
-            self.model.exports.append(
-                F.TXTExport(
-                    field="T",
-                    filename=f"{self.result_folder}/temperature.txt",
-                    times=self.milestone_times,
-                )
-            )
-    
-        # Define time step
-        self.model.dt = F.Stepsize(
-            #float(config['simulation']['time_step']), # op1) fixed time step size
-
-            initial_value=float(config['simulation']['time_step']),  # op2) initial time step size for adaptive dt
-            stepsize_change_ratio=float(config['simulation']['stepsize_change_ratio']),  # ratio for adaptive time stepping
-            #min_value=float(config['simulation']['min_time_step']),  # minimum time step size
-            max_stepsize=float(config['simulation']['max_stepsize']),  # maximum time step size
-            dt_min=1e-05,  # minimum time step size for adaptive time stepping
-
-            milestones=self.milestone_times, # check points for results export
-        ) 
+        # Define time stepping (for transient simulation)
+        if self.model.settings.transient:
+            self.specify_time_integration_settings(config)
+        else:
+            self.model.dt = None
         #TODO: since model convergence so quickly make time step adaptive, based on the model parameters and mesh size - exam the influence of the time step on the results
-
-        #milestones=self.milestone_times  
 
         print(f"Initialisation finished! Model initialized with {self.n_elements} elements")  ###DEBUG
 
@@ -192,25 +131,75 @@ class Model():
 
         return self.model.mesh
 
-    def specify_boundary_conditions(self):
+    def specify_boundary_conditions(self, config):
         """
         Specify boundary conditions for the FESTIM model.
         This method can be extended to include specific boundary condition logic.
         """
         print("Specifying boundary conditions...")
 
-        # Example: Set Dirichlet boundary condition at the right end of the mesh
-        # self.model.boundary_conditions[1].value = 1.0e20  # Example value
+        # Sperical case, apply DirichletBC at boundary (in relative terms, r=1.0), NeumannBC (FluxBC) at the center (r=0.0)
+        self.model.boundary_conditions = [
+            F.FluxBC(
+                surfaces=[1],  # Assuming a single surface at the end of the mesh
+                value=float(config['boundary_conditions']['left_bc_value']),  # boundary value
+                field=0,
+            ),
+            F.DirichletBC(
+                surfaces=[2],  # Assuming a single surface at the start of the mesh
+                value=float(config['boundary_conditions']['right_bc_value']),  # boundary value
+                field=0,
+            ),
+        ]
 
-    def add_source_terms(self):
+        #print(f"Using boundary value at outer surfaces: {self.model.boundary_conditions[1].__dict__}") ###DEBUG
+        #print(f"Using constant volumetric source term with values: {self.model.sources[0].__dict__}") ###DEBUG
+
+        return self.model.boundary_conditions
+
+    def specify_materials(self, config):
+        """
+        Specify materials for the FESTIM model.
+        This method can be extended to include specific material logic.
+        """
+        print("Specifying materials...")
+
+        # Define material properties
+        self.model.materials = F.Material(
+            id=1,
+            D_0=float(config['materials']['D_0']),  # diffusion coefficient
+            E_D=float(config['materials']['E_D']),  # activation energy
+            thermal_cond=float(config['materials']['thermal_conductivity']),  # thermal conductivity
+            rho=float(config['materials']['rho']),  # density
+            heat_capacity=float(config['materials']['heat_capacity']),  # specific heat capacity
+            #solubility=float(config['materials']['solubility']),  # solubility
+            )
+        # TODO: fetch data from HTM DataBase - LiO2 as an example
+
+        #print(f"Using material properties: D_0={self.model.materials[0].D_0}, E_D={self.model.materials[0].E_D}, T={self.model.T.__dict__}") ###DEBUG
+
+        return self.model.materials
+
+    def add_source_terms(self, config):
         """
         Add source terms to the FESTIM model.
         This method can be extended to include specific source term logic.
         """
         print("Adding source terms...")
 
-        # Example: Set a constant volumetric source term
-        # self.model.sources[0].value = 1.0e20  # Example value 
+        #print(f"Passing the source term value: {config['source_terms']['source_value']}") ###DEBUG
+        
+        # Set a constant volumetric source term
+        self.model.sources = [
+            F.Source(
+                value=float(config['source_terms']['source_value']),  # source term value [m^-3 s^-1]
+                #value=1.0e20,  ###DEBUG
+                volume=1,
+                field=0,
+            ),
+        ]
+
+        return self.model.sources
 
     def add_heat_conduction(self, config):
         """
@@ -265,43 +254,91 @@ class Model():
         print(f" > Using source term for heat transfer: Q_source={Q_source} [W/m³]")  # Debugging output
         
         return self.model.T
-    
-    def run(self):
+
+    def specify_time_integration_settings(self, config):
         """
-        Run the FESTIM simulation.
-        This method initializes the model, runs the simulation, and stores the results.
+        Specify time integration settings for the FESTIM model.
+        This method can be extended to include specific time integration logic.
         """
-        # Initialize the model
-        self.model.initialise()
+        print("Specifying time integration settings...")
 
-        # Input and initalisation verification
-        # self.inspect_object_structure()  ### Print the structure of the model for debugging
+        # Define time integration settings for the simulation
+        self.model.dt = F.Stepsize(
+            #float(config['simulation']['time_step']), # op1) fixed time step size
 
-        # Run the simulation
-        self.results = self.model.run()
+            initial_value=float(config['simulation']['time_step']),  # op2) initial time step size for adaptive dt
+            stepsize_change_ratio=float(config['simulation']['stepsize_change_ratio']),  # ratio for adaptive time stepping
+            #min_value=float(config['simulation']['min_time_step']),  # minimum time step size
+            max_stepsize=float(config['simulation']['max_stepsize']),  # maximum time step size
+            dt_min=1e-05,  # minimum time step size for adaptive time stepping
 
-        print("FESTIM simulation completed successfully!")
+            milestones=self.milestone_times, # check points for results export
+        ) 
 
-        # Output verification
-        #print(f"Results: {self.results}") ### DEBUG
-        self.result_flag = True
+        return self.model.dt
 
-        # Export results
-        # self.model.export_results()
+    def specify_outputs(self, config):
+        """
+        Specify outputs for the FESTIM model.
+        This method can be extended to include specific output logic.
+        """
+        print("Specifying outputs...")
 
-        #TODO: Think of better BCs
-        #TODO: Read Lithium (and LiTO) data from HTM DataBase
-        #TODO: Use proprietary visualisation and diagnostics tools
-        #TODO: Explore cartesian/cylindrical/spherical geometries/coordinates/curvatures
-        #TODO: Add important physical effects
-        #TODO: Couple with heat conductivity and temperature
+        # Define outputs for the simulation - folder for saving results
+        self.result_folder = config['simulation']['output_directory']
 
-        # n_elem_print = 3
-        # print(f">>> Model.run: Printing last {n_elem_print} elements of the results for last time of {self.milestone_times[-1]}: {self.results[-n_elem_print:, -1]}")  # Print last n elements of the results for the last time step ###DEBUG
+        # Specify milestone times for results export
+        self.milestone_times = config['simulation']['milestone_times']  # List of times to export results
 
-        return self.results
+        # Define output formats
+        if self.model.settings.transient:
+            # For transient simulations, export results at specified milestone times
+            self.model.exports = [
+                # F.XDMFExport(
+                #     field=0,
+                #     filename=f"{self.result_folder}/results.xdmf",
+                #     checkpoint=True,
+                # )
+                # TODO figure out Python API for XDMF export and import
+                # TODO look up / brush up Pythonic VTK API
+                # TODO figure out HDF5 export and import
+                # TODO chose result data format to store numerical tensor of data of dimansions [quantity x time x elements]
+                F.TXTExport(
+                    field="solute",
+                    filename=f"{self.result_folder}/results.txt",
+                    times=self.milestone_times,
+                )
+            ]
+        else:
+            # For steady-state simulations, export results at the end of the simulation
+            self.model.exports = [
+                F.TXTExport(
+                    field="solute",
+                    filename=f"{self.result_folder}/results.txt",
+                )
+            ]
 
-    def inspect_object_structure(self):
+        # Add temperature export if heat transfer model is used
+        if 'heat_model' in config['model_parameters'] and config['model_parameters']['heat_model'] == 'heat_transfer':
+            if self.model.settings.transient:
+                self.model.exports.append(
+                    F.TXTExport(
+                        field="T",
+                        filename=f"{self.result_folder}/temperature.txt",
+                        times=self.milestone_times,
+                    )
+                )
+            else:
+                self.model.exports.append(
+                    F.TXTExport(
+                        field="T",
+                        filename=f"{self.result_folder}/temperature.txt",
+                    )
+                )
+
+        return self.model.exports
+
+    def inspect_model_structure(self):
         """Print detailed structure of the FESTIM model object."""
         print("FESTIM Model Structure:")
         print("=" * 50)
@@ -328,3 +365,37 @@ class Model():
             for i, source in enumerate(self.model.sources):
                 print(f"  Source {i}: {type(source)}")
 
+    def run(self):
+        """
+        Run the FESTIM simulation.
+        This method initializes the model, runs the simulation, and stores the results.
+        """
+        # Initialize the model
+        self.model.initialise()
+
+        # Input and initalisation verification
+        # self.inspect_model_structure()  ### Print the structure of the model for debugging
+
+        # Run the simulation
+        self.results = self.model.run()
+
+        print("FESTIM simulation completed successfully!")
+
+        # Output verification
+        #print(f"Results: {self.results}") ### DEBUG
+        self.result_flag = True
+
+        # Export results
+        # self.model.export_results()
+
+        #TODO: Think of better BCs
+        #TODO: Read Lithium (and LiTO) data from HTM DataBase
+        #TODO: Use proprietary visualisation and diagnostics tools
+        #TODO: Explore cartesian/cylindrical/spherical geometries/coordinates/curvatures
+        #TODO: Add important physical effects
+        #TODO: Couple with heat conductivity and temperature
+
+        # n_elem_print = 3
+        # print(f">>> Model.run: Printing last {n_elem_print} elements of the results for last time of {self.milestone_times[-1]}: {self.results[-n_elem_print:, -1]}")  # Print last n elements of the results for the last time step ###DEBUG
+
+        return self.results

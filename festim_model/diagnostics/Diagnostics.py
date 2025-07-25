@@ -118,20 +118,29 @@ class Diagnostics:
             # from fenics import plot
             # plot(model.T.T, title="Temperature Distribution", mode='color', interactive=True)
 
-            for (i,time) in enumerate(self.milestone_times):
-                # The first column is the radial coordinate values
-                # TODO: read file a CSV
-                # TODO: consider that there might be no result data for a given milestone time
-                print(f"> Plotting results for time {time} s")
-                plt.plot(self.model.vertices[:], self.results[:, i+1], label=f"t={time} s")
+            if self.model.model.settings.transient:
+                print("Transient simulation detected, plotting results over time.")
+                for (i,time) in enumerate(self.milestone_times):
+                    # The first column is the radial coordinate values
+                    # TODO: read file a CSV
+                    # TODO: consider that there might be no result data for a given milestone time
+                    print(f"> Plotting results for time {time} s")
+                    plt.plot(self.model.vertices[:], self.results[:, i+1], label=f"t={time} s")
 
-                # n_el_print = 3
-                # print(f"Last {n_el_print} elements at time {time} s: {self.results[-n_el_print:, i+1]}") ### DEBUG
+                    # n_el_print = 3
+                    # print(f"Last {n_el_print} elements at time {time} s: {self.results[-n_el_print:, i+1]}") ### DEBUG
+            else:
+                print("Steady-state simulation detected, only enty plotted.")
+                # Plot the single plot (t=steady)
+                plt.plot(self.model.vertices[:], self.results[:, -1], label=f"t=steady")
+                #plt.semilogy(self.model.vertices[:], self.results[:, -1], label=f"t=steady")
 
             plt.xlabel("r [m]")
             plt.ylabel("Concentration [m^-3]")
-            plt.title(f"Concentration vs Radius at different times. \n Param-s: T={self.model.config['model_parameters']['T_0']:.2f} [K], G={float(self.model.config['source_terms']['source_value']):.2e} [m^-3s^-1], C(a)={float(self.model.config['boundary_conditions']['right_bc_value']):.2e} [m^-3]")
-            plt.legend([f"t={time}" for time in self.milestone_times])
+            plt.title(f"Concentration vs Radius (at different times) \n Param-s: T={self.model.config['model_parameters']['T_0']:.2f} [K], G={float(self.model.config['source_terms']['source_value']):.2e} [m^-3s^-1], C(a)={float(self.model.config['boundary_conditions']['right_bc_value']):.2e} [m^-3]")
+            plt.grid('both')
+            plt.legend(loc='best')
+            #plt.legend([f"t={time}" for time in self.milestone_times])
             #plt.show()
 
             plt.savefig(f"{self.result_folder}/results.png")
