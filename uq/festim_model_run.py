@@ -175,8 +175,8 @@ def extract_tritium_inventory(results, model):
         inventory = 1.0e20  # Default value
 
     # TODO: figure out how to use FESTIM's DerivedQuantities to compute inventory
-    diagnostics = Diagnostics(model, results=results, result_folder=model.result_folder)
-    tritium_inventory_obj = diagnostics.compute_total_tritium_inventory()
+    #diagnostics = Diagnostics(model, results=results, result_folder=model.result_folder)
+    #tritium_inventory_obj = diagnostics.compute_total_tritium_inventory()
     
     return inventory
 
