@@ -2,6 +2,8 @@
 model_parameters:
   total_time: 25.0  # [s]
   T_0: 300.0  # initial temperature [K]
+  transient: False  # enable transient simulation
+  heat_model: 'none'  # type of heat model to use, options: 'heat_transfer', 'none'
 
 geometry:
   length: 3.5e-4 # [m]
@@ -13,6 +15,11 @@ materials:
   # solubility: 1.87e24  # [H/m³/Pa^0.5]
   D_0: 1.03613e-6  # diffusion coefficient [m²/s]
   E_D: 0.9028    # activation energy [eV]
+  rho: 534.0  # density [kg/m³]
+  heat_capacity: 900.0  # specific heat capacity [J/(kg*K)]
+  #h_coeff: 100.0  # convective heat transfer coefficient [W/( m²*K)]
+  thermal_conductivity: 2.0  # thermal conductivity [W/(m*K)]
+  
   
 simulation:
   n_elements: 1024  # number of mesh elements
@@ -35,7 +42,11 @@ boundary_conditions:
   right_bc_value: 1.0e15
 
 source_terms:
+
   source_type: "constant"
   source_value: 1.0e20  # source term value in [m^-3]
+
+  source_type_heat: "constant"
+  source_value_heat: 1.0e+3  # constant heat source term value in [W/m³]
 
 # END OF CONFIGURATION FILE
