@@ -138,7 +138,7 @@ class Diagnostics:
         # iterate over the milestone times and plot each
         for (i,time) in enumerate(self.milestone_times):
             # The first column is the radial coordinate values
-            # TODO: read file a CSV
+            # TODO: read file as a CSV file
             # TODO: consider that there might be no result data for a given milestone time
             print(f"> Plotting results for time {time} [s]")
 
@@ -156,7 +156,7 @@ class Diagnostics:
         plt.xlabel('Radial Coordinate [m]')
         plt.ylabel(f"{self.quantities_of_interest_descriptor[qoi_name]['name']} [{self.quantities_of_interest_descriptor[qoi_name]['unit']}]") # Use the name and unit from the descriptor
 
-        plt.title(f"{self.quantities_of_interest_descriptor[qoi_name]['name']} vs Radius (at different times) \n Param-s: T={self.model.config['model_parameters']['T_0']:.2f} [K], G={float(self.model.config['source_terms']['source_value']):.2e} [m^-3s^-1], C(a)={float(self.model.config['boundary_conditions']['right_bc_value']):.2e} [m^-3]")
+        plt.title(f"{self.quantities_of_interest_descriptor[qoi_name]['name']} vs Radius (at different times) \n Param-s: T={self.model.config['model_parameters']['T_0']:.2f} [K], G={float(self.model.config['source_terms']['source_concentration_value']):.2e} [m^-3s^-1], C(a)={float(self.model.config['boundary_conditions']['right_bc_concentration_value']):.2e} [m^-3]")
 
         plt.grid('both')
         plt.legend(loc='best')
@@ -211,7 +211,7 @@ class Diagnostics:
 
             print("> Visualizing results")
 
-            # TODO add iteration over quantities of interest, or selection by name
+            # TODO possibility to specify subset of quantities to visualise
             #  - For now, we assume the first column is radial coordinates and the rest are concentrations at different times
             
             # Example: for basic temperature visualization at the last time step
@@ -237,7 +237,7 @@ class Diagnostics:
 
                     # Check if the results for this quantity are available
                     if qoi_values is not None:
-                        self._visualise_steady_quantity(qoi_name, qoi_values) #TODO implement for the steady state case
+                        self._visualise_steady_quantity(qoi_name, qoi_values)
                     else:
                         print(f"No results available for {qoi_name}. Skipping visualization.")
 
