@@ -40,6 +40,30 @@ class Model():
         # Define material properties
         self._specify_materials(config)
 
+        # Define if the model is transient or steady-state - includes model numerical setting definition
+        if 'transient' in config['model_parameters'] and config['model_parameters']['transient'] is True:
+            
+            # Define model numerical settings for a simulation: solver and time
+            #TODO: estimate good simulation time via diffusion and other transport coefficients, dimensions of domain, and source term etc.
+
+            self.model.settings = F.Settings(
+                transient=True,  # Enable transient simulation
+                final_time=float(config['model_parameters']['total_time']),  # final time of the simulation [s]
+                absolute_tolerance=float(config['simulation']['absolute_tolerance']),  #  absolute tolerance
+                relative_tolerance=float(config['simulation']['relative_tolerance']),  #  relative tolerance
+            )
+                    
+            print("Model is set to transient simulation.")
+        else:
+
+            self.model.settings = F.Settings(
+                transient=False,  # Enable transient simulation
+                absolute_tolerance=float(config['simulation']['absolute_tolerance']),  #  absolute tolerance
+                relative_tolerance=float(config['simulation']['relative_tolerance']),  #  relative tolerance
+            )
+
+            print("Model is set to steady-state simulation.")
+
         # Define model parameters: temperature (and heat transfer model)
         if 'heat_model' in config['model_parameters'] and config['model_parameters']['heat_model'] == 'heat_transfer':
             # Use heat transfer model
@@ -48,29 +72,13 @@ class Model():
         else:
             self.model.T = config['model_parameters']['T_0']
 
-        print (f"Using heat transfer model: {self.model.T.__dict__}") ###DEBUG
+        print (f" >> Using heat transfer model: {self.model.T.__dict__}") ###DEBUG
 
         # Define Boundary conditions
         self._specify_boundary_conditions(config)
 
         # Define source terms
         self._add_source_terms(config)
-
-        # Define model numerical settings for a simulation: solver and time
-        self.model.settings = F.Settings(
-            final_time=float(config['model_parameters']['total_time']),  # final time
-            absolute_tolerance=float(config['simulation']['absolute_tolerance']),  #  absolute tolerance
-            relative_tolerance=float(config['simulation']['relative_tolerance']),  #  relative tolerance
-        )
-        #TODO: estimate good simulation time via diffusion and other transport coefficients, dimensions of domain, and source term etc.
-
-        # Define if the model is transient or steady-state
-        if 'transient' in config['model_parameters'] and config['model_parameters']['transient'] is True:
-            self.model.settings.transient = True
-            print("Model is set to transient simulation.")
-        else:
-            self.model.settings.transient = False
-            print("Model is set to steady-state simulation.")
 
         # Define derived quantities - TODO implement
         #self.derived_quantities = self.define_derived_quantities()
@@ -85,7 +93,7 @@ class Model():
             self.model.dt = None
         #TODO: since model convergence so quickly make time step adaptive, based on the model parameters and mesh size - exam the influence of the time step on the results
 
-        print(f"Initialisation finished! Model initialized with {self.n_elements} elements")  ###DEBUG
+        print(f" > Initialisation finished! Model initialized with {self.n_elements} elements")  ###DEBUG
 
     def _specify_geometry(self, config):
         """
@@ -103,7 +111,7 @@ class Model():
         # Assuming a 1D geometry, vertices are evenly spaced along the length
 
         # Option 1) for vertices: uniform mesh
-        # self.vertices = np.linspace(0., self.length, self.n_elements + 1)
+        self.vertices = np.linspace(0., self.length, self.n_elements + 1)
 
         # When the BC uncertainty influence fall-off quickly, try refined mesh at the domain boundary
         # Option 2) mesh refined at the boundary (right side)
@@ -111,10 +119,10 @@ class Model():
         refined_elements_fraction = 0.25  # Fraction of elements to refine
 
         refined_elements_count = int(self.n_elements * refined_elements_fraction)
-        self.vertices = np.concatenate((
-            np.linspace(0., self.length * (1. - refined_length_fraction), self.n_elements - refined_elements_count + 1), # inner (larger) part of the mesh
-            np.linspace(self.length * (1. - refined_length_fraction), self.length, refined_elements_count + 1)[1:] # refined (smaller outer) part of the mesh
-        ))
+        # self.vertices = np.concatenate((
+        #     np.linspace(0., self.length * (1. - refined_length_fraction), self.n_elements - refined_elements_count + 1), # inner (larger) part of the mesh
+        #     np.linspace(self.length * (1. - refined_length_fraction), self.length, refined_elements_count + 1)[1:] # refined (smaller outer) part of the mesh
+        # ))
         #TODO mind round-off errors in the mesh size
 
         #print(f"Using vertices: {self.vertices}")  ### Debugging output
@@ -128,7 +136,7 @@ class Model():
             type="spherical",  # Specify spherical mesh type
             )
         
-        # Option 2) for mesh: use FESTIM's Mesh  - and FeniCS objects - specific for spherical geometry
+        # Option 2) for mesh: use FESTIM's Mesh - and FeniCS objects - specific for spherical geometry
         # self.model.mesh = F.Mesh(
         #     type="spherical",  # Specify spherical mesh type
         # )
@@ -146,12 +154,12 @@ class Model():
         self.model.boundary_conditions = [
             F.FluxBC(
                 surfaces=[1],  # Assuming a single surface at the end of the mesh
-                value=float(config['boundary_conditions']['left_bc_value']),  # boundary value
+                value=float(config['boundary_conditions']['left_bc_concentration_value']),  # boundary value
                 field=0,
             ),
             F.DirichletBC(
                 surfaces=[2],  # Assuming a single surface at the start of the mesh
-                value=float(config['boundary_conditions']['right_bc_value']),  # boundary value
+                value=float(config['boundary_conditions']['right_bc_concentration_value']),  # boundary value
                 field=0,
             ),
         ]
@@ -178,7 +186,7 @@ class Model():
             heat_capacity=float(config['materials']['heat_capacity']),  # specific heat capacity
             #solubility=float(config['materials']['solubility']),  # solubility
             )
-        # TODO: fetch data from HTM DataBase - LiO2 as an example
+        # TODO: fetch data from HTM DataBase - LiO2 as an example (absent in HTM DB)
 
         #print(f"Using material properties: D_0={self.model.materials[0].D_0}, E_D={self.model.materials[0].E_D}, T={self.model.T.__dict__}") ###DEBUG
 
@@ -196,8 +204,7 @@ class Model():
         # Set a constant volumetric source term
         self.model.sources = [
             F.Source(
-                value=float(config['source_terms']['source_value']),  # source term value [m^-3 s^-1]
-                #value=1.0e20,  ###DEBUG
+                value=float(config['source_terms']['source_concentration_value']),  # source term value [m^-3 s^-1]
                 volume=1,
                 field=0,
             ),
@@ -218,41 +225,53 @@ class Model():
         # Example: Set a constant heat conduction coefficient
 
         # Add model for T, temperature quantity, and redefine the model's attribute
-        self.model.T = F.HeatTransferProblem(
-            transient=True,
-            initial_condition=F.InitialCondition(
-                value=float(config['model_parameters']['T_0']),  # Initial temperature [K]
-                field="T",
-            ),
-        )
-        print(f" > Using initial temperature: {self.model.T.initial_condition.value} [K]")  # Debugging output
+        if self.model.settings.transient:
+            self.model.T = F.HeatTransferProblem(
+                transient=True,
+                initial_condition=F.InitialCondition(
+                    value=float(config['model_parameters']['T_0']),  # Initial temperature [K]
+                    field="T",
+                ),
+            )
+            print(f" >> Using transient heat problem with the initial temperature: {self.model.T.initial_condition.value} [K]")  # Debugging output
+        else:
+            self.model.T = F.HeatTransferProblem(
+                transient=False,
+            )
+            print(f" >> Using steady-state heat problem")  # Debugging output
 
-        # Define heat transfer coefficient and external temperature - TODO add to the config
-        h_coeff = 1.0
-        T_ext = 650.0
-        if 'source_type_heat' in config['source_terms']:
-            if config['source_terms']['source_type_heat'] == 'constant':
-                Q_source = float(config['source_terms']['source_value_heat'])  # Heat source term [W/m³]
+        # Define heat transfer coefficient and external temperature
+
+        h_coeff = float(config['boundary_conditions']['right_bc_hcoeff_value'])  # Convective heat transfer coefficient [W/(m²*K)]
+
+        T_ext = float(config['boundary_conditions']['right_bc_T_value'])  # External temperature [K]
+        # For now, use a constant external temperature
+
+        if 'source_heat_type' in config['source_terms']:
+            if config['source_terms']['source_heat_type'] == 'constant':
+                Q_source = float(config['source_terms']['source_heat_value'])  # Heat source term [W/m³]
         else:
             Q_source = 0.0
 
         # Apply appropriate boundary conditions for heat transfer
+        # At the centre (r=0), apply Dirichlet BC
         self.model.T.boundary_conditions.append(
             F.DirichletBC(
-                value=config['model_parameters']['T_0'],  # Initial temperature [K]
-                surfaces=[1],  # Assuming a single surface at the right side of the mesh
+                value=config['boundary_conditions']['left_bc_T_value'],  # left boundary temperature [K]
+                surfaces=[1],
                 field="T",
             )
         )
+        # At the outer surface (r=1), apply Convective Flux BC
         self.model.T.boundary_conditions.append(
             F.ConvectiveFlux(
                 h_coeff=h_coeff,
                 T_ext=T_ext,  # External temperature [K]
-                surfaces=[2],  # Assuming a single surface at the left side of the mesh
+                surfaces=[2], 
                 #field="T",
             )
         )
-        print(f" > Using boundary conditions for temperature: T={self.model.T.boundary_conditions[0].value} [K] at surface 1, h_coeff={h_coeff}, T_ext={T_ext} [K] at surface 2")  # Debugging output
+        print(f" >> Using boundary conditions for temperature: T={self.model.T.boundary_conditions[0].value} [K] at surface 1, h_coeff={h_coeff}, T_ext={T_ext} [K] at surface 2")  # Debugging output
 
         # Apply appropriate source terms for heat transfer
         self.model.T.sources.append(
@@ -262,7 +281,7 @@ class Model():
                 field="T",
             )
         )   
-        print(f" > Using source term for heat transfer: Q_source={Q_source} [W/m³]")  # Debugging output
+        print(f" >> Using source term for heat transfer: Q_source={Q_source} [W/m³]")  # Debugging output
         
         return self.model.T
 
@@ -400,11 +419,11 @@ class Model():
         # self.model.export_results()
 
         #TODO: Think of better BCs
-        #TODO: Read Lithium (and LiTO) data from HTM DataBase
+        #TODO: Read Lithium (and LiTO) data from HTM DataBase - absent in HTM DB
         #TODO: Use proprietary visualisation and diagnostics tools
-        #TODO: Explore cartesian/cylindrical/spherical geometries/coordinates/curvatures
+        #TODO: Explore cartesian/cylindrical/spherical geometries/coordinates/curvatures (+, diifrence to be recorded)
         #TODO: Add important physical effects
-        #TODO: Couple with heat conductivity and temperature
+        #TODO: Couple with heat conductivity and temperature (+, in testing)
 
         # n_elem_print = 3
         # print(f">>> Model.run: Printing last {n_elem_print} elements of the results for last time of {self.milestone_times[-1]}: {self.results[-n_elem_print:, -1]}")  # Print last n elements of the results for the last time step ###DEBUG
