@@ -401,9 +401,9 @@ def define_parameter_uncertainty(CoV=0.1):
     # - These values can be adjusted based on the specific model requirements and the physical properties of the system being simulated.
     means = {
         "T": 300.0,  # Mean temperature
-        "source_value": 1.0e18, #1.0e19, #,1.0e20,  # Mean source value
-        "left_bc_value": 1.0e15,  # Mean boundary condition value: better to keep right side as the domain boundary and left as centre
-        "right_bc_value": 1.0e17, #1.0e16, #1.0e15,  # Mean boundary condition value
+        "source_concentration_value": 1.0e18, #1.0e19, #,1.0e20,  # Mean source value
+        "left_bc_concentration_value": 1.0e15,  # Mean boundary condition value: better to keep right side as the domain boundary and left as centre
+        "right_bc_concentration_value": 1.0e17, #1.0e16, #1.0e15,  # Mean boundary condition value
     }
 
     # Define the distributions for uncertain parameters
@@ -420,11 +420,11 @@ def define_parameter_uncertainty(CoV=0.1):
 
         "T": cp.Uniform(means["T"]*(1.-expansion_factor_uniform*CoV), means["T"]*(1.+expansion_factor_uniform*CoV)), # Temperature [K]
 
-        "source_value": cp.Uniform(means["source_value"]*(1.-expansion_factor_uniform*CoV), means["source_value"]*(1.+expansion_factor_uniform*CoV)), 
+        "source_concentration_value": cp.Uniform(means["source_concentration_value"]*(1.-expansion_factor_uniform*CoV), means["source_concentration_value"]*(1.+expansion_factor_uniform*CoV)), 
 
         #"left_bc_value": cp.Uniform(means["left_bc_value"]*(1.-CoV), means["left_bc_value"]*(1.+CoV)),  # Boundary condition value: see on choice of left/right BC
 
-        "right_bc_value": cp.Uniform(means["right_bc_value"]*(1.-expansion_factor_uniform*CoV), means["right_bc_value"]*(1.+expansion_factor_uniform*CoV)),  # Boundary condition value at the right (outer) surface of the sample
+        "right_bc_concentration_value": cp.Uniform(means["right_bc_concentration_value"]*(1.-expansion_factor_uniform*CoV), means["right_bc_concentration_value"]*(1.+expansion_factor_uniform*CoV)),  # Boundary condition value at the right (outer) surface of the sample
 }
     
     return parameters_distributions
@@ -442,11 +442,11 @@ def define_festim_model_parameters():
 
     "T": {"type": "float", "default": 300.0,},
 
-    "source_value": {"type": "float", "default": 1.0e20,},
+    "source_concentration_value": {"type": "float", "default": 1.0e20,},
 
-    #"left_bc_value": {"type": "float", "default": 1.0e15},  # Boundary condition value: better to specify centre at r=0.0
+    #"left_bc_concentration_value": {"type": "float", "default": 1.0e15},  # Boundary condition value: better to specify centre at r=0.0
 
-    "right_bc_value": {"type": "float", "default": 1.0e15},  # Boundary condition value at the right (outer) surface of the sample
+    "right_bc_concentration_value": {"type": "float", "default": 1.0e15},  # Boundary condition value at the right (outer) surface of the sample
     }
 
     # Define  output parameters / the quantities of interest (QoIs)
@@ -505,8 +505,10 @@ def prepare_uq_campaign(*args, **kwargs):
                 parameters[key]['default'] = value
             else:
                 print(f"Warning: Parameter '{key}' not found in model parameters. Skipping update.")
-    # TODO: could be done: (1) in the file at the harddrive, (2) in the YAML object read by the encoder, (3) as an UQ parameter that has to be set to a new default value
+    # TODO: could be done: (1) in the file at the harddrive, (2) in the YAML object read by the encoder, (3) as an UQ parameter that has to be set to a new default value (a CopyEncoder + MultiEncoder can be applied for this...)
 
+    # Option 2) Before running the campaign, substitute the parameters in the template YAML file
+    
     # Create an Encoder object
 
     # Option 1): Simple YAML Encoder
@@ -524,18 +526,21 @@ def prepare_uq_campaign(*args, **kwargs):
             "D_0": "materials.D_0",
             "E_D": "materials.E_D",
             "T": "model_parameters.T_0",
-            "source_value": "source_terms.source_value",
+            "source_concentration_value": "source_terms.source_concentration_value",
             "left_bc_value": "boundary_conditions.left_bc_value",
-            "right_bc_value": "boundary_conditions.right_bc_value"
+            "right_bc_concentration_value": "boundary_conditions.right_bc_concentration_value",
+            "length": "geometry.length", 
         },
         type_conversions={
             "D_0": float,
             "E_D": float,
             "T": float,
-            "source_value": float,
-            "left_bc_value": float,
-            "right_bc_value": float, 
-        }
+            "source_concentration_value": float,
+            "left_bc_concentration_value": float,
+            "right_bc_concentration_value": float, 
+            "length": float,
+        },
+        fixed_parameters=kwargs,  # Pass the dictionary of parameters to be fixed to the encoder
     )
 
     # Option 3): Use built-in EasyVVUQ encoder
@@ -554,7 +559,7 @@ def prepare_uq_campaign(*args, **kwargs):
     # TODO change the output and decoder to YAML (for UQ derived quantities) or other format
     decoder = uq.decoders.SimpleCSV(
         #target_filename="output.csv", # option for synthetic diagnostics specifically chosen for UQ
-        target_filename="results/results.txt",  # Results from the base data of a simulation
+        target_filename="results/results_tritium_concentration.txt",  # Results from the base data of a simulation
         output_columns=qois
         )
     

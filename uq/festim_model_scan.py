@@ -136,6 +136,7 @@ def param_scan_sensitivity_analysis(config, param_name='length', level_variation
 
     # Load the configuration
     if not config:
+        # TODO read *_yaml.template file to get the default configuration
         print("No configuration provided for sensitivity analysis.")
         return
 
@@ -150,7 +151,7 @@ def param_scan_sensitivity_analysis(config, param_name='length', level_variation
     if param_name == 'length':
         param_def_val = float(config['geometry'].get('length', 1.0))
         print(f"Using default length value: {param_def_val} m")
-        param_name = 'geometry.length'  # Use the full path to the parameter in the config
+        param_name = 'length'  # Use the full path to the parameter in the config
 
     # Specify the list of parameter values to scan
 
@@ -163,19 +164,20 @@ def param_scan_sensitivity_analysis(config, param_name='length', level_variation
     n_runs = 2*log_scale_range + 1  # Number of runs for the scan
 
     param_values = param_def_val * np.logspace(
-        np.log(param_value_lo_bound) / np.log(log_base),
-        np.log(param_value_hi_bound) / np.log(log_base), 
+        # np.log(param_value_lo_bound) / np.log(log_base),
+        # np.log(param_value_hi_bound) / np.log(log_base), 
+        -log_scale_range,
+        +log_scale_range,
         num=n_runs, 
-        base=log_base
+        base=log_base,
     )
     
-    if not param_values:
-        print("No sensitivity parameters found in configuration, no parameter range was generated, aboritng scan")
+    if param_values is None or len(param_values) == 0:
+        print("No sensitivity parameters found in configuration, no parameter range was generated, aborting scan")
         return
 
     # Perform sensitivity analysis logic here
-    for param_value in param_values.items():
-
+    for param_value in param_values:
         # For now, just print the parameters
         print(f"Parameter: {param_name}, Value: {param_value}")
 
@@ -201,7 +203,11 @@ if __name__ == "__main__":
     config = load_config(args.config)
 
     if config:
-        # Perform parameter scan
-        parameter_scan(config, param_name='length', level_variation=3)
+
+        # # Perform parameter scan
+        # parameter_scan(config, param_name='length', level_variation=3)
+
+        # Perform sensitivity analysis scan
+        param_scan_sensitivity_analysis(config, param_name='length', level_variation=3)
     else:
         print("Failed to load configuration. Exiting.")

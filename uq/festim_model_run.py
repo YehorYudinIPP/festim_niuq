@@ -127,8 +127,9 @@ def extract_tritium_inventory(results, model):
     try:
         # Example: Read from the results file
         result_folder = model.result_folder
-        result_file = os.path.join(result_folder, 'results.txt')
-        
+        result_file_name = "results_tritium_concentration.txt"
+        result_file = os.path.join(result_folder, result_file_name)
+
         if os.path.exists(result_file):
             # Read and process the results file
             import numpy as np
