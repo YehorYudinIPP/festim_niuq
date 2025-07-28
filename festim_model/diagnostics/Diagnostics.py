@@ -29,7 +29,7 @@ class Diagnostics:
             print(f"Diagnostics: No results provided, trying to read from {self.result_folder}/")
             self.results = {}
 
-            print(f">>> Diagnostics.model.quantities_of_interest: {self.model.quantities_of_interest}")  ###DEBUG print available quantities of interest
+            #print(f">>> Diagnostics.model.quantities_of_interest: {self.model.quantities_of_interest}")  ###DEBUG print available quantities of interest
 
             # Read results for each quantity of interest
             for qoi,_ in self.model.quantities_of_interest.items():
@@ -48,11 +48,11 @@ class Diagnostics:
 
         # Check if results are now present
         # TODO think if the flag is needed
-        self.result_flag = None  # Flag to check if results are available
-        if self.results is not None:   
-            self.result_flag = True
-        else:
-            self.result_flag = False
+        # self.result_flag = None  # Flag to check if results are available
+        # if self.results is not None:   
+        #     self.result_flag = True
+        # else:
+        #     self.result_flag = False
 
         # Read the milestone times from the configuration
         self.milestone_times = self.model.config.get('simulation', {}).get('milestone_times', [])
@@ -66,6 +66,25 @@ class Diagnostics:
 
         # n_elem_print = 3
         # print(f">>> Diagnostics.__init__: Printing last {n_elem_print} elements of the results for last time of {self.milestone_times[-1]}: {self.results[-n_elem_print:, -1]}")  # Print last n elements of the results for the last time step ###DEBUG
+
+        # Define data structure (dict) to keep naming, units etc. for quantities of interest
+        self.quantities_of_interest_descriptor = {
+            'tritium_inventory': {
+                'name': 'Tritium Inventory',
+                'unit': 'T',
+                'description': 'Total tritium inventory in the sample'
+            },
+            'tritium_concentration': {
+                'name': 'Tritium Concentration',
+                'unit': 'm^-3',
+                'description': 'Tritium concentration in the volume'
+            },
+            'temperature': {
+                'name': 'Temperature',
+                'unit': 'K',
+                'description': 'Temperature distribution at a point'
+            },
+        }
 
     def compute_qoi(self, qoi_name):
         """
@@ -135,10 +154,9 @@ class Diagnostics:
 
         # Set plot labels and title
         plt.xlabel('Radial Coordinate [m]')
-        plt.ylabel(f"{qoi_name} [m^-3]") 
-        # TODO: make printable names if quantities in a dictionary or attribute of quantities_of_interest
-        # TODO make a dictionary of units for each quantity, save this in an attribute for the quantity object/data structure
-        plt.title(f"{qoi_name} vs Radius (at different times) \n Param-s: T={self.model.config['model_parameters']['T_0']:.2f} [K], G={float(self.model.config['source_terms']['source_value']):.2e} [m^-3s^-1], C(a)={float(self.model.config['boundary_conditions']['right_bc_value']):.2e} [m^-3]")
+        plt.ylabel(f"{self.quantities_of_interest_descriptor[qoi_name]['name']} [{self.quantities_of_interest_descriptor[qoi_name]['unit']}]") # Use the name and unit from the descriptor
+
+        plt.title(f"{self.quantities_of_interest_descriptor[qoi_name]['name']} vs Radius (at different times) \n Param-s: T={self.model.config['model_parameters']['T_0']:.2f} [K], G={float(self.model.config['source_terms']['source_value']):.2e} [m^-3s^-1], C(a)={float(self.model.config['boundary_conditions']['right_bc_value']):.2e} [m^-3]")
 
         plt.grid('both')
         plt.legend(loc='best')
@@ -148,6 +166,34 @@ class Diagnostics:
         plt.savefig(f"{self.result_folder}/results_{qoi_name}.png")
         plt.close('all')  # Close all figures after plotting
             
+    def _visualise_steady_quantity(self, qoi_name, qoi_values):
+        """
+        Visualize a specific steady-state quantity of interest.
+        
+        :param qoi_name: Name of the quantity to visualize.
+        :param qoi_values: The quantity data to visualize.
+        """
+        if qoi_values is None:
+            print(f"No data available for {qoi_name}. Skipping visualization.")
+            return
+
+        plt.figure(figsize=(10, 6))
+
+        # Plot the steady-state results
+        plt.plot(self.model.vertices[:], qoi_values, label=f"Steady State", marker='o')
+
+        # Set plot labels and title
+        plt.xlabel('Radial Coordinate [m]')
+        plt.ylabel(f"{self.quantities_of_interest_descriptor[qoi_name]['name']} [{self.quantities_of_interest_descriptor[qoi_name]['unit']}]")  # Use the name and unit from the descriptor
+        plt.title(f"{self.quantities_of_interest_descriptor[qoi_name]['name']} vs Radius (in Steady State) \n Param-s: T={self.model.config['model_parameters']['T_0']:.2f} [K], G={float(self.model.config['source_terms']['source_value']):.2e} [m^-3s^-1], C(a)={float(self.model.config['boundary_conditions']['right_bc_value']):.2e} [m^-3]")
+
+        plt.grid('both')
+        plt.legend(loc='best')
+
+        #plt.show()
+        plt.savefig(f"{self.result_folder}/results_{qoi_name}_steady.png")
+        plt.close('all')
+
     def visualise(self):
         """
         Visualize the results of the FESTIM simulation.
@@ -155,13 +201,13 @@ class Diagnostics:
         """
         print("Visualizing results...")
 
-        if self.result_flag is not True:
-            # Attempt to fall back and read from results.txt
-            print("No results found in the object during visualisation, reading from file...")
-            print(f">>> Diagnostics.visualise: Reading results from {self.result_folder}/results.txt")
-            self.results = np.genfromtxt(self.result_folder+"/results.txt", skip_header=True, delimiter=',')
+        # if self.result_flag is not True:
+        #     # Attempt to fall back and read from results.txt
+        #     print("No results found in the object during visualisation, reading from file...")
+        #     print(f">>> Diagnostics.visualise: Reading results from {self.result_folder}/results.txt")
+        #     self.results = np.genfromtxt(self.result_folder+"/results.txt", skip_header=True, delimiter=',')
 
-        if self.result_flag is True and self.results is not None:
+        if self.results is not None:
 
             print("> Visualizing results")
 
@@ -181,20 +227,22 @@ class Diagnostics:
 
                     if qoi_values is not None:
                         self._visualise_transient_quantity(qoi_name, qoi_values)
+                    else:
+                        print(f"No results available for {qoi_name}. Skipping visualization.")
             else:
                 print("Steady-state simulation detected, only entry plotted.")
                 # Plot the single plot (t=steady)
-                for qoi in self.model.quantities_of_interest:
+                for qoi_name, qoi_values in self.results.items():
                     print(f"Visualising quantity of interest: {qoi_name}")
 
                     # Check if the results for this quantity are available
-                    if self.results[qoi] is not None:
-                        self._visualise_quantity(qoi, self.results[qoi]) #TODO implement for the steady state case
+                    if qoi_values is not None:
+                        self._visualise_steady_quantity(qoi_name, qoi_values) #TODO implement for the steady state case
                     else:
-                        print(f"No results available for {qoi}. Skipping visualization.")
-                    
-                        #plt.plot(self.model.vertices[:], self.results[:, -1], label=f"t=steady")
-                        #plt.semilogy(self.model.vertices[:], self.results[:, -1], label=f"t=steady")
+                        print(f"No results available for {qoi_name}. Skipping visualization.")
+
+                    #plt.plot(self.model.vertices[:], self.results[:, -1], label=f"t=steady")
+                    #plt.semilogy(self.model.vertices[:], self.results[:, -1], label=f"t=steady")
 
         else:
             print("No results to visualize. Please run the simulation first.")
