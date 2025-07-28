@@ -138,8 +138,9 @@ def extract_tritium_inventory(results, model):
             #TODO: Replace with a better inventory calculation
 
             ds = 1.0e-12 # a test area of a squared micron [m^2]
+            length_elem_s = model.vertices[1:] - model.vertices[:-1]  # length of each (1D) element [m]
 
-            # Option 1.1) assume flat geometry and uniform (1D) mesh (~hexahedral in 3D)
+            # # Option 1.1) assume flat geometry and uniform (1D) mesh (~hexahedral in 3D)
             # length_elem = model.config['geometry']['length'] / model.config['simulation']['n_elements']  # Example length element [m]
             # volume_elem = ds * length_elem  # Volume of an element [m^3]
             # if len(data.shape) > 1 and data.shape[0] > 0:
@@ -148,23 +149,31 @@ def extract_tritium_inventory(results, model):
             # else:
             #     inventory = 1.0e20  # Default value
 
-            # Option 1.2) assume flat geometry and non-uniform mesh
-            # Calculate volume of an actual local element - important for a) sph. geometry and b) non-uniform mesh
-            #TODO test this
-            length_elem_s = model.vertices[1:] - model.vertices[:-1]  # length of each (1D) element [m]
-            volume_elem = ds * length_elem_s  # Volume of each element [m^3]
-            #TODO figure out correct dimensionality of the output data
-            if len(data.shape) > 1 and data.shape[0] > 0:
-                final_concentrations = data[:-1, -1]  # Last time step
-                #TODO find correct resolution beteen vertices and elements
-                inventory = np.sum(final_concentrations * volume_elem)
-            else:
-                inventory = 1.0e20  # Default value
+            # # Option 1.2) assume flat geometry and non-uniform mesh
+            # # Calculate volume of an actual local element - important for a) sph. geometry and b) non-uniform mesh
+            # #TODO test this
+            # volume_elem_s = ds * length_elem_s  # Volume of each element [m^3]
+            
+            # #TODO figure out correct dimensionality of the output data
+            # if len(data.shape) > 1 and data.shape[0] > 0:
+            #     final_concentrations = data[:-1, -1]  # Last time step
+            #     #TODO find correct resolution beteen vertices and elements
+            #     inventory = np.sum(final_concentrations * volume_elem_s)
+            # else:
+            #     inventory = 1.0e20  # Default value
 
             # Option 1.3) assume spherical geometry and uniform mesh
-            # TODO: implement and test this
-            # volume_elem = ds * (4/3) * np.pi * (length_elem / 2)**3  # Volume of a spherical element [m^3]
+            #TODO: test this
 
+            radius_loc_s = model.vertices[:-1]  # Local radius of each spherical element [m]
+
+            volume_elem_s =  4. * np.pi * length_elem_s * (radius_loc_s)**2  # Volume of a spherical element [m^3]
+
+            if len(data.shape) > 1 and data.shape[0] > 0:
+                final_concentrations = data[:-1, -1]  # Last time step
+                inventory = np.sum(final_concentrations * volume_elem_s)
+            else:
+                inventory = 1.0e20  # Default value
 
         else:
             print(f"Warning: Results file not found: {result_file}")
