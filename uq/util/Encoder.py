@@ -97,7 +97,7 @@ class AdvancedYAMLEncoder(YAMLEncoder):
     """
     
     def __init__(self, template_fname, target_filename="config.yaml", 
-                 parameter_map=None, type_conversions=None):
+                 parameter_map=None, type_conversions=None, fixed_parameters=None):
         """
         Initialize the advanced YAML encoder.
         
@@ -116,7 +116,8 @@ class AdvancedYAMLEncoder(YAMLEncoder):
         self.target_filename = target_filename
         self.parameter_map = parameter_map or {}
         self.type_conversions = type_conversions or {}
-        
+        self.fixed_parameters = fixed_parameters or {}
+
         if not os.path.exists(template_fname):
             raise FileNotFoundError(f"Template file not found: {template_fname}")
     
@@ -145,6 +146,9 @@ class AdvancedYAMLEncoder(YAMLEncoder):
                 # Try to find the parameter in the config structure
                 self._update_config_recursive(config, param_name, param_value)
         
+        # Update fixed parameters
+        self._update_fixed_parameters(config)
+
         # Write the updated configuration
         target_path = os.path.join(target_dir, self.target_filename)
         with open(target_path, 'w') as f:
@@ -195,6 +199,16 @@ class AdvancedYAMLEncoder(YAMLEncoder):
             type_conversions=serialized_encoder.get("type_conversions")
         )
 
+    def _update_fixed_parameters(self, config):
+        """Update fixed parameters in the configuration."""
+        for key, value in self.fixed_parameters.items():
+            # Use parameter mapping if available
+            if key in self.parameter_map:
+                yaml_path = self.parameter_map[key]
+                self._set_nested_value(config, yaml_path, value)
+            else:
+                # Try to find the parameter in the config structure
+                self._update_config_recursive(config, key, value)
 
 # Convenience function for simple usage
 def create_yaml_encoder(template_file, output_file="config.yaml", 
