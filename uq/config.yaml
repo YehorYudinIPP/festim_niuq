@@ -1,9 +1,9 @@
 # FESTIM Model Configuration
 model_parameters:
-  total_time: 100.0  # s
+  total_time: 25.0  # s
   T_0: 300.0  # initial temperature in [K]
   #T_ext: 300.0  # external temperature in [K]
-  'heat_model': 'heat_transfer'  # type of heat model to use, options: 'heat_transfer', 'none'
+  heat_model: 'heat_transfer'  # type of heat model to use, options: 'heat_transfer', 'none'
   transient: True  # enable transient simulation
   
 geometry:
