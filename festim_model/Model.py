@@ -93,6 +93,9 @@ class Model():
             self.model.dt = None
         #TODO: since model convergence so quickly make time step adaptive, based on the model parameters and mesh size - exam the influence of the time step on the results
 
+        # Added derived quantities to the model exports
+        self._add_derived_quantities(['tritium_inventory'])
+
         print(f" > Initialisation finished! Model initialized with {self.n_elements} elements")  ###DEBUG
 
     def _specify_geometry(self, config):
@@ -367,6 +370,30 @@ class Model():
                 )
 
         return self.model.exports
+
+    def _add_derived_quantities(self, list_of_derived_quantities_names=['tritium_inventory']):
+        """
+        Add derived quantities to the FESTIM model.
+        This method can be extended to include specific derived quantity logic.
+        """
+        print("Adding derived quantities...")
+
+        # Compute total tritium inventory
+        if 'tritium_inventory' in list_of_derived_quantities_names:
+            # This will compute the total tritium inventory and add it to the model's exports
+            derived_quantities = Diagnostics.compute_total_tritium_inventory(self.result_folder)
+        else:
+            derived_quantities = None
+
+        # Add derived quantities to the model's exports
+        self.model.exports.append(derived_quantities)
+
+        # Add derived quantities to the model's quantities of interest
+        for q_name in list_of_derived_quantities_names:
+            if q_name not in self.quantities_of_interest:
+                self.quantities_of_interest[q_name] = None
+
+        return derived_quantities
 
     def inspect_model_structure(self):
         """Print detailed structure of the FESTIM model object."""
