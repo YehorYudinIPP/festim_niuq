@@ -5,6 +5,8 @@ import numpy as np
 import os
 import sys
 
+import csv
+
 # Configure matplotlib backend before importing pyplot
 import matplotlib
 matplotlib.use('Agg')  # Use non-GUI backend for headless environments
@@ -14,7 +16,7 @@ import festim as F
 
 class Diagnostics:
 
-    def __init__(self, model, results=None, result_folder=None):
+    def __init__(self, model, results=None, result_folder=None, derived_quantities_flag=True):
         """
         Initialize Diagnostics with FESTIM results.
         
@@ -46,6 +48,42 @@ class Diagnostics:
             print(f"Warning: No results for {qoi} file found in {self.result_folder}. Please run the simulation first.")
             self.results[qoi] = None
 
+        # Additionally, read results from derived quantities file if available
+        if derived_quantities_flag:
+            derived_quantities_file = os.path.join(self.result_folder, 'derived_quantities.csv')
+
+            alternative_names = {
+                'Average solute volume 1 (H m-3)': 'tritium_inventory',
+            }
+
+            if os.path.exists(derived_quantities_file):
+                print(f"Reading derived quantities from {derived_quantities_file}")
+
+                # Read entire derived quantities file
+                derived_quantities = np.genfromtxt(derived_quantities_file, delimiter=',', skip_header=1)
+
+                # Read header to get column names - TODO replace with pandas for better handling
+                with open(derived_quantities_file, 'r') as f:
+                    header = f.readline().strip().split(',')
+                
+                # Add each column of derived_quantities to the results dictionary
+                for i, qoi in enumerate(header):
+                    # Check if the quantity name is in the alternative names mapping and replace it
+                    if qoi in alternative_names:
+                        qoi = alternative_names[qoi]
+                        # ATTENTION: so far, only the quantities specified in the alternative_names mapping are added
+                        if i < derived_quantities.shape[1]:  # Check if column exists
+                            self.results[qoi] = derived_quantities[:, i]
+                            print(f"Loaded derived quantity: {qoi}")
+
+                # Store the times for derived quantities separately
+                self.derived_quantities_times = derived_quantities[:, 0] if derived_quantities.shape[1] > 0 else []
+                print(f" > Derived quantities times: {self.derived_quantities_times}") ###DEBUG print derived quantities times
+
+            else:
+                print(f"No derived quantities file found at {derived_quantities_file}.")
+                self.derived_quantities = None
+
         # Check if results are now present
         # TODO think if the flag is needed
         # self.result_flag = None  # Flag to check if results are available
@@ -72,16 +110,19 @@ class Diagnostics:
             'tritium_inventory': {
                 'name': 'Tritium Inventory',
                 'unit': 'T',
+                'dimensionality': '0d',
                 'description': 'Total tritium inventory in the sample'
             },
             'tritium_concentration': {
                 'name': 'Tritium Concentration',
                 'unit': 'm^-3',
+                'dimensionality': '1d',
                 'description': 'Tritium concentration in the volume'
             },
             'temperature': {
                 'name': 'Temperature',
                 'unit': 'K',
+                'dimensionality': '1d',
                 'description': 'Temperature distribution at a point'
             },
         }
@@ -97,34 +138,78 @@ class Diagnostics:
         return self.results.get(qoi_name, None)
 
     # Function to compute total tritium inventory inside simulated volume - TODO try out different integration schemes
-    def compute_total_tritium_inventory(self):
+    @staticmethod
+    def compute_total_tritium_inventory(result_folder):
         """
         Compute the total tritium inventory in the simulated volume.
 
         :return: Total tritium inventory (FESTIM DerivedQuantities object).
         """
-        # ATTENTION: Placeholeder - need to be passed during the model initialisation
-        # there is an implementation in a wrapper
+        # ATTENTION: Placeholder - need to be passed during the model initialisation
+        # Also, there is an implementation to recompute quantities (gas inventory) based on the raw outputs in the UQ wrapper
 
         derived_quantity_types = [
             F.TotalVolume(
-                field=0, 
+                field="retention", 
                 volume=1,
                 #name='tritium_inventory', 
                 #description='Total tritium inventory in the volume'
-            )
+            ),
+            F.HydrogenFlux(
+                surface=1, 
+            ),
+            F.HydrogenFlux(
+                surface=2, 
+            ),
+            F.TotalVolume(
+                field="solute",
+                volume=1,
+            ),
+            F.AverageVolume(
+                field="solute",
+                volume=1,
+            ),
         ]
 
+        # Make a derived quantities object
         derived_quantities = F.DerivedQuantities(
             derived_quantity_types,
             show_units=True,
+            filename=result_folder+'/derived_quantities.csv',
         )
+        
+        # Append the new exports
+        #model.exports.append(derived_quantities)
 
         return derived_quantities
 
-    def _visualise_transient_quantity(self, qoi_name, qoi_values):
+    def _visualise_transient_0d_quantity(self, qoi_name, qoi_values, times):
         """
-        Visualize a specific quantity of interest.
+        Visualise a specific scalar (0D) quantity of interest resolved as a function of time.
+        """
+        if qoi_values is None:
+            print(f"No data available for {qoi_name}. Skipping visualization.")
+            return
+
+        plt.figure(figsize=(10, 6))
+
+        # Plot the quantity of interest over time
+        plt.plot(times, qoi_values, label=qoi_name)
+
+        # Set plot labels and title
+        plt.xlabel('Time [s]')
+        plt.ylabel(f"{self.quantities_of_interest_descriptor[qoi_name]['name']} [{self.quantities_of_interest_descriptor[qoi_name]['unit']}]")
+        plt.title(f"{self.quantities_of_interest_descriptor[qoi_name]['name']} vs Time")
+        plt.grid('both')
+        plt.legend(loc='best')
+
+        # Save the plot to the result folder
+        plt.savefig(f"{self.result_folder}/results_{qoi_name}.png")
+        plt.close('all')
+
+    def _visualise_transient_1d_quantity(self, qoi_name, qoi_values):
+        """
+        Visualize a specific quantity of interest resolved as a function of a single spatial coordinate (1D).
         
         :param qoi_name: Name of the quantity to visualize.
         :param quantity: The quantity data to visualize.
@@ -166,10 +251,10 @@ class Diagnostics:
         plt.savefig(f"{self.result_folder}/results_{qoi_name}.png")
         plt.close('all')  # Close all figures after plotting
             
-    def _visualise_steady_quantity(self, qoi_name, qoi_values):
+    def _visualise_steady_1d_quantity(self, qoi_name, qoi_values):
         """
-        Visualize a specific steady-state quantity of interest.
-        
+        Visualize a specific steady-state quantity of interest resolved as a function of a single spatial coordinate (1D).
+
         :param qoi_name: Name of the quantity to visualize.
         :param qoi_values: The quantity data to visualize.
         """
@@ -226,7 +311,13 @@ class Diagnostics:
                     print(f"Visualising quantity of interest: {qoi_name}")
 
                     if qoi_values is not None:
-                        self._visualise_transient_quantity(qoi_name, qoi_values)
+                        if self.quantities_of_interest_descriptor[qoi_name]['dimensionality'] == '1d':
+                            self._visualise_transient_1d_quantity(qoi_name, qoi_values)
+                        elif self.quantities_of_interest_descriptor[qoi_name]['dimensionality'] == '0d':
+                            self._visualise_transient_0d_quantity(qoi_name, qoi_values, self.derived_quantities_times)
+                        else:
+                            print(f"Quantity {qoi_name} is not 1D or 0D, or unspecified, skipping visualisation.")
+                            # Optionally, handle other dimensionalities or skip
                     else:
                         print(f"No results available for {qoi_name}. Skipping visualization.")
             else:
@@ -237,7 +328,12 @@ class Diagnostics:
 
                     # Check if the results for this quantity are available
                     if qoi_values is not None:
-                        self._visualise_steady_quantity(qoi_name, qoi_values)
+                        if self.quantities_of_interest_descriptor[qoi_name]['dimensionality'] == '1d':
+                            # Visualise as a 1D quantity
+                            self._visualise_steady_1d_quantity(qoi_name, qoi_values)
+                        else:
+                            print(f"Quantity {qoi_name} is not 1D, skipping steady-state visualisation.")
+                            # Optionally, handle other dimensionalities or skip
                     else:
                         print(f"No results available for {qoi_name}. Skipping visualization.")
 
