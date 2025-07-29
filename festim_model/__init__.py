@@ -1,5 +1,5 @@
-# festim_model package initialization
+# Model package initialization
 from .Model import Model
 
-# Make Model available at package level
+# Make Model class available at package level
 __all__ = ['Model']
