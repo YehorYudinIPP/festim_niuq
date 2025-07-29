@@ -1,6 +1,6 @@
-# festim_model package initialization
+# util package initialization
 from . import Encoder
 from . import Decoder
 
-# Make Model available at package level
+# Make encoder classes available at package level
 __all__ = ['YAMLEncoder', 'AdvancedYAMLEncoder']
