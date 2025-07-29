@@ -3,6 +3,7 @@ Custom YAML Encoder for EasyVVUQ
 """
 import os
 import yaml
+import math
 #from easyvvuq.encoders.base import BaseEncoder
 
 
@@ -146,8 +147,10 @@ class AdvancedYAMLEncoder(YAMLEncoder):
                 # Try to find the parameter in the config structure
                 self._update_config_recursive(config, param_name, param_value)
         
-        # Update fixed parameters
-        self._update_fixed_parameters(config)
+        # Update fixed parameters for every run
+        # print(f" >> Updating fixed parameters in the configuration: {self.fixed_parameters}") ###DEUBUG
+        if self.fixed_parameters:
+            self._update_fixed_parameters(config)
 
         # Write the updated configuration
         target_path = os.path.join(target_dir, self.target_filename)
@@ -158,16 +161,30 @@ class AdvancedYAMLEncoder(YAMLEncoder):
     
     def _set_nested_value(self, config, path, value):
         """Set a nested value in the configuration using dot notation."""
+        # Split the path into keys
+        if not isinstance(path, str):
+            raise ValueError("Path must be a string in dot notation.")
+        if not path:
+            raise ValueError("Path cannot be empty.")
         keys = path.split('.')
         current = config
         
+        # Traverse the nested structure and set the value
         for key in keys[:-1]:
             if key not in current:
+                # Create a new dictionary if the key does not exist
                 current[key] = {}
             current = current[key]
         
+        # Set the final key to the value
         current[keys[-1]] = value
-    
+        # print(f"Set nested value at {path} to {value}") ###DEBUG
+
+        # Ensure the value is correctly set
+        if not math.isclose(current[keys[-1]], value):
+            # If the value is not set correctly, raise an error
+            raise ValueError(f"Failed to set value at {path}. Expected {value}, got {current[keys[-1]]}")
+
     def _update_config_recursive(self, config, param_name, param_value):
         """Recursively search and update parameter in config."""
         if isinstance(config, dict):
@@ -202,10 +219,20 @@ class AdvancedYAMLEncoder(YAMLEncoder):
     def _update_fixed_parameters(self, config):
         """Update fixed parameters in the configuration."""
         for key, value in self.fixed_parameters.items():
+
+            # Apply type conversion if specified
+            if key in self.type_conversions:
+                value = self.type_conversions[key](value)
+
             # Use parameter mapping if available
             if key in self.parameter_map:
+
                 yaml_path = self.parameter_map[key]
+
+                # print(f" >> Setting nested fixed parameter '{key}' to '{value}' at path '{yaml_path}'") ###DEBUG
+                
                 self._set_nested_value(config, yaml_path, value)
+                
             else:
                 # Try to find the parameter in the config structure
                 self._update_config_recursive(config, key, value)
