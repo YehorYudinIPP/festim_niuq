@@ -12,7 +12,7 @@ parent_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 if parent_dir not in sys.path:
     sys.path.insert(0, parent_dir)
 
-# Import custom YAML encoder
+# Import custom YAML encoders
 from util.Encoder import YAMLEncoder, AdvancedYAMLEncoder
 
 import chaospy as cp
@@ -485,7 +485,7 @@ def prepare_execution_command():
     
     return execute
 
-def prepare_uq_campaign(*args, **kwargs):
+def prepare_uq_campaign(fixed_params=None):
     """
     Prepare the uncertainty quantification (UQ) campaign by creating necessary steps: set-up, parameter definitions, encoders, decoders, and actions.
     """
@@ -497,17 +497,12 @@ def prepare_uq_campaign(*args, **kwargs):
 
     # Set up necessary elements for the EasyVVUQ campaign
 
-    # First, if the argument dictionary is not empty, get the parameters and their values from it, and modify the YAML encoder accordingly
-    if kwargs:
-        # Update parameters with the provided values
-        for key, value in kwargs.items():
-            if key in parameters:
-                parameters[key]['default'] = value
-            else:
-                print(f"Warning: Parameter '{key}' not found in model parameters. Skipping update.")
-    # TODO: could be done: (1) in the file at the harddrive, (2) in the YAML object read by the encoder, (3) as an UQ parameter that has to be set to a new default value (a CopyEncoder + MultiEncoder can be applied for this...)
+    # TODO: provide parameters with fixed values for the entire campaign -  could be done: (1) in the file at the harddrive, (2) in the YAML object read by the encoder, (3) as an UQ parameter that has to be set to a new default value (a CopyEncoder + MultiEncoder can be applied for this...)
 
+    # Option 1) Modify the parameters in a hard-drive file - skipping
     # Option 2) Before running the campaign, substitute the parameters in the template YAML file
+    
+    #print(f" >> Preparing the encoder with parameters: {fixed_params}") ###DEBUG
     
     # Create an Encoder object
 
@@ -540,7 +535,7 @@ def prepare_uq_campaign(*args, **kwargs):
             "right_bc_concentration_value": float, 
             "length": float,
         },
-        fixed_parameters=kwargs,  # Pass the dictionary of parameters to be fixed to the encoder
+        fixed_parameters=fixed_params,  # Pass the dictionary of parameters to be fixed to the encoder
     )
 
     # Option 3): Use built-in EasyVVUQ encoder
@@ -661,7 +656,7 @@ def analyse_uq_results(campaign, qois, sampler):
 
     return results
 
-def perform_uq_festim(*args, **kwargs):
+def perform_uq_festim(fixed_params=None):
     """
     Main function to perform the UQ campaign for FESTIM.
     This function orchestrates the preparation, execution, and analysis of the UQ campaign.
@@ -671,7 +666,9 @@ def perform_uq_festim(*args, **kwargs):
 
     # Prepare the UQ campaign
     # This includes defining parameters, encoders, decoders, and actions
-    campaign, qois, distributions, campaign_timestamp, sampler = prepare_uq_campaign(kwargs=kwargs)
+    
+    #print(f" >> Passing parameters to the campaign: {fixed_params}") ###DEBUG
+    campaign, qois, distributions, campaign_timestamp, sampler = prepare_uq_campaign(fixed_params=fixed_params)
 
     # TODO: add more parameter for Arrhenious law
     # TODO: try higher BC concentration values - does it even make sense to have such low BC (+)
