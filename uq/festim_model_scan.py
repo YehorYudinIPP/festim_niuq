@@ -171,6 +171,9 @@ def param_scan_sensitivity_analysis(config, param_name='length', level_variation
         num=n_runs, 
         base=log_base,
     )
+
+    # Convert to list of floats
+    param_values = [float(value) for value in param_values]
     
     if param_values is None or len(param_values) == 0:
         print("No sensitivity parameters found in configuration, no parameter range was generated, aborting scan")
@@ -181,9 +184,9 @@ def param_scan_sensitivity_analysis(config, param_name='length', level_variation
         # For now, just print the parameters
         print(f"Parameter: {param_name}, Value: {param_value}")
 
-        #TODO pass new parameter values fixes for the whole campaign
-        perform_uq_festim({param_name: param_value})
-        #TODO save as display the modified parameter in the scan
+        #TODO make sure type conversion during iteration over numpy array is correct
+        perform_uq_festim(fixed_params={param_name: param_value})
+        #TODO save and display the modified parameter in the scan
 
     # TODO make a plot of Sensitivity indices (at r=0) as a function of the parameter value (here: sample length); maybe a surface 3D plot
 
