@@ -70,7 +70,7 @@ class Model():
             self._add_heat_conduction(config)
             #TODO test thoroughly!
         else:
-            self.model.T = config['model_parameters']['T_0']
+            self.model.T = config['model_parameters']['T_0'] # set fixed background temperature
 
         print (f" >> Using heat transfer model: {self.model.T.__dict__}") ###DEBUG
 
@@ -139,6 +139,7 @@ class Model():
             type=self.coordinate_system_type,  # Specify (spherical) mesh type; available coordinate systems: 'cartesian', 'cylindrical', 'spherical'; default is Cartesian
             vertices=self.vertices,  # Use the vertices defined above
             )
+        #TODO: add a fallback for unsupported coordinate systems
         
         # Option 2) use FESTIM's Mesh - and FeniCS (Dolfin ?) objects - specific for spherical geometry
         # self.model.mesh = F.Mesh(
