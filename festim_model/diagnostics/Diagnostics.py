@@ -61,6 +61,11 @@ class Diagnostics:
 
                 # Read entire derived quantities file
                 derived_quantities = np.genfromtxt(derived_quantities_file, delimiter=',', skip_header=1)
+                #print(f" >> Derived quantities shape: {derived_quantities.shape}")  ###DEBUG print shape of derived quantities
+
+                # If the resulting numpy array is 1D, reshape it to 2D
+                if derived_quantities.ndim == 1:
+                    derived_quantities = derived_quantities.reshape(-1, 1)
 
                 # Read header to get column names - TODO replace with pandas for better handling
                 with open(derived_quantities_file, 'r') as f:
@@ -69,6 +74,7 @@ class Diagnostics:
                 # Add each column of derived_quantities to the results dictionary
                 for i, qoi in enumerate(header):
                     # Check if the quantity name is in the alternative names mapping and replace it
+                    print(f" >> Processing derived quantity: {qoi}") ###DEBUG
                     if qoi in alternative_names:
                         qoi = alternative_names[qoi]
                         # ATTENTION: so far, only the quantities specified in the alternative_names mapping are added
@@ -191,20 +197,21 @@ class Diagnostics:
             print(f"No data available for {qoi_name}. Skipping visualization.")
             return
 
-        plt.figure(figsize=(10, 6))
+        fig, ax = plt.subplots(figsize=(10, 6))
 
         # Plot the quantity of interest over time
-        plt.plot(times, qoi_values, label=qoi_name)
+        ax.plot(times, qoi_values, label=qoi_name)
 
         # Set plot labels and title
-        plt.xlabel('Time [s]')
-        plt.ylabel(f"{self.quantities_of_interest_descriptor[qoi_name]['name']} [{self.quantities_of_interest_descriptor[qoi_name]['unit']}]")
-        plt.title(f"{self.quantities_of_interest_descriptor[qoi_name]['name']} vs Time")
-        plt.grid('both')
-        plt.legend(loc='best')
+        ax.set_xlabel('Time [s]')
+        ax.set_ylabel(f"{self.quantities_of_interest_descriptor[qoi_name]['name']} [{self.quantities_of_interest_descriptor[qoi_name]['unit']}]")
+        ax.set_title(f"{self.quantities_of_interest_descriptor[qoi_name]['name']} vs Time")
+
+        ax.grid('both')
+        ax.legend(loc='best')
 
         # Save the plot to the result folder
-        plt.savefig(f"{self.result_folder}/results_{qoi_name}.png")
+        fig.savefig(f"{self.result_folder}/results_{qoi_name}.png")
         plt.close('all')
 
     def _visualise_transient_1d_quantity(self, qoi_name, qoi_values):
@@ -218,7 +225,7 @@ class Diagnostics:
             print(f"No data available for {qoi_name}. Skipping visualization.")
             return
 
-        plt.figure(figsize=(10, 6))
+        fig, ax = plt.subplots(figsize=(10, 6))
 
         # iterate over the milestone times and plot each
         for (i,time) in enumerate(self.milestone_times):
@@ -227,7 +234,7 @@ class Diagnostics:
             # TODO: consider that there might be no result data for a given milestone time
             print(f"> Plotting results for time {time} [s]")
 
-            plt.plot(
+            ax.plot(
                 self.model.vertices[:], 
                 qoi_values[:, i+1], 
                 label=f"t={time:.2f} s", 
@@ -238,17 +245,22 @@ class Diagnostics:
             # print(f"Last {n_el_print} elements at time {time} s: {self.results[-n_el_print:, i+1]}") ### DEBUG
 
         # Set plot labels and title
-        plt.xlabel('Radial Coordinate [m]')
-        plt.ylabel(f"{self.quantities_of_interest_descriptor[qoi_name]['name']} [{self.quantities_of_interest_descriptor[qoi_name]['unit']}]") # Use the name and unit from the descriptor
+        ax.set_xlabel('Radial Coordinate [m]')
+        ax.set_ylabel(f"{self.quantities_of_interest_descriptor[qoi_name]['name']} [{self.quantities_of_interest_descriptor[qoi_name]['unit']}]") # Use the name and unit from the descriptor
 
-        plt.title(f"{self.quantities_of_interest_descriptor[qoi_name]['name']} vs Radius (at different times) \n Param-s: T={self.model.config['model_parameters']['T_0']:.2f} [K], G={float(self.model.config['source_terms']['source_concentration_value']):.2e} [m^-3s^-1], C(a)={float(self.model.config['boundary_conditions']['right_bc_concentration_value']):.2e} [m^-3]")
+        title_string = f"{self.quantities_of_interest_descriptor[qoi_name]['name']} vs Radius (at different times)"
 
-        plt.grid('both')
-        plt.legend(loc='best')
+        # TODO make a descriptor file in a separate package for YAML parsing; storing and specifying its structure
+        title_string += f"\n Param-s: T={self.model.config['model_parameters']['T_0']:.2f} [K], G={float(self.model.config['source_terms']['source_concentration_value']):.2e} [m^-3s^-1], C(a)={float(self.model.config['boundary_conditions']['right_bc_concentration_value']):.2e} [m^-3]"
+
+        ax.set_title(title_string)
+
+        ax.grid('both')
+        ax.legend(loc='best')
         #plt.legend([f"t={time}" for time in self.milestone_times])
 
         #plt.show()
-        plt.savefig(f"{self.result_folder}/results_{qoi_name}.png")
+        fig.savefig(f"{self.result_folder}/results_{qoi_name}.png")
         plt.close('all')  # Close all figures after plotting
             
     def _visualise_steady_1d_quantity(self, qoi_name, qoi_values):
@@ -262,21 +274,29 @@ class Diagnostics:
             print(f"No data available for {qoi_name}. Skipping visualization.")
             return
 
-        plt.figure(figsize=(10, 6))
+        fig, ax = plt.subplots(figsize=(10, 6))
 
         # Plot the steady-state results
-        plt.plot(self.model.vertices[:], qoi_values, label=f"Steady State", marker='o')
+        ax.plot(
+            self.model.vertices[:], 
+            qoi_values,
+            label=f"Steady State", 
+            #marker='o'
+            )
 
         # Set plot labels and title
-        plt.xlabel('Radial Coordinate [m]')
-        plt.ylabel(f"{self.quantities_of_interest_descriptor[qoi_name]['name']} [{self.quantities_of_interest_descriptor[qoi_name]['unit']}]")  # Use the name and unit from the descriptor
-        plt.title(f"{self.quantities_of_interest_descriptor[qoi_name]['name']} vs Radius (in Steady State) \n Param-s: T={self.model.config['model_parameters']['T_0']:.2f} [K], G={float(self.model.config['source_terms']['source_value']):.2e} [m^-3s^-1], C(a)={float(self.model.config['boundary_conditions']['right_bc_value']):.2e} [m^-3]")
+        ax.set_xlabel('Radial Coordinate [m]')
+        ax.set_ylabel(f"{self.quantities_of_interest_descriptor[qoi_name]['name']} [{self.quantities_of_interest_descriptor[qoi_name]['unit']}]")  # Use the name and unit from the descriptor
 
-        plt.grid('both')
-        plt.legend(loc='best')
+        title_string = f"{self.quantities_of_interest_descriptor[qoi_name]['name']} vs Radius (in Steady State)"
+        title_string += f"\n Param-s: T={self.model.config['model_parameters']['T_0']:.2f} [K], G={float(self.model.config['source_terms']['source_concentration_value']):.2e} [m^-3s^-1], C(a)={float(self.model.config['boundary_conditions']['right_bc_concentration_value']):.2e} [m^-3]"
+        ax.set_title(title_string)
+
+        ax.grid('both')
+        ax.legend(loc='best')
 
         #plt.show()
-        plt.savefig(f"{self.result_folder}/results_{qoi_name}_steady.png")
+        fig.savefig(f"{self.result_folder}/results_{qoi_name}_steady.png")
         plt.close('all')
 
     def visualise(self):
@@ -321,7 +341,7 @@ class Diagnostics:
                     else:
                         print(f"No results available for {qoi_name}. Skipping visualization.")
             else:
-                print("Steady-state simulation detected, only entry plotted.")
+                print("Steady-state simulation detected, only single entry plotted.")
                 # Plot the single plot (t=steady)
                 for qoi_name, qoi_values in self.results.items():
                     print(f"Visualising quantity of interest: {qoi_name}")
