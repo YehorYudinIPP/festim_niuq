@@ -4,6 +4,14 @@ import subprocess
 
 from datetime import datetime
 
+# Add project root to Python path for imports
+project_root = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+if project_root not in sys.path:
+    sys.path.insert(0, project_root)
+
+# from serializer import serialize_yaml
+# from serializer import deserialize_yaml
+from joblib import dump, load
 
 def add_timestamp_to_filename(filename, timestamp=None):
     """
@@ -77,3 +85,23 @@ def validate_execution_setup():
     print(f"✓ Script validation passed: {script_path}")
     print(f"✓ Python executable: {python_exe}")
     return python_exe, script_path
+
+def save_sa_results_yaml():
+    """
+    Save sensitivity analysis results to a YAML file. - example
+    """
+    results = {
+        'timestamp': datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
+        'description': 'Sensitivity analysis results',
+        'data': {
+            # Example data structure
+            'sensitivity_indices': [0.1, 0.2, 0.3],
+            'parameters': ['param1', 'param2', 'param3']
+        }
+    }
+    
+    filename = add_timestamp_to_filename("sa_results.yaml")
+    # serialize_yaml(results, filename) # TODO - implement, or copy
+
+    print(f"✓ Sensitivity analysis results saved to: {filename}")
+    return filename

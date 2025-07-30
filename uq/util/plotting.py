@@ -1,7 +1,8 @@
 
 import matplotlib.pyplot as plt
+import numpy as np
 
-from uq.util.plotting import add_timestamp_to_filename
+from .utils import add_timestamp_to_filename
 
 def plot_unc_vs_r(r, y, sy, y10, y90, qoi_name, foldername="", filename=""):
     """
@@ -80,12 +81,14 @@ def plot_stats_vs_r(results, qois, plot_folder_name, plot_timestamp, rs=None):
         sobols_filename = add_timestamp_to_filename(f"{qoi}_sobols_first_vs_r.png", plot_timestamp)
         
         # Default plotting of the moments
+        #print(f" >> Plotting moments for QoI with EasyVVUQ: {qoi}") ###DEBUG
         results.plot_moments(
             qoi=qoi,
             ylabel=f"Concentration [m^-3], {qoi}",
             xlabel=f"Radius, #vertices",
             filename=f"{plot_folder_name}/{moments_vsr_filename}",
         )
+        print(f" >>> Finished plotting moments for QoI with EasyVVUQ: {qoi}")
 
         # Plotting Sobol indices as a treemap
         #TODO: figure out how to plot treemaps at arbitrary locations
@@ -102,8 +105,10 @@ def plot_stats_vs_r(results, qois, plot_folder_name, plot_timestamp, rs=None):
         y10 = results.describe(qoi, '10%')
         y90 = results.describe(qoi, '90%')
         y99 = results.describe(qoi, '99%')
-        ymin = results.describe(qoi, 'min')
-        ymax = results.describe(qoi, 'max')
+        # ymin = results.describe(qoi, 'min')
+        # ymax = results.describe(qoi, 'max')
+        
+        #print(f" >>> Finished reading statistics for QoI with EasyVVUQ: {qoi}") ### DEBUG
 
         # Filling in the values for the list of dicts for a common boxplot
         stats_dict_s.append({
@@ -115,7 +120,7 @@ def plot_stats_vs_r(results, qois, plot_folder_name, plot_timestamp, rs=None):
             'cihi': [y[r_ind_qoi] + 1.95* sy[r_ind_qoi]],
             'whislo': [y01[r_ind_qoi]],
             'whishi': [y99[r_ind_qoi]],
-            'fliers': [ymin[r_ind_qoi], ymax[r_ind_qoi]],
+            'fliers': [],  # [ymin[r_ind_qoi], ymax[r_ind_qoi]],
             'label': f"{qoi}",
         })
 
@@ -123,9 +128,11 @@ def plot_stats_vs_r(results, qois, plot_folder_name, plot_timestamp, rs=None):
         #rs = np.linspace(0., 1., len(y))  # Should be done outside of scope of current function
 
         # Bespoke plotting of uncertainty in QoI (vs. radius)
+        #print(f" >> Plotting moments for QoI via bespoke function: {qoi}") ###DEBUG
         plot_unc_vs_r(rs, y, sy, y10, y90, qoi_name=qoi, foldername=plot_folder_name, filename=moments_vsr_filename)
 
         # Plotting Sobol indices as a function of radius
+        #print(f" >> Plotting first Sobol indices for QoI via EasyVVUQ: {qoi}") ###DEBUG
         results.plot_sobols_first(
             qoi=qoi,
             withdots=False,  # Show dots for each Sobol index
@@ -139,6 +146,7 @@ def plot_stats_vs_r(results, qois, plot_folder_name, plot_timestamp, rs=None):
 
     # Save plot common for QoIs: specific for bespoke QoI uncertainty plotting
     #  - bespoke plotting of uncertainty in QoI (at selected radius)
+    #print(f" >> Plotting uncertainties for QoI via bespoke functionality: {qoi}") ###DEBUG
     plot_unc_qoi(stats_dict_s, qoi_name=qoi, foldername=plot_folder_name, filename=add_timestamp_to_filename("qoi_uncertainty_vs_r.png", plot_timestamp),r_ind=r_ind_qoi)
 
     return 0
