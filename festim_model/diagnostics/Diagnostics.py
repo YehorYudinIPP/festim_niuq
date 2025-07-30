@@ -276,11 +276,13 @@ class Diagnostics:
 
         fig, ax = plt.subplots(figsize=(10, 6))
 
+        print(f" >> qoi_values.shape: {qoi_values.shape}")  # DEBUG print shape of qoi_values
+
         # Plot the steady-state results
         ax.plot(
             self.model.vertices[:], 
             qoi_values,
-            label=f"Steady State", 
+            label=f"{self.quantities_of_interest_descriptor[qoi_name]['name']} in Steady State", 
             #marker='o'
             )
 
