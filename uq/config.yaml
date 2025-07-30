@@ -1,13 +1,14 @@
 # FESTIM Model Configuration
 model_parameters:
-  total_time: 25.0  # s
+  total_time: 100.0  # s
   T_0: 300.0  # initial temperature in [K]
   #T_ext: 300.0  # external temperature in [K]
   heat_model: 'heat_transfer'  # type of heat model to use, options: 'heat_transfer', 'none'
   transient: True  # enable transient simulation
   
 geometry:
-  length: 3.5e-5 #3.5e-6 #0.000007 # [m]
+  coordinate_system: "cartesian" # "spherical" # coordinate system used in the simulation
+  length: 3.5e-7 #3.5e-6 #0.000007 # [m]
   #thickness: 1.0e-6   # [m]
 
 materials:
@@ -17,9 +18,9 @@ materials:
   # solubility: 1.87e24  # [H/m³/Pa^0.5]
   D_0: 1.0e-6 #4.1e-7  # diffusion coefficient in [m²/s]
   E_D: 0.2 #0.39    # activation energy in [eV]
-  thermal_conductivity: 33.0  # thermal conductivity in [W/(m*K)]
-  rho: 1000.0 #534.0  # density in [kg/m³]
-  heat_capacity: 100.0  # specific heat capacity in [J/(kg*K)]
+  thermal_conductivity: 33.0  # thermal conductivity in [W/(m*K)] # Li2O >=66.
+  rho: 1000.0 #534.0  # density in [kg/m³] # Li2O ~2000.
+  heat_capacity: 100.0  # specific heat capacity in [J/(kg*K)] # Li2O >=1000.
   #h_coeff: 100.0  # convective heat transfer coefficient in [W/(m²*K)]
   
 simulation:

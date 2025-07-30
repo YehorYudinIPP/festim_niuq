@@ -3,15 +3,15 @@
 
 model_parameters:
   total_time: 25.0
-  T_0: $T$      # Temperature
-  heat_model: 'none' 
+  T_0: 300.0
+  heat_model: 'heat_transfer'
   transient: True
 
 geometry:
-  length: 0.00000035
+  length: 3.5e-5
 
 materials:
-  D_0: 1.0e-7  # Diffusion coefficient
+  D_0: $D_0$ #1.0e-7  # Diffusion coefficient
   E_D: 0.2  # Activation energy
   thermal_conductivity: 33.0  # thermal conductivity in [W/(m*K)]
   rho: 1000.0 # density in [kg/m³]
@@ -31,8 +31,15 @@ boundary_conditions:
   left_bc_concentration_type: "neumann"
   left_bc_concentration_value: 0.0
   right_bc_concentration_type: "dirichlet"
-  right_bc_concentration_value: $right_bc_concentration_value$
+  right_bc_concentration_value: 1.0e+17
+  left_bc_heat_type: "dirichlet"
+  left_bc_T_value: 300.0 
+  right_bc_heat_type: "neumann"
+  right_bc_T_value: 650.0
+  right_bc_hcoeff_value: 100.0
 
 source_terms:
   source_concentration_type: "constant"
-  source_concentration_value: $source_concentration_value$
+  source_concentration_value: 1.0e+18
+  source_heat_type: "constant"
+  source_heat_value: 1.0e+3
