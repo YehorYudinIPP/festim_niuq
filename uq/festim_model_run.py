@@ -91,6 +91,8 @@ def main():
     #print(f">>> festim_model_run: Print results to the console: {results}") ###DEBUG
 
     # Visualise results
+    # TODO make into a separate script such that if this fails, the model results are saved and run passes
+    # TODO single out run and post-process scripts and run a single BASH script 
     diagnostics = Diagnostics(model, results=results, result_folder=model.result_folder)
     diagnostics.visualise()
     
