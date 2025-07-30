@@ -110,6 +110,8 @@ class Model():
         self.n_elements = int(config['simulation']['n_elements'])
         self.length = float(config['geometry']['length'])  # Length of the geometry [m]
 
+        self.coordinate_system_type = config['geometry'].get('coordinate_system', 'spherical')  # Coordinate system type (default: spherical)
+
         # Create vertices for the mesh
         # Assuming a 1D geometry, vertices are evenly spaced along the length
 
@@ -134,12 +136,11 @@ class Model():
 
         # Option 1) for mesh: use FESTIM's MeshFromVertices
         self.model.mesh = F.MeshFromVertices(
-            vertices=self.vertices,
-            #type="cylindrical",  # Specify cylindrical mesh type
-            type="spherical",  # Specify spherical mesh type
+            type=self.coordinate_system_type,  # Specify (spherical) mesh type; available coordinate systems: 'cartesian', 'cylindrical', 'spherical'; default is Cartesian
+            vertices=self.vertices,  # Use the vertices defined above
             )
         
-        # Option 2) for mesh: use FESTIM's Mesh - and FeniCS objects - specific for spherical geometry
+        # Option 2) use FESTIM's Mesh - and FeniCS (Dolfin ?) objects - specific for spherical geometry
         # self.model.mesh = F.Mesh(
         #     type="spherical",  # Specify spherical mesh type
         # )
