@@ -174,7 +174,12 @@ def param_scan_sensitivity_analysis(config, param_name='length', level_variation
 
     # Convert to list of floats
     param_values = [float(value) for value in param_values]
-    
+
+    # Custom list of parameter values (for a restart after an error)
+    #param_values = [param_def_val * x for x in [1.0e+0, 1.0e+1, 1.0e+2, 1.0e+3]]
+    param_values = [param_def_val * x for x in [1.0e+3]]
+    print(f"Parameter values for sensitivity analysis: {param_values}")
+
     if param_values is None or len(param_values) == 0:
         print("No sensitivity parameters found in configuration, no parameter range was generated, aborting scan")
         return
