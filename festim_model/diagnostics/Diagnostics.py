@@ -2,6 +2,7 @@
 # A class to compute qualities of interest using FESTIM results
 
 import numpy as np
+import pandas as pd
 import os
 import sys
 
@@ -25,6 +26,7 @@ class Diagnostics:
         self.model = model
         self.results = results
         self.result_folder = result_folder if result_folder else './results' # TODO by default, try to read results from the model attribute
+        self.mesh = {}  # Dictionary to store mesh coordinates for each quantity of interest
 
         # If result is none, read from the result folder
         if self.results is None:
@@ -44,6 +46,10 @@ class Diagnostics:
                 if os.path.exists(result_file):
                     self.results[qoi] = np.genfromtxt(result_file, skip_header=True, delimiter=',')
                     print(f"Results for {qoi} loaded from {result_file}")
+
+                    # TODO (1) read using pandas (2) keep only the last column of the results, which is the time series
+                    self.mesh[qoi] = self.results[qoi][:, 0]  # Assuming the first column is the mesh coordinates
+                    self.results[qoi] = self.results[qoi][:, 1:]  # Keep only the results data (excluding mesh coordinates)
         else:
             print(f"Warning: No results for {qoi} file found in {self.result_folder}. Please run the simulation first.")
             self.results[qoi] = None
@@ -236,7 +242,7 @@ class Diagnostics:
 
             ax.plot(
                 self.model.vertices[:], 
-                qoi_values[:, i+1], 
+                qoi_values[:, i], 
                 label=f"t={time:.2f} s", 
                 #marker='o',
                 )
