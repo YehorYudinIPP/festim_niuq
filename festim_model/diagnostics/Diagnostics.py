@@ -240,12 +240,22 @@ class Diagnostics:
             # TODO: consider that there might be no result data for a given milestone time
             print(f"> Plotting results for time {time} [s]")
 
-            ax.plot(
+            # Option 1) Plotting in Lin-Lin space
+            # ax.plot(
+            #     self.model.vertices[:], 
+            #     qoi_values[:, i], 
+            #     label=f"t={time:.2f} s", 
+            #     #marker='o',
+            #     )
+            
+            # Option 2) Plotting in Log-Log space
+            ax.semilogy(
                 self.model.vertices[:], 
                 qoi_values[:, i], 
-                label=f"t={time:.2f} s", 
+                label=f"t={time:.2f} s",
                 #marker='o',
-                )
+            )
+            # TODO plot two plot in the same figure: one in Lin-Lin space, another in Log-Log space
 
             # n_el_print = 3
             # print(f"Last {n_el_print} elements at time {time} s: {self.results[-n_el_print:, i+1]}") ### DEBUG
