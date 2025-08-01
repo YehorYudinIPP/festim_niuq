@@ -37,7 +37,7 @@ def load_config(config_file):
 def main():
 
     # Set up command line argument parsing
-    print(f"> Entering the main function: EasyVVUQ FESTIM model wrapper")
+    print(f"\n\n ! Entering the main function: EasyVVUQ FESTIM model wrapper ! \n")
 
     parser = argparse.ArgumentParser(description='Run FESTIM model with YAML configuration')
     
@@ -69,13 +69,13 @@ def main():
     simulation = config.get('simulation', {})
     boundary_conditions = config.get('boundary_conditions', {})
     
-    # Print some key parameters
-    print(f"  Temperature: {model_params.get('T_0', 'Not specified')} K")
-    print(f"  Time step: {simulation.get('time_step', 'Not specified')} s")
-    print(f"  Total time: {model_params.get('total_time', 'Not specified')} s")
-    print(f"  Material: {materials.get('material_name', 'Not specified')}")
-    print(f"  Sample length: {geometry.get('length', 'Not specified')} m")
-    print(f"  Number of elements: {simulation.get('n_elements', 'Not specified')}")
+    # # Print some key parameters
+    # print(f"  Temperature: {model_params.get('T_0', 'Not specified')} K")
+    # print(f"  Time step: {simulation.get('time_step', 'Not specified')} s")
+    # print(f"  Total time: {model_params.get('total_time', 'Not specified')} s")
+    # print(f"  Material: {materials.get('material_name', 'Not specified')}")
+    # print(f"  Sample length: {geometry.get('length', 'Not specified')} m")
+    # print(f"  Number of elements: {simulation.get('n_elements', 'Not specified')}")
     
     # Create an instance of the FESTIM model with configuration
     model = Model(config=config)
