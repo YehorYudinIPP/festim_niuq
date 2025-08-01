@@ -10,20 +10,25 @@ def plot_unc_vs_r(r, y, sy, y10, y90, qoi_name, foldername="", filename=""):
     """
     fig, ax = plt.subplots()
 
-    ax.plot(r, y, label=f'<y> at {qoi_name}')
+    # ax.plot(r, y, label=f'<y> at {qoi_name}')
+    #TODO plot in semilogy
+    ax.semilogy(r, y, label=f'<y> at {qoi_name} (lin-log)')
+
     ax.fill_between(r, y - sy, y + sy, alpha=0.3, label='+/- STD')
     ax.fill_between(r, y10, y90, alpha=0.1, label='10% - 90%')
 
+    #TODO plot individual trajectories!
+
     ax.set_title(f"Uncertainty at {qoi_name} as a function of radius")
-    ax.set_xlabel("#Radius, fraction of length")
-    ax.set_ylabel(f"Concentration [m^-3] at {qoi_name}")
-    ax.legend()
+    ax.set_xlabel("#Radius, [m]") # TODO pass and display proper units for the length
+    ax.set_ylabel(f"Concentration [m^-3] at {qoi_name}") #TODO read full name of the QoI from results
+
+    ax.legend(loc='best')
     ax.grid(True)
 
     fig.savefig(f"{foldername}/bespoke_{filename}")
 
     plt.close()  # Close the plot to avoid display issues in some environments
-
     return 0
 
 def plot_unc_qoi(stats_dict_s, qoi_name, foldername="", filename="", r_ind=0):
@@ -80,23 +85,6 @@ def plot_stats_vs_r(results, qois, plot_folder_name, plot_timestamp, rs=None):
         sobols_treemap_filename = add_timestamp_to_filename(f"{qoi}_sobols_treemap.png", plot_timestamp)
         sobols_filename = add_timestamp_to_filename(f"{qoi}_sobols_first_vs_r.png", plot_timestamp)
         
-        # Default plotting of the moments
-        #print(f" >> Plotting moments for QoI with EasyVVUQ: {qoi}") ###DEBUG
-        results.plot_moments(
-            qoi=qoi,
-            ylabel=f"Concentration [m^-3], {qoi}",
-            xlabel=f"Radius, #vertices",
-            filename=f"{plot_folder_name}/{moments_vsr_filename}",
-        )
-        print(f" >>> Finished plotting moments for QoI with EasyVVUQ: {qoi}")
-
-        # Plotting Sobol indices as a treemap
-        #TODO: figure out how to plot treemaps at arbitrary locations
-        # results.plot_sobols_treemap(
-        #     qoi=qoi,
-        #     filename=f"{plot_folder_name}/{sobols_treemap_filename}",
-        # )
-
         # Read out the arrays of stats from the results object
         y = results.describe(qoi, 'mean')
         ymed = results.describe(qoi, 'median')
@@ -127,6 +115,27 @@ def plot_stats_vs_r(results, qois, plot_folder_name, plot_timestamp, rs=None):
         # Define a simple range for x-axis
         #rs = np.linspace(0., 1., len(y))  # Should be done outside of scope of current function
 
+        # Read out individual trajectories of single runs from .raw_data
+        print(f" >>> Reading individual trajectories for QoI with EasyVVUQ: results.raw_data = \n{results.raw_data}") ### DEBUG
+        #TODO might be needed to read from campaign.db
+
+        # Default plotting of the moments
+        #print(f" >> Plotting moments for QoI with EasyVVUQ: {qoi}") ###DEBUG
+        results.plot_moments(
+            qoi=qoi,
+            ylabel=f"Concentration [m^-3], {qoi}",
+            xlabel=f"Radius, #vertices",
+            filename=f"{plot_folder_name}/{moments_vsr_filename}",
+        )
+        print(f" >>> Finished plotting moments for QoI with EasyVVUQ: {qoi}")
+
+        # Plotting Sobol indices as a treemap
+        #TODO: figure out how to plot treemaps at arbitrary locations
+        # results.plot_sobols_treemap(
+        #     qoi=qoi,
+        #     filename=f"{plot_folder_name}/{sobols_treemap_filename}",
+        # )
+
         # Bespoke plotting of uncertainty in QoI (vs. radius)
         #print(f" >> Plotting moments for QoI via bespoke function: {qoi}") ###DEBUG
         plot_unc_vs_r(rs, y, sy, y10, y90, qoi_name=qoi, foldername=plot_folder_name, filename=moments_vsr_filename)
@@ -140,6 +149,8 @@ def plot_stats_vs_r(results, qois, plot_folder_name, plot_timestamp, rs=None):
             ylabel=f"Sobol Index (first) at {qoi}",
             filename=f"{plot_folder_name}/{sobols_filename}",  # Save with bespoke prefix
         )
+
+        #TODO add total Sobol indices as well, probaly higher order separately
 
         print(f"Plots (for spatially resolved functions) saved: {moments_vsr_filename}, {sobols_treemap_filename}, {sobols_filename}")
         #TODO compare those in absolute values - fix the y axis limits?
