@@ -96,6 +96,9 @@ class Model():
         # Added derived quantities to the model exports
         self._add_derived_quantities(['tritium_inventory'])
 
+        print(f" > config['model_parameters'] = \n {config['model_parameters']}")  ###DEBUG
+        print(f" > config['simulation'] = \n {config['simulation']}")  ###DEBUG
+
         print(f" > Initialisation finished! Model initialized with {self.n_elements} elements")  ###DEBUG
 
     def _specify_geometry(self, config):
@@ -104,6 +107,8 @@ class Model():
         This method can be extended to include specific geometry logic.
         """
         print("Specifying geometry...")
+
+        print(f" > config['geometry'] = \n {config['geometry']}")  ###DEBUG
         # 1D case
 
         # Specifying numerical parameters of mesh: physical size and number of elements
@@ -155,6 +160,8 @@ class Model():
         """
         print("Specifying boundary conditions...")
 
+        print(f" > config['boundary_conditions'] = \n {config['boundary_conditions']}")  ###DEBUG
+
         # Sperical case, apply DirichletBC at boundary (in relative terms, r=1.0), NeumannBC (FluxBC) at the center (r=0.0)
         self.model.boundary_conditions = [
             F.FluxBC(
@@ -181,6 +188,8 @@ class Model():
         """
         print("Specifying materials...")
 
+        print(f" > config['materials'] = \n {config['materials']}")  ###DEBUG
+
         # Define material properties
         self.model.materials = F.Material(
             id=1,
@@ -204,7 +213,7 @@ class Model():
         """
         print("Adding source terms...")
 
-        #print(f"Passing the source term value: {config['source_terms']['source_value']}") ###DEBUG
+        print(f" > config['source_terms'] = \n {config['source_terms']}")  ###DEBUG
         
         # Set a constant volumetric source term
         self.model.sources = [
@@ -223,6 +232,8 @@ class Model():
         This method can be extended to include specific heat conduction logic.
         """
         print("Adding heat conduction model...")
+
+        #print(f" > config[''] = \n {config['']}")  ###DEBUG
 
         # Add a new quantity of interest for temperature to analyse after the simulation
         self.quantities_of_interest["temperature"] = None
