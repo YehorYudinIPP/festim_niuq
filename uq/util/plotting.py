@@ -1,39 +1,118 @@
+"""
+This module contains functions for plotting uncertainty quantification (UQ) results from the FESTIM model.
+It includes functions to plot uncertainty as a function of radius, time, and Sobol indices,
+as well as functions to visualize statistics of the results.
+It is designed to work with EasyVVUQ and FESTIM libraries, providing a way to visualize the results of UQ campaigns.   
+
+Created by: Yehor Yudin
+Date: July 2025
+"""
 
 import matplotlib.pyplot as plt
 import numpy as np
 
+import itertools
+import json
+
 from .utils import add_timestamp_to_filename
 
-def plot_unc_vs_r(r, y, sy, y10, y90, qoi_name, foldername="", filename=""):
+def plot_unc_vs_r(r, y, sy, y10, y90, qoi_name:str, foldername:str="", filename:str="", runs_info=None):
     """
     Plot uncertainty in the results as a function of radius (spatial coordinates).
+
+    Parameters:
+    - r: array of radius / 1D coordinate values
+    - y: array of mean values at each radius
+    - sy: array of standard deviation values at each radius
+    - y10: array of 10% quantile values at each radius
+    - y90: array of 90% quantile values at each radius
+    - qoi_name: name of the quantity of interest (QoI) for labeling
+    - foldername: folder to save the plot
+    - filename: name of the file to save the plot
+    - runs_info: information about individual runs, if available (optional); should be a list of dictionaries, with 'id' and 'results'
     """
-    fig, ax = plt.subplots()
 
-    # ax.plot(r, y, label=f'<y> at {qoi_name}')
-    #TODO plot in semilogy
-    ax.semilogy(r, y, label=f'<y> at {qoi_name} (lin-log)')
+    # making an array of plot for different axis scales
+    plot_types = ['plot', 'semilogy']  # Add more plot types if needed
+    n_plots = len(plot_types)
 
-    ax.fill_between(r, y - sy, y + sy, alpha=0.3, label='+/- STD')
-    ax.fill_between(r, y10, y90, alpha=0.1, label='10% - 90%')
+    fig, axs = plt.subplots(1, n_plots, figsize=(n_plots * 8, 6))
 
-    #TODO plot individual trajectories!
+    # Iterative over type of axis scales
+    for i, plot_func_name in enumerate(plot_types):
 
-    ax.set_title(f"Uncertainty at {qoi_name} as a function of radius")
-    ax.set_xlabel("#Radius, [m]") # TODO pass and display proper units for the length
-    ax.set_ylabel(f"Concentration [m^-3] at {qoi_name}") #TODO read full name of the QoI from results
+        # Chosing the plotting function based on the plot_func_name (axis scale)
+        plot_func = getattr(axs[i], plot_func_name, None)
+        if plot_func is None:
+            raise ValueError(f"Plot function '{plot_func_name}' is not supported. Use 'plot' or 'semilogy'.")
 
-    ax.legend(loc='best')
-    ax.grid(True)
+        # Plotting the mean values with error bars
+        plot_func(r, y, label=f'<y> at {qoi_name}')
 
+        # Plotting the standard deviation as a shaded area
+        axs[i].fill_between(r, y - sy, y + sy, alpha=0.3, label='+/- STD')
+
+        # Plotting the 10% and 90% quantiles as a shaded area
+        axs[i].fill_between(r, y10, y90, alpha=0.1, label='10% - 90%')
+
+        # Plotting individual trajectories for each run if runs_info is provided
+
+        if runs_info is not None:
+            print(f" > Plotting individual trajectories for each run in {qoi_name} at '{plot_func_name}' scale")  ###DEBUG
+
+            # Iterating over individual runs
+            for run_id, run_info in runs_info:
+                print(f" >> Plotting run {run_id} for {qoi_name}")  ###DEBUGs
+                #print(f" >> Run {run_id} info: {run_info}")  ###DEBUG
+
+                # Checking if individual run has non-empty results
+                if 'result' in run_info:
+
+                    # Deserializing the result to a dictionary
+                    result_str = run_info['result'] # This is a string
+
+                    result_dict = json.loads(result_str) # This SHOULD BE a dictionary
+                    #print(f" >> Run {run_id} result_dict type: {type(result_dict)}, content: {result_dict}")  ###DEBUG
+
+                    # Plotting the individual trajectory for the current run
+                    plot_func(
+                        result_dict["x"], 
+                        result_dict[qoi_name],
+                        alpha=0.5,
+                        color='gray',
+                        label=f"Individual runs trajectories" if run_id == 1 else None
+                        )
+                    
+                else:
+                    print(f"Run {run_id} does not have 'result' key, skipping individual trajectory plotting.")
+            print(" > Individual trajectories plotted for each run.")  ###DEBUG
+        else:
+            print("No runs_info provided, skipping individual trajectories plotting.")
+
+        # Setting the title and labels for the plot
+        axs[i].set_title(f"Uncertainty at {qoi_name} as a function of radius, in '{plot_func_name}' scale")
+        axs[i].set_xlabel("Radius, [m]") # TODO pass and display proper units for the length
+        axs[i].set_ylabel(f"Concentration [m^-3] at {qoi_name}") #TODO read full name of the QoI from results
+
+
+        axs[i].legend(loc='best')
+        axs[i].grid(True)
+
+    # Save the figure with a bespoke filename
     fig.savefig(f"{foldername}/bespoke_{filename}")
 
     plt.close()  # Close the plot to avoid display issues in some environments
     return 0
 
-def plot_unc_qoi(stats_dict_s, qoi_name, foldername="", filename="", r_ind=0):
+def plot_unc_qoi(stats_dict_s:dict, qoi_name:str, foldername:str="", filename:str="", r_ind:int=0):
     """
     Plot uncertainty in the specific scalar QoIs.
+    Parameters:
+    - stats_dict_s: list of dictionaries with statistics for each QoI
+    - qoi_name: name of the quantity of interest (QoI) for labeling
+    - foldername: folder to save the plot
+    - filename: name of the file to save the plot
+    - r_ind: index of the radius to plot (default is 0)
     """
 
     # Specific to bespoke plot for a list of QoIs
@@ -69,9 +148,16 @@ def plot_unc_qoi(stats_dict_s, qoi_name, foldername="", filename="", r_ind=0):
 
     return 0
 
-def plot_stats_vs_r(results, qois, plot_folder_name, plot_timestamp, rs=None):
+def plot_stats_vs_r(results, qois:list[str], plot_folder_name:str, plot_timestamp:str, rs=None, runs_info=None):
     """
     Plot statistics of the results as a function of radius (spatial coordinates).
+    Parameters:
+    - results: analysis results object from EasyVVUQ
+    - qois: list of quantities of interest (QoIs) names to plot, for labeling
+    - plot_folder_name: folder to save the plots
+    - plot_timestamp: timestamp to append to the filenames
+    - rs: array of radius values (optional, if not provided, will be generated)
+    - runs_info: information about individual runs, if available (optional); should be a list of dictionaries, with 'id' and 'results'
     """
 
     # Specific for common boxplot for QoIs
@@ -81,10 +167,11 @@ def plot_stats_vs_r(results, qois, plot_folder_name, plot_timestamp, rs=None):
     # Rund over QoIs in analysis results object
     for qoi in qois:
         # Generate filenames with timestamp
-        moments_vsr_filename = add_timestamp_to_filename(f"{qoi}_moments_vs_r.png", plot_timestamp)
-        sobols_treemap_filename = add_timestamp_to_filename(f"{qoi}_sobols_treemap.png", plot_timestamp)
-        sobols_filename = add_timestamp_to_filename(f"{qoi}_sobols_first_vs_r.png", plot_timestamp)
-        
+        file_type = "pdf"  # Assuming we want to save as PDF
+        moments_vsr_filename = add_timestamp_to_filename(f"{qoi}_moments_vs_r.{file_type}", plot_timestamp)
+        sobols_treemap_filename = add_timestamp_to_filename(f"{qoi}_sobols_treemap.{file_type}", plot_timestamp)
+        sobols_filename = add_timestamp_to_filename(f"{qoi}_sobols_first_vs_r.{file_type}", plot_timestamp)
+
         # Read out the arrays of stats from the results object
         y = results.describe(qoi, 'mean')
         ymed = results.describe(qoi, 'median')
@@ -138,7 +225,7 @@ def plot_stats_vs_r(results, qois, plot_folder_name, plot_timestamp, rs=None):
 
         # Bespoke plotting of uncertainty in QoI (vs. radius)
         #print(f" >> Plotting moments for QoI via bespoke function: {qoi}") ###DEBUG
-        plot_unc_vs_r(rs, y, sy, y10, y90, qoi_name=qoi, foldername=plot_folder_name, filename=moments_vsr_filename)
+        plot_unc_vs_r(rs, y, sy, y10, y90, qoi_name=qoi, foldername=plot_folder_name, filename=moments_vsr_filename, runs_info=runs_info)
 
         # Plotting Sobol indices as a function of radius
         #print(f" >> Plotting first Sobol indices for QoI via EasyVVUQ: {qoi}") ###DEBUG
@@ -158,7 +245,8 @@ def plot_stats_vs_r(results, qois, plot_folder_name, plot_timestamp, rs=None):
     # Save plot common for QoIs: specific for bespoke QoI uncertainty plotting
     #  - bespoke plotting of uncertainty in QoI (at selected radius)
     #print(f" >> Plotting uncertainties for QoI via bespoke functionality: {qoi}") ###DEBUG
-    plot_unc_qoi(stats_dict_s, qoi_name=qoi, foldername=plot_folder_name, filename=add_timestamp_to_filename("qoi_uncertainty_vs_r.png", plot_timestamp),r_ind=r_ind_qoi)
+    file_type = "pdf"  # Assuming we want to save as PDF
+    plot_unc_qoi(stats_dict_s, qoi_name=qoi, foldername=plot_folder_name, filename=add_timestamp_to_filename(f"qoi_uncertainty_vs_r.{file_type}", plot_timestamp),r_ind=r_ind_qoi)
 
     return 0
 
@@ -249,8 +337,9 @@ def plot_stats_vs_t(results, distributions, qois, plot_folder_name, plot_timesta
     # Run over selected radius indices
     for r_ind in r_ind_selected:
         # Generate filenames with timestamp for time series plots
-        moments_vst_filename = add_timestamp_to_filename(f"moments_vs_t_at_{r_ind}.png", plot_timestamp)
-        sobols_vst_filename = add_timestamp_to_filename(f"sobols_first_vs_t_at_{r_ind}.png", plot_timestamp)
+        file_type = "pdf"  # Assuming we want to save as PDF
+        moments_vst_filename = add_timestamp_to_filename(f"moments_vs_t_at_{r_ind}.{file_type}", plot_timestamp)
+        sobols_vst_filename = add_timestamp_to_filename(f"sobols_first_vs_t_at_{r_ind}.{file_type}", plot_timestamp)
 
         # Extract r_ind-th element from each time step (array) to get time series at fixed radius
         y_at_r = [y_timestep[r_ind] for y_timestep in y_s]
