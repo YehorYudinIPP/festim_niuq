@@ -267,7 +267,7 @@ class Diagnostics:
         title_string = f"{self.quantities_of_interest_descriptor[qoi_name]['name']} vs Radius (at different times)"
 
         # TODO make a descriptor file in a separate package for YAML parsing; storing and specifying its structure
-        title_string += f"\n Param-s: T={self.model.config['model_parameters']['T_0']:.2f} [K], G={float(self.model.config['source_terms']['source_concentration_value']):.2e} [m^-3s^-1], C(a)={float(self.model.config['boundary_conditions']['right_bc_concentration_value']):.2e} [m^-3]"
+        title_string += f"\n Param-s: T={self.model.config['model_parameters']['T_0']:.2f} [K], G={float(self.model.config['source_terms']['concentration']['source_value']):.2e} [m^-3s^-1], C(a)={float(self.model.config['boundary_conditions']['concentration']['right']['value']):.2e} [m^-3]"
 
         ax.set_title(title_string)
 
@@ -307,7 +307,7 @@ class Diagnostics:
         ax.set_ylabel(f"{self.quantities_of_interest_descriptor[qoi_name]['name']} [{self.quantities_of_interest_descriptor[qoi_name]['unit']}]")  # Use the name and unit from the descriptor
 
         title_string = f"{self.quantities_of_interest_descriptor[qoi_name]['name']} vs Radius (in Steady State)"
-        title_string += f"\n Param-s: T={self.model.config['model_parameters']['T_0']:.2f} [K], G={float(self.model.config['source_terms']['source_concentration_value']):.2e} [m^-3s^-1], C(a)={float(self.model.config['boundary_conditions']['right_bc_concentration_value']):.2e} [m^-3]"
+        title_string += f"\n Param-s: T={self.model.config['model_parameters']['T_0']:.2f} [K], G={float(self.model.config['source_terms']['concentration']['source_value']):.2e} [m^-3s^-1], C(a)={float(self.model.config['boundary_conditions']['concentration']['right']['value']):.2e} [m^-3]"
         ax.set_title(title_string)
 
         ax.grid('both')
