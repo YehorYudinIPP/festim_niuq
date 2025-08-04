@@ -38,26 +38,32 @@ simulation:
 
 boundary_conditions:
 
-  left_bc_concentration_type: "neumann"
-  left_bc_concentration_value: 0.0
+  concentration:
+    left:
+      type: "neumann"
+      value: 0.0
+    right:
+      type: "dirichlet"
+      value: 1.0e15
 
-  right_bc_concentration_type: "dirichlet"
-  right_bc_concentration_value: 1.0e15
-
-  left_bc_heat_type: "dirichlet"
-  left_bc_T_value: 300.0  # external temperature in [K]
-
-  right_bc_heat_type: "neumann"
-  right_bc_T_value: 650.0  # external temperature in [K]  
-  right_bc_hcoeff_value: 100.0  # convective heat transfer coefficient in [W/(m²*K)]
+  temperature:
+    left:
+      type: "dirichlet"
+      value: 300.0  # external temperature in [K]
+    right:
+      type: "convective_flux"
+      Text_value: 650.0  # external temperature in [K]  
+      hcoeff_value: 100.0  # convective heat transfer coefficient in [W/(m²*K)]
 
 source_terms:
 
-  source_concentration_type: "constant"
-  source_concentration_value: 1.0e20  # source term value in [m^-3]
+  concentration:
+    source_type: "constant"
+    source_value: 1.0e20  # source term value in [m^-3]
 
-  source_heat_type: "constant"
-  source_heat_value: 1.0e+3 # constant heat source term value in [W/m³]
+  heat:
+    source_type: "constant"
+    source_value: 1.0e+3 # constant heat source term value in [W/m³]
 
 
 # END OF CONFIGURATION FILE

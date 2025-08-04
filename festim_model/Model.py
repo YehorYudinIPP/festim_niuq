@@ -153,7 +153,7 @@ class Model():
 
         return self.model.mesh
 
-    def _specify_boundary_conditions(self, config):
+    def _specify_boundary_conditions(self, config, quantity='concentration'):
         """
         Specify boundary conditions for the FESTIM model.
         This method can be extended to include specific boundary condition logic.
@@ -162,19 +162,66 @@ class Model():
 
         print(f" > config['boundary_conditions'] = \n {config['boundary_conditions']}")  ###DEBUG
 
-        # Sperical case, apply DirichletBC at boundary (in relative terms, r=1.0), NeumannBC (FluxBC) at the center (r=0.0)
-        self.model.boundary_conditions = [
-            F.FluxBC(
-                surfaces=[1],  # Assuming a single surface at the end of the mesh
-                value=float(config['boundary_conditions']['left_bc_concentration_value']),  # boundary value
-                field=0,
-            ),
-            F.DirichletBC(
-                surfaces=[2],  # Assuming a single surface at the start of the mesh
-                value=float(config['boundary_conditions']['right_bc_concentration_value']),  # boundary value
-                field=0,
-            ),
-        ]
+        self.model.boundary_conditions = []
+
+        # Spherical case, by default: apply DirichletBC at boundary (in relative terms, r=1.0), NeumannBC (FluxBC) at the center (r=0.0)
+        
+        # Iterate over BCs, quantites are on the top level
+        for bc_quantity, bc_specs in config['boundary_conditions'].items():
+
+            if bc_quantity == 'concentration':
+                field = 0
+            elif bc_quantity == 'temperature':
+                field = "T"
+            else:
+                raise ValueError(f"Unknown or unsupported boundary condition quantity: {bc_quantity}")
+
+            # Iterate over BCs specifications, locations are on the second level
+            # ATTENTION: apply a simple filter e.g. only add BCs if the quantity matches the one specified
+            if bc_quantity == quantity:
+                for bc_location, bc_vals in bc_specs.items():
+
+                    # ATTENTION: so far, only 1D is supported
+                    if bc_location == 'left':
+                        surface = 1  # Left surface (r=0.0) in spherical coordinates
+                    elif bc_location == 'right':
+                        surface = 2  # Right surface (r=1.0) in spherical coordinates
+                    else:
+                        raise ValueError(f"Unknown or unsupported boundary condition location: {bc_location}")
+                    
+                    if bc_vals['type'] == 'dirichlet':
+                        # Dirichlet boundary condition
+                        self.model.boundary_conditions.append(
+                            F.DirichletBC(
+                                value=float(bc_vals['value']),  # Boundary condition value
+                                surfaces=[surface],  # Apply to the specified surface
+                                field=field,  # Field for the boundary condition
+                            )
+                        )
+                        print(f" >> Using Dirichlet BC at surface {surface} with value {bc_vals['value']} for field {field}")
+                    elif bc_vals['type'] == 'neumann':
+                        # Neumann boundary condition (Flux)
+                        self.model.boundary_conditions.append(
+                            F.FluxBC(
+                                value=float(bc_vals['value']),  # Boundary condition value
+                                surfaces=[surface],  # Apply to the specified surface
+                                field=field,  # Field for the boundary condition
+                            )
+                        )
+                        print(f" >> Using Neumann BC at surface {surface} with value {bc_vals['value']} for field {field}")
+                    elif bc_vals['type'] == 'convective_flux':
+                        # Convective flux boundary condition
+                        self.model.boundary_conditions.append(
+                            F.ConvectiveFlux(
+                                h_coeff=float(bc_vals['hcoeff_value']),  # Convective heat transfer coefficient
+                                T_ext=float(bc_vals['Text_value']),  # External temperature
+                                surfaces=[surface],  # Apply to the specified surface
+                                field=field,  # Field for the boundary condition
+                            )
+                        )
+                        print(f" >> Using Convective Flux BC at surface {surface} with h_coeff {bc_vals['hcoeff_value']} and T_ext {bc_vals['Text_value']} for field {field}")
+                    else:
+                        raise ValueError(f"Unknown or unsupported boundary condition type: {bc_vals['type']}")
 
         #print(f"Using boundary value at outer surfaces: {self.model.boundary_conditions[1].__dict__}") ###DEBUG
         #print(f"Using constant volumetric source term with values: {self.model.sources[0].__dict__}") ###DEBUG
@@ -206,23 +253,40 @@ class Model():
 
         return self.model.materials
 
-    def _add_source_terms(self, config):
+    def _add_source_terms(self, config, quantity='concentration'):
         """
         Add source terms to the FESTIM model.
         This method can be extended to include specific source term logic.
         """
         print("Adding source terms...")
 
+        self.model.sources = []
+
         print(f" > config['source_terms'] = \n {config['source_terms']}")  ###DEBUG
-        
-        # Set a constant volumetric source term
-        self.model.sources = [
-            F.Source(
-                value=float(config['source_terms']['source_concentration_value']),  # source term value [m^-3 s^-1]
-                volume=1,
-                field=0,
-            ),
-        ]
+
+        # Iterate over source terms in the configuration
+        for source_type, source_specs in config['source_terms'].items():
+            if source_type == 'concentration':
+                field = 0
+            elif source_type == 'heat':
+                field = "T"
+            else:
+                raise ValueError(f"Unknown or unsupported source term type: {source_type}") 
+            
+            # Check if the source term matches the specified quantity
+            if source_type == quantity:
+                if source_specs['source_type'] == 'constant':
+                    # Constant source term
+                    self.model.sources.append(
+                        F.Source(
+                            value=float(source_specs['source_value']),  # Source term value
+                            volume=1,  # Assuming a single volume for the entire mesh
+                            field=field,  # Field for the source term
+                        )
+                    )
+                    print(f" >> Using constant source term with value {source_specs['source_value']} for field {field}")
+                else:
+                    raise ValueError(f"Unknown or unsupported source term type: {source_specs['source_type']}")
 
         return self.model.sources
 
@@ -258,22 +322,23 @@ class Model():
 
         # Define heat transfer coefficient and external temperature
 
-        h_coeff = float(config['boundary_conditions']['right_bc_hcoeff_value'])  # Convective heat transfer coefficient [W/(m²*K)]
+        h_coeff = float(config['boundary_conditions']['temperature']['right']['hcoeff_value'])  # Convective heat transfer coefficient [W/(m²*K)]
 
-        T_ext = float(config['boundary_conditions']['right_bc_T_value'])  # External temperature [K]
+        T_ext = float(config['boundary_conditions']['temperature']['right']['Text_value'])  # External temperature [K]
         # For now, use a constant external temperature
 
-        if 'source_heat_type' in config['source_terms']:
-            if config['source_terms']['source_heat_type'] == 'constant':
-                Q_source = float(config['source_terms']['source_heat_value'])  # Heat source term [W/m³]
+        if 'heat' in config['source_terms']:
+            if config['source_terms']['heat']['source_type'] == 'constant':
+                Q_source = float(config['source_terms']['heat']['source_value'])  # Heat source term [W/m³]
         else:
+            print(f"Warning: No heat source term specified, using Q_source = 0.0 W/m³")
             Q_source = 0.0
 
         # Apply appropriate boundary conditions for heat transfer
         # At the centre (r=0), apply Dirichlet BC
         self.model.T.boundary_conditions.append(
             F.DirichletBC(
-                value=config['boundary_conditions']['left_bc_T_value'],  # left boundary temperature [K]
+                value=config['boundary_conditions']['temperature']['left']['value'],  # left boundary temperature [K]
                 surfaces=[1],
                 field="T",
             )
