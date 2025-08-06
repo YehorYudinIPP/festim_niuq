@@ -3,16 +3,17 @@
 
 model_parameters:
   total_time: 25.0
-  T_0: 300.0
-  heat_model: 'heat_transfer'
-  transient: True
+  T_0: $T_0$
+  heat_model: 'none'
+  transient: False
 
 geometry:
-  length: 3.5e-5
+  coordinate_system: "spherical"
+  length: 3.5e-4
 
 materials:
   D_0: $D_0$ #1.0e-7  # Diffusion coefficient
-  E_D: 0.2  # Activation energy
+  E_D: $E_D$ #0.2 # Activation energy
   thermal_conductivity: 33.0  # thermal conductivity in [W/(m*K)]
   rho: 1000.0 # density in [kg/m³]
   heat_capacity: 100.0  # specific heat capacity in [J/(kg*K)]
@@ -28,18 +29,26 @@ simulation:
   milestone_times: [0.1, 0.2, 0.5, 1.0, 5.0, 10.0, 25.0]
 
 boundary_conditions:
-  left_bc_concentration_type: "neumann"
-  left_bc_concentration_value: 0.0
-  right_bc_concentration_type: "dirichlet"
-  right_bc_concentration_value: 1.0e+17
-  left_bc_heat_type: "dirichlet"
-  left_bc_T_value: 300.0 
-  right_bc_heat_type: "neumann"
-  right_bc_T_value: 650.0
-  right_bc_hcoeff_value: 100.0
+  concentration:
+    left:
+      type: "neumann"
+      value: 0.0
+    right:
+      type: "dirichlet"
+      value: 1.0e15
+  temperature:
+    left:
+      type: "dirichlet"
+      value: 300.0
+    right:
+      type: "convective_flux"
+      Text_value: 650.0
+      hcoeff_value: 100.0
 
 source_terms:
-  source_concentration_type: "constant"
-  source_concentration_value: 1.0e+18
-  source_heat_type: "constant"
-  source_heat_value: 1.0e+3
+  concentration:
+    source_type: "constant"
+    source_value: 1.0e20
+  heat:
+    source_type: "constant"
+    source_value: 1.0e+3
