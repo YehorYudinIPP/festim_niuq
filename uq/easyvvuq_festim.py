@@ -1,8 +1,11 @@
+import argparse
 import os
 import sys
 import subprocess
 from datetime import datetime
 import numpy as np
+
+import argparse
 
 # consider import visualisation libraries optional
 import matplotlib.pyplot as plt
@@ -22,11 +25,11 @@ from easyvvuq.actions import Encode, Decode, ExecuteLocal, Actions, CreateRunDir
 from easyvvuq.actions import QCGPJPool
 
 # local imports
-from util.utils import add_timestamp_to_filename, get_festim_python, validate_execution_setup
+from util.utils import load_config, add_timestamp_to_filename, get_festim_python, validate_execution_setup
 from util.plotting import plot_unc_vs_r, plot_unc_qoi, plot_stats_vs_r, plot_unc_vs_t, plot_sobols_vs_t, plot_stats_vs_t
 
 
-def visualisation_of_results(results, distributions, qois, plot_folder_name, plot_timestamp):
+def visualisation_of_results(results, distributions, qois, plot_folder_name, plot_timestamp, runs_info=None):
     """
     Visualize the results of the EasyVVUQ campaign.
     This function is a placeholder for future visualization methods.
@@ -53,57 +56,96 @@ def visualisation_of_results(results, distributions, qois, plot_folder_name, plo
         rs = np.linspace(0., 1., len(qois))  # Assuming a simple range for x-axis - false, qois is number of checkpoints + 1
     else:
         rs = vertices
+    # TODO mesh can be individual for each QoI, potentially each simulation, so read it from the results
+
+    # Read runs from database to a list
+    runs_info = list(runs_info) if runs_info is not None else None
 
     # Plotting statistics of the results as a function of radius (spatial coordinates)
-    plot_stats_vs_r(results, qois[1:], plot_folder_name, plot_timestamp, rs=rs)
+    plot_stats_vs_r(results, qois[1:], plot_folder_name, plot_timestamp, rs=rs, runs_info=runs_info)
 
-    # Bespoke plotting of uncertainty and Sobol indices in QoI as a function of TIME
-    plot_stats_vs_t(results, distributions, qois[1:], plot_folder_name, plot_timestamp, rs=rs)
+    # # Bespoke plotting of uncertainty and Sobol indices in QoI as a function of TIME - not for steady state simulations
+    # plot_stats_vs_t(results, distributions, qois[1:], plot_folder_name, plot_timestamp, rs=rs)
 
     print(f"Plots saved in folder: {plot_folder_name}")
     return 0
 
-def define_parameter_uncertainty(CoV=0.1):
+def define_parameter_uncertainty(config, CoV=None, distribution=None):
     """
     Define the uncertain parameters and their distributions for the FESTIM model and EasyVVUQ uncertainty propagations.
     """
 
-    # define common coefficient of variation (CoV) for all parameters
-    if CoV < 0.0 or CoV > 1.0:
-        raise ValueError("Coefficient of variation (CoV) must be in the range [0, 1].")
-    
-    print(f"Defining uncertain parameters with CoV={CoV}")
+    print(f"Defining uncertain parameters with CoV={CoV} and distributions={distribution}")
+
+    parameters_used = ['D_0', 'E_D', 'T_0',]
 
     # Define default mean values for parameters
     # - These values can be adjusted based on the specific model requirements and the physical properties of the system being simulated.
     means = {
-        "T": 300.0,  # Mean temperature
-        "source_concentration_value": 1.0e18, #1.0e19, #,1.0e20,  # Mean source value
+
+        "D_0": config.get('materials', None).get('D_0', None).get('mean', None),  # Diffusion coefficient base value
+        "E_D": config.get('materials', None).get('E_D', None).get('mean', None),  # Activation energy
+        "T_0": config.get('model_parameters', None).get('T_0', None).get('mean', None),  # Mean temperature
+
+        "source_concentration_value": 1.0e18,  # Mean source value
         "left_bc_concentration_value": 1.0e15,  # Mean boundary condition value: better to keep right side as the domain boundary and left as centre
-        "right_bc_concentration_value": 1.0e17, #1.0e16, #1.0e15,  # Mean boundary condition value
+        "right_bc_concentration_value": 1.0e17,  # Mean boundary condition value
     }
+    # TODO read means and default from the configuration file - alternatively, parse the whole YAML UQ file and get the means from there
+
+    # Define standard deviations for the parameters
+    if CoV is not None:
+        # use a single defined Coefficient of Variation (CoV) for all parameters, e.g. for a scan
+        if CoV < 0.0 or CoV > 1.0:
+            raise ValueError("Coefficient of variation (CoV) must be in the range [0, 1].")
+        
+        relative_stds = {name: CoV for name in parameters_used}  # Create a dictionary with the same CoV for all parameters
+    else:
+        # parse the YAML UQ file to get the CoV for each parameter
+        relative_stds = {
+            "D_0": config.get('materials', None).get('D_0', None).get('relative_stdev', None),
+            "E_D": config.get('materials', None).get('E_D', None).get('relative_stdev', None),
+            "T_0": config.get('model_parameters', None).get('T_0', None).get('relative_stdev', None),
+        }
 
     # Define the distributions for uncertain parameters
+    if distribution is not None:
+        # use a single distribution for all parameters, e.g. for a scan
+        distributions = {name: distribution for name in parameters_used}
+    else:
+        # use the default distributions from the configuration file
+        distributions = {
+            "D_0": config.get('materials', None).get('D_0', None).get('pdf', 'normal'),
+            "E_D": config.get('materials', None).get('E_D', None).get('pdf', 'normal'),
+            "T_0": config.get('model_parameters', None).get('T_0', None).get('pdf', 'normal'),
+        }
     # -  These distributions can be adjusted based on the specific model requirements and the physical properties of the system being simulated.
 
-    # The absolute bounds of the distribution is a function of the mean and CoV
-    #  For COV of U[a,b]: STD = (b-a)/sqrt(12) , meaning it should be a=mean*(1-sqrt(3)CoV), b=mean*(1+sqrt(3)CoV)
-    expansion_factor_uniform = np.sqrt(3)
+    # Define coefficients to recalculate distribution defining parameters - absolute bounds of the (uniform) distribution is a function of the mean and CoV
+    # - for COV of U[a,b]: STD = (b-a)/sqrt(12) , meaning it should be a=mean*(1-sqrt(3)CoV), b=mean*(1+sqrt(3)CoV)
+    expansion_factor_lookup = {
+        "normal": 1.0,
+        "uniform": np.sqrt(3),
+    }
 
-    parameters_distributions = {
-        #"D_0": cp.Uniform(1.0e-7, 1.0e-5), # Diffusion coefficient base value
+    distribution_lookup = {
+        "normal": cp.Normal,
+        "uniform": cp.Uniform,
+        "lognormal": cp.LogNormal,
+        "beta": cp.Beta,
+        "gamma": cp.Gamma,
+        "exponential": cp.Exponential,
+    }
 
-        #"E_D": cp.Uniform(0.1, 1.0), # Activation energy
+    parameters_distributions = { 
+            name:  distribution_lookup[distributions[name]](
+                means[name]*(1.-expansion_factor_lookup[distributions[name]]*relative_stds[name]), 
+                means[name]*(1.+expansion_factor_lookup[distributions[name]]*relative_stds[name])
+                ) 
+        for name in parameters_used}
+    #TODO: tackle not implemented distributions, e.g. lognormal, beta, gamma, exponential
+    #TODO: tackle different distribution specifications, e.g. normal with mean and std, uniform with bounds, etc.
 
-        "T": cp.Uniform(means["T"]*(1.-expansion_factor_uniform*CoV), means["T"]*(1.+expansion_factor_uniform*CoV)), # Temperature [K]
-
-        "source_concentration_value": cp.Uniform(means["source_concentration_value"]*(1.-expansion_factor_uniform*CoV), means["source_concentration_value"]*(1.+expansion_factor_uniform*CoV)), 
-
-        #"left_bc_value": cp.Uniform(means["left_bc_value"]*(1.-CoV), means["left_bc_value"]*(1.+CoV)),  # Boundary condition value: see on choice of left/right BC
-
-        "right_bc_concentration_value": cp.Uniform(means["right_bc_concentration_value"]*(1.-expansion_factor_uniform*CoV), means["right_bc_concentration_value"]*(1.+expansion_factor_uniform*CoV)),  # Boundary condition value at the right (outer) surface of the sample
-}
-    
     return parameters_distributions
 
 def define_festim_model_parameters():
@@ -113,15 +155,16 @@ def define_festim_model_parameters():
 
     # Define the model input parameters
     parameters = {
+
     "D_0": {"type": "float", "default": 1.0e-7,},
 
-    "E_D": {"type": "float", "default": 0.2,},
+    "E_D": {"type": "float", "default": 0.1,},
 
-    "T": {"type": "float", "default": 300.0,},
+    "T_0": {"type": "float", "default": 300.0,},
 
     "source_concentration_value": {"type": "float", "default": 1.0e20,},
 
-    #"left_bc_concentration_value": {"type": "float", "default": 1.0e15},  # Boundary condition value: better to specify centre at r=0.0
+    "left_bc_concentration_value": {"type": "float", "default": 0.0},  # Boundary condition value: better to specify centre at r=0.0
 
     "right_bc_concentration_value": {"type": "float", "default": 1.0e15},  # Boundary condition value at the right (outer) surface of the sample
     }
@@ -130,14 +173,18 @@ def define_festim_model_parameters():
     # TODO: read an (example) output file to get the QoI names
     qois = [
         #"tritium_inventory",
+
         "x", # Mainly for (a) reading the vertices for postprocessing, (b) checking that grid has not changed
-        "t=1.00e-01s",
-        "t=2.00e-01s",
-        "t=5.00e-01s",
-        "t=1.00e+00s",
-        "t=5.00e+00s",
-        "t=1.00e+01s",
-        "t=2.50e+01s",
+
+        # "t=1.00e-01s",
+        # "t=2.00e-01s",
+        # "t=5.00e-01s",
+        # "t=1.00e+00s",
+        # "t=5.00e+00s",
+        # "t=1.00e+01s",
+        # "t=2.50e+01s",
+
+        "t=steady",  # Steady state value, if simulation for performed for a stationary model
     ]
     
     #print(f"Model parameters defined: {parameters}") ####DEBUG
@@ -162,7 +209,7 @@ def prepare_execution_command():
     
     return execute
 
-def prepare_uq_campaign(fixed_params=None):
+def prepare_uq_campaign(config, fixed_params=None):
     """
     Prepare the uncertainty quantification (UQ) campaign by creating necessary steps: set-up, parameter definitions, encoders, decoders, and actions.
     """
@@ -198,9 +245,9 @@ def prepare_uq_campaign(fixed_params=None):
             "D_0": "materials.D_0",
             "E_D": "materials.E_D",
             "T": "model_parameters.T_0",
-            "source_concentration_value": "source_terms.source_concentration_value",
-            "left_bc_value": "boundary_conditions.left_bc_value",
-            "right_bc_concentration_value": "boundary_conditions.right_bc_concentration_value",
+            "source_concentration_value": "source_terms.concentration.source_value",
+            "left_bc_concentration_value": "boundary_conditions.concentration.left.value",
+            "right_bc_concentration_value": "boundary_conditions.concentration.right.value",
             "length": "geometry.length", 
         },
         type_conversions={
@@ -228,7 +275,7 @@ def prepare_uq_campaign(fixed_params=None):
 
     # Create a decoder object
     # The decoder will read the results from the output file and extract the quantities of interest (QoIs)
-    # TODO change the output and decoder to YAML (for UQ derived quantities) or other format
+    # TODO change the output and decoder to YAML (for UQ derived quantities) or other format (?)
     decoder = uq.decoders.SimpleCSV(
         #target_filename="output.csv", # option for synthetic diagnostics specifically chosen for UQ
         target_filename="results/results_tritium_concentration.txt",  # Results from the base data of a simulation
@@ -266,7 +313,7 @@ def prepare_uq_campaign(fixed_params=None):
     )
 
     # Define uncertain parameters distributions
-    distributions = define_parameter_uncertainty()
+    distributions = define_parameter_uncertainty(config)
     print(f"Uncertain parameters distributions defined: {distributions}")
 
     # Define sampling method and create a sampler for the campaign
@@ -323,6 +370,8 @@ def analyse_uq_results(campaign, qois, sampler):
         print(results.describe(qoi))
         print("\n")
 
+    #TODO extract more data, in particular, on the individual trajectories of the QoI
+
     # Save the analysis results
     analysis_filename = add_timestamp_to_filename("analysis_results.hdf5")
 
@@ -339,18 +388,36 @@ def perform_uq_festim(fixed_params=None):
     This function orchestrates the preparation, execution, and analysis of the UQ campaign.
     """
     # EasyVVUQ script to be executed as a function
-    print("Starting FESTIM UQ campaign...")
+    print(" \n ! Starting FESTIM UQ campaign !.. \n")
 
     # Prepare the UQ campaign
     # This includes defining parameters, encoders, decoders, and actions
+
+    parser = argparse.ArgumentParser(description='Run FESTIM model with YAML configuration')
+    
+    parser.add_argument('--config', '-c', 
+                       default='config.yaml',
+                       help='Path to YAML configuration file (default: config.yaml)')
+    
+    args = parser.parse_args()
+    print(f"> Using arguments file: {args.config}")
+
+    # Load configuration from YAML file
+    config = load_config(args.config)
+    if config is None:
+        print("No config file provided, quitting...")
+        return
+    print(f" > Loaded configuration from: {args.config}")
+
+    # Read the configuration file from the command line argument or use a default one
     
     #print(f" >> Passing parameters to the campaign: {fixed_params}") ###DEBUG
-    campaign, qois, distributions, campaign_timestamp, sampler = prepare_uq_campaign(fixed_params=fixed_params)
+    campaign, qois, distributions, campaign_timestamp, sampler = prepare_uq_campaign(config, fixed_params=fixed_params)
 
-    # TODO: add more parameter for Arrhenious law
+    # TODO: add more parameter for Arrhenious law (+)
     # TODO: try higher BC concentration values - does it even make sense to have such low BC (+)
     # TODO: run with higher polynomial degree (+: now 2)
-    # TODO: check if there are actually negative concentrations, if yes - check model and specify correct params ranges - work out expressions for quantiles for unfiorm distribution based on PCE(p=2)
+    # TODO: check if there are actually negative concentrations, if yes - check model and specify correct params ranges - work out expressions for quantiles for unfiorm distribution based on PCE(p=2) (+)
 
     # Run the campaign
     campaign, campaign_results = run_uq_campaign(campaign)
@@ -362,8 +429,15 @@ def perform_uq_festim(fixed_params=None):
     # Perform the analysis
     results = analyse_uq_results(campaign, qois, sampler)
 
+    # Get the individual results from the campaign
+    runs = campaign.campaign_db.runs() # return an iterator over runs in the campaign
+
+    # print(f">> Iterating over runs in the campaign DB") ###DEBUG
+    # for run in runs:
+    #     print(f" >> Runs: {run}") ###DEBUG
+
     # Visualize the results
-    visualisation_of_results(results, distributions, qois, "plots_festim_uq_" + campaign_timestamp, plot_timestamp=campaign_timestamp)
+    visualisation_of_results(results, distributions, qois, "plots_festim_uq_" + campaign_timestamp, plot_timestamp=campaign_timestamp, runs_info=runs)
 
     print("FESTIM UQ campaign completed successfully!")
 
