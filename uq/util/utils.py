@@ -1,6 +1,8 @@
 import os
 import sys
 import subprocess
+import yaml
+from pathlib import Path
 
 from datetime import datetime
 
@@ -12,6 +14,22 @@ if project_root not in sys.path:
 # from serializer import serialize_yaml
 # from serializer import deserialize_yaml
 from joblib import dump, load
+
+def load_config(config_file):
+    """Load configuration from YAML file specific for UQ"""
+
+    try:
+        with open(config_file, 'r') as file:
+            config = yaml.safe_load(file)
+        print(f" >> Configuration loaded: {config}")
+        return config
+    except FileNotFoundError:
+        print(f"Error: Configuration file '{config_file}' not found.")
+        return None
+    except yaml.YAMLError as e:
+        print(f"Error parsing YAML file: {e}")
+        return None
+    
 
 def add_timestamp_to_filename(filename, timestamp=None):
     """
