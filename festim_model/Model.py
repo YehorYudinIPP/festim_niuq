@@ -52,6 +52,11 @@ class Model():
                 absolute_tolerance=float(config['simulation']['absolute_tolerance']),  #  absolute tolerance
                 relative_tolerance=float(config['simulation']['relative_tolerance']),  #  relative tolerance
             )
+
+                # initial_condition=F.InitialCondition(
+                #     value=float(config['initial_conditions']['concentration']['value']),  # Initial temperature [K]
+                #     field=1,
+                # ),
                     
             print("Model is set to transient simulation.")
         else:
@@ -60,6 +65,7 @@ class Model():
                 transient=False,  # Enable transient simulation
                 absolute_tolerance=float(config['simulation']['absolute_tolerance']),  #  absolute tolerance
                 relative_tolerance=float(config['simulation']['relative_tolerance']),  #  relative tolerance
+                maximum_iterations=60,  # maximum number of iterations for steady-state simulation
             )
 
             print("Model is set to steady-state simulation.")
@@ -72,7 +78,7 @@ class Model():
         else:
             self.model.T = config['model_parameters']['T_0'] # set fixed background temperature
 
-        print (f" >> Using heat transfer model: {self.model.T.__dict__}") ###DEBUG
+        # print (f" >> Using heat transfer model: {self.model.T.__dict__}") ###DEBUG
 
         # Define Boundary conditions
         self._specify_boundary_conditions(config)
@@ -151,6 +157,7 @@ class Model():
         #     type="spherical",  # Specify spherical mesh type
         # )
 
+        print(f" >> Using mesh object: {self.model.mesh.__dict__}")  ###DEBUG
         return self.model.mesh
 
     def _specify_boundary_conditions(self, config, quantity='concentration'):
@@ -169,26 +176,29 @@ class Model():
         # Iterate over BCs, quantites are on the top level
         for bc_quantity, bc_specs in config['boundary_conditions'].items():
 
-            if bc_quantity == 'concentration':
-                field = 0
-            elif bc_quantity == 'temperature':
-                field = "T"
-            else:
+            # Map boundary condition quantities to FESTIM fields
+            quantity_map = {'concentration': 0, 'temperature': "T"}
+
+            # Determine the field based on the boundary condition quantity
+            field = quantity_map.get(bc_quantity, None)
+            if field is None:
                 raise ValueError(f"Unknown or unsupported boundary condition quantity: {bc_quantity}")
+   
+            # Map locations to surfaces in spherical coordinates: left (r=0.0) and right (r=1.0)
+            surface_map = {'left': 1, 'right': 2}
 
             # Iterate over BCs specifications, locations are on the second level
             # ATTENTION: apply a simple filter e.g. only add BCs if the quantity matches the one specified
             if bc_quantity == quantity:
-                for bc_location, bc_vals in bc_specs.items():
 
+                for bc_location, bc_vals in bc_specs.items():
                     # ATTENTION: so far, only 1D is supported
-                    if bc_location == 'left':
-                        surface = 1  # Left surface (r=0.0) in spherical coordinates
-                    elif bc_location == 'right':
-                        surface = 2  # Right surface (r=1.0) in spherical coordinates
-                    else:
+
+                    # Map locations to surfaces in spherical coordinates: left (r=0.0) and right (r=1.0)
+                    surface = surface_map.get(bc_location, None)
+                    if surface is None:
                         raise ValueError(f"Unknown or unsupported boundary condition location: {bc_location}")
-                    
+
                     if bc_vals['type'] == 'dirichlet':
                         # Dirichlet boundary condition
                         self.model.boundary_conditions.append(
@@ -226,6 +236,7 @@ class Model():
         #print(f"Using boundary value at outer surfaces: {self.model.boundary_conditions[1].__dict__}") ###DEBUG
         #print(f"Using constant volumetric source term with values: {self.model.sources[0].__dict__}") ###DEBUG
 
+        print(f" >> Using boundary conditions: {self.model.boundary_conditions}")  ###DEBUG
         return self.model.boundary_conditions
 
     def _specify_materials(self, config):
@@ -251,6 +262,7 @@ class Model():
 
         #print(f"Using material properties: D_0={self.model.materials[0].D_0}, E_D={self.model.materials[0].E_D}, T={self.model.T.__dict__}") ###DEBUG
 
+        print(f" >> Using material properties: {self.model.materials.__dict__}")  ###DEBUG
         return self.model.materials
 
     def _add_source_terms(self, config, quantity='concentration'):
@@ -284,10 +296,11 @@ class Model():
                             field=field,  # Field for the source term
                         )
                     )
-                    print(f" >> Using constant source term with value {source_specs['source_value']} for field {field}")
+                    print(f" >> Using constant source term with value {source_specs['source_value']} for field {field}") ###DEBUG
                 else:
                     raise ValueError(f"Unknown or unsupported source term type: {source_specs['source_type']}")
 
+        print(f" >> Using source terms: {self.model.sources}")  ###DEBUG
         return self.model.sources
 
     def _add_heat_conduction(self, config):
@@ -309,61 +322,113 @@ class Model():
             self.model.T = F.HeatTransferProblem(
                 transient=True,
                 initial_condition=F.InitialCondition(
-                    value=float(config['model_parameters']['T_0']),  # Initial temperature [K]
+                    value=float(config['initial_conditions']['temperature']['value']),  # Initial temperature [K]
                     field="T",
                 ),
+                absolute_tolerance=float(config['simulation']['absolute_tolerance']),  #  absolute tolerance
+                relative_tolerance=float(config['simulation']['relative_tolerance']),  #  relative tolerance     
             )
             print(f" >> Using transient heat problem with the initial temperature: {self.model.T.initial_condition.value} [K]")  # Debugging output
         else:
             self.model.T = F.HeatTransferProblem(
                 transient=False,
+                maximum_iterations=60,  # maximum number of iterations for steady-state simulation
             )
             print(f" >> Using steady-state heat problem")  # Debugging output
 
-        # Define heat transfer coefficient and external temperature
+        # Define heat transfer coefficient (if applicable)
+        h_coeff = float(config['boundary_conditions']['temperature']['right']['hcoeff_value'])  # Convective heat transfer coefficient [W/(m²*K)] #TODO make a fallback or error if not specified
 
-        h_coeff = float(config['boundary_conditions']['temperature']['right']['hcoeff_value'])  # Convective heat transfer coefficient [W/(m²*K)]
-
-        T_ext = float(config['boundary_conditions']['temperature']['right']['Text_value'])  # External temperature [K]
-        # For now, use a constant external temperature
+        # If exists, apply a heat source term
+        self.model.T.source_terms = []  # Initialize source terms for heat transfer
 
         if 'heat' in config['source_terms']:
             if config['source_terms']['heat']['source_type'] == 'constant':
                 Q_source = float(config['source_terms']['heat']['source_value'])  # Heat source term [W/m³]
+
+                self.model.T.source_terms.append(
+                    F.Source(
+                        value=Q_source,  # Source term value
+                        volume=1,  # Assuming a single volume for the entire mesh
+                        field="T", # applying to temperature field
+                    )
+                )
+
         else:
             print(f"Warning: No heat source term specified, using Q_source = 0.0 W/m³")
             Q_source = 0.0
 
-        # Apply appropriate boundary conditions for heat transfer
-        # At the centre (r=0), apply Dirichlet BC
-        self.model.T.boundary_conditions.append(
-            F.DirichletBC(
-                value=config['boundary_conditions']['temperature']['left']['value'],  # left boundary temperature [K]
-                surfaces=[1],
-                field="T",
-            )
-        )
-        # At the outer surface (r=1), apply Convective Flux BC
-        self.model.T.boundary_conditions.append(
-            F.ConvectiveFlux(
-                h_coeff=h_coeff,
-                T_ext=T_ext,  # External temperature [K]
-                surfaces=[2], 
-                #field="T",
-            )
-        )
-        print(f" >> Using boundary conditions for temperature: T={self.model.T.boundary_conditions[0].value} [K] at surface 1, h_coeff={h_coeff}, T_ext={T_ext} [K] at surface 2")  # Debugging output
-
-        # Apply appropriate source terms for heat transfer
-        self.model.T.sources.append(
-            F.Source(
-                value=Q_source,  # Heat source term [W/m³]
-                volume=1,  # Assuming a single volume for the entire mesh
-                field="T",
-            )
-        )   
         print(f" >> Using source term for heat transfer: Q_source={Q_source} [W/m³]")  # Debugging output
+
+        # Apply appropriate boundary conditions for heat transfer
+        surfaces_nums = [1, 2]
+        surface_names = ['left', 'right']
+        surface_map = {'left':1, 'right':2}
+
+        # Check if temperature boundary conditions are specified - apply fallback if not
+        if 'temperature' not in config['boundary_conditions']:
+            print("Warning: No temperature boundary conditions specified, using default values.")
+            config['boundary_conditions']['temperature'] = {
+                'left': {'type': 'dirichlet', 'value': 300.0},  # Default left boundary temperature [K]
+                'right': {'type': 'neumann', 'value': 0.0}  # Default right boundary temperature gradient [K]
+            }
         
+        # iterate over surfaces and apply boundary conditions
+        for surface_name, surface_num in surface_map.items():
+            print(f" >>> Applying HEAT boundary conditions for surface {surface_name} (surface number {surface_num})")  ###DEBUG
+
+            # Check if the surface has a temperature boundary condition specified
+            if surface_name in config['boundary_conditions']['temperature']:
+                print(f" >>> Using boundary condition for surface {surface_name}: {config['boundary_conditions']['temperature'][surface_name]}")  ###DEBUG
+
+                # Get the boundary condition for the surface
+                bc = config['boundary_conditions']['temperature'][surface_name]
+
+                # Apply the boundary condition based on its type
+                # - 1) Dirichlet BC: fixed temperature
+                if bc['type'] == 'dirichlet':
+                    # Dirichlet boundary condition
+                    self.model.T.boundary_conditions.append(
+                        F.DirichletBC(
+                            value=float(bc['value']),  # Boundary condition value
+                            surfaces=[surface_num],  # Apply to the specified surface
+                            field="T",  # Field for the boundary condition
+                        )
+                    )
+                    print(f" >>> Using Dirichlet BC at surface {surface_num} with value {bc['value']} [K]")  # Debugging output
+
+                # - 2) Neumann BC: fixed flux
+                elif bc['type'] == 'neumann':
+                    # Neumann boundary condition (Flux)
+                    self.model.T.boundary_conditions.append(
+                        F.FluxBC(
+                            value=float(bc['value']),  # Boundary condition value
+                            surfaces=[surface_num],  # Apply to the specified surface
+                            field="T",  # Field for the boundary condition
+                        )
+                    )
+                    print(f" >>> Using Neumann BC at surface {surface_num} with value {bc['value']} [K m^-1]")  # Debugging output
+
+                # - 3) Convective flux BC: convective heat transfer
+                elif bc['type'] == 'convective_flux':
+                    # Convective flux boundary condition
+                    self.model.T.boundary_conditions.append(
+                        F.ConvectiveFlux(
+                            h_coeff=h_coeff,  # Convective heat transfer coefficient [W/(m²*K)]
+                            T_ext=float(bc['value']),  # External temperature [K]
+                            surfaces=[surface_num],  # Apply to the specified surface
+                            field="T",  # Field for the boundary condition
+                        )
+                    )
+                    print(f" >?> Using Convective Flux BC at surface {surface_num} with h_coeff {h_coeff} [W/(m²*K)] and T_ext {bc['value']} [K]")  # Debugging output
+                else:
+                    raise ValueError(f"Unknown or unsupported boundary condition type: {bc['type']}")
+            else:
+                print(f"Warning: No temperature boundary condition specified for surface {surface_name}, using default values.")
+
+        #print(f" >> Using boundary conditions for temperature: T={self.model.T.boundary_conditions[0].value} [K] at surface 1, h_coeff={h_coeff}, T_ext={config['boundary_conditions']['temperature']['right']['value']} [K] at surface 2")  # Debugging output
+        
+        print(f" >> Using heat transfer model: {self.model.T.__dict__}")  ###DEBUG output
         return self.model.T
 
     def _specify_time_integration_settings(self, config):
