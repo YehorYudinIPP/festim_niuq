@@ -34,19 +34,33 @@ simulation:
   output_directory: "results/"
   milestone_times: [0.1, 0.2, 0.5, 1.0, 5.0, 10.0, 25.0] # times at which results are saved [s]
 
-boundary_conditions:
+boundary_conditions: 
   left_bc_type: "neumann"
-  left_bc_value: 0.0
+  left_bc_value: 0.0 # this means no flux at the left boundary
 
-  right_bc_type: "dirichlet"
-  right_bc_value: 1.0e15
+  right_bc_type: "dirichlet" 
+  right_bc_value: 1.0e15 # this means a fixed concentration at the right boundary
 
-source_terms:
+source_terms: # Tritium source terms either directly specified or calculated from neutron flux
+
+# field 0 = tritium concentration
+# field 1 = heat source term
 
   source_type: "constant"
-  source_value: 1.0e20  # source term value in [m^-3]
+  source_value: 1.0e20  # source term value in [m3]
+
+  n_flux: 1e18 # [n/m²/s] 
+  t_yield : 1.0e-6  # t atoms per neutron 
+
+  T_source : n_flux * t_yield  # tritium source term [H/m3/s]
 
   source_type_heat: "constant"
   source_value_heat: 1.0e+3  # constant heat source term value in [W/m³]
+
+  # source_type: "xdmf"  # use XDMF file for source term for a neutron flux distribution of tallies from a neutron transport code
+  source_type: xdmf
+  xdmf_file: Salome/Meshes/salome_mesh_with_source.xdmf"
+  xdmf_dataset_name: "source"  # match dataset name in the XDMF
+
 
 # END OF CONFIGURATION FILE

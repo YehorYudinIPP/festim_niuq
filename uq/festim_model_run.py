@@ -74,6 +74,9 @@ def main():
     print(f"  Time step: {simulation.get('time_step', 'Not specified')} s")
     print(f"  Total time: {model_params.get('total_time', 'Not specified')} s")
     print(f"  Material: {materials.get('material_name', 'Not specified')}")
+    print(f"  Number of materials: {materials.get('number_of_materials', 'Not specified')}")
+    print(f"  Geometry type: {geometry.get('type', 'Not specified')}")
+    print(f"  Mesh file: {geometry.get('volume_file', 'Not specified')}")
     print(f"  Sample length: {geometry.get('length', 'Not specified')} m")
     print(f"  Number of elements: {simulation.get('n_elements', 'Not specified')}")
     
@@ -91,8 +94,12 @@ def main():
     #print(f">>> festim_model_run: Print results to the console: {results}") ###DEBUG
 
     # Visualise results
-    diagnostics = Diagnostics(model, results=results, result_folder=model.result_folder)
-    diagnostics.visualise()
+    #diagnostics = Diagnostics(model, results=results, result_folder=model.result_folder)
+    #diagnostics.visualise()
+
+    import pyvista as pv
+    mesh = pv.read("results/mobile_concentration.xdmf")
+    mesh.plot(scalars="solute", cmap="viridis")
     
     print("FESTIM simulation completed successfully!")
     return results
