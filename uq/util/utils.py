@@ -30,7 +30,6 @@ def load_config(config_file):
         print(f"Error parsing YAML file: {e}")
         return None
     
-
 def add_timestamp_to_filename(filename, timestamp=None):
     """
     Add timestamp to filename before the extension.
