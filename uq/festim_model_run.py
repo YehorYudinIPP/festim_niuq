@@ -60,14 +60,14 @@ def main():
     
     print(f"Loaded configuration from: {args.config}")
 
-    print("Configuration parameters:")
+    # print("Configuration parameters:")
     
-    # Access configuration values
-    model_params = config.get('model_parameters', {})
-    geometry = config.get('geometry', {})
-    materials = config.get('materials', {})
-    simulation = config.get('simulation', {})
-    boundary_conditions = config.get('boundary_conditions', {})
+    # # Access configuration values
+    # model_params = config.get('model_parameters', {})
+    # geometry = config.get('geometry', {})
+    # materials = config.get('materials', {})
+    # simulation = config.get('simulation', {})
+    # boundary_conditions = config.get('boundary_conditions', {})
     
     # # Print some key parameters
     # print(f"  Temperature: {model_params.get('T_0', 'Not specified')} K")
