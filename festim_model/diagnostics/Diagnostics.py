@@ -231,7 +231,11 @@ class Diagnostics:
             print(f"No data available for {qoi_name}. Skipping visualization.")
             return
 
-        fig, ax = plt.subplots(figsize=(10, 6))
+        # Making an array of plot for different axis scales
+        plot_types = ['plot', 'semilogy']  # Add more plot types if needed
+        n_plots = len(plot_types)
+
+        fig, axs = plt.subplots(1, n_plots, figsize=(n_plots * 8, 6))
 
         # iterate over the milestone times and plot each
         for (i,time) in enumerate(self.milestone_times):
@@ -240,40 +244,39 @@ class Diagnostics:
             # TODO: consider that there might be no result data for a given milestone time
             print(f"> Plotting results for time {time} [s]")
 
-            # Option 1) Plotting in Lin-Lin space
-            # ax.plot(
-            #     self.model.vertices[:], 
-            #     qoi_values[:, i], 
-            #     label=f"t={time:.2f} s", 
-            #     #marker='o',
-            #     )
-            
-            # Option 2) Plotting in Log-Log space
-            ax.semilogy(
-                self.model.vertices[:], 
-                qoi_values[:, i], 
-                label=f"t={time:.2f} s",
-                #marker='o',
-            )
-            # TODO plot two plot in the same figure: one in Lin-Lin space, another in Log-Log space
+            for j, plot_func_name in enumerate(plot_types): 
+
+                # Chosing the plotting function based on the plot_func_name (axis scale)
+                plot_func = getattr(axs[j], plot_func_name, None)
+                if plot_func is None:
+                    raise ValueError(f"Plot function '{plot_func_name}' is not supported. Use 'plot' or 'semilogy'.")
+
+                plot_func(
+                    self.model.vertices[:], 
+                    qoi_values[:, i], 
+                    label=f"t={time:.2f} s", 
+                    #marker='o',
+                )
 
             # n_el_print = 3
             # print(f"Last {n_el_print} elements at time {time} s: {self.results[-n_el_print:, i+1]}") ### DEBUG
 
         # Set plot labels and title
-        ax.set_xlabel('Radial Coordinate [m]')
-        ax.set_ylabel(f"{self.quantities_of_interest_descriptor[qoi_name]['name']} [{self.quantities_of_interest_descriptor[qoi_name]['unit']}]") # Use the name and unit from the descriptor
+        for j, plot_func_name in enumerate(plot_types): 
 
-        title_string = f"{self.quantities_of_interest_descriptor[qoi_name]['name']} vs Radius (at different times)"
+            axs[j].set_xlabel('Radial Coordinate [m]')
+            axs[j].set_ylabel(f"{self.quantities_of_interest_descriptor[qoi_name]['name']} [{self.quantities_of_interest_descriptor[qoi_name]['unit']}]") # Use the name and unit from the descriptor
 
-        # TODO make a descriptor file in a separate package for YAML parsing; storing and specifying its structure
-        title_string += f"\n Param-s: T={self.model.config['model_parameters']['T_0']:.2f} [K], G={float(self.model.config['source_terms']['concentration']['source_value']):.2e} [m^-3s^-1], C(a)={float(self.model.config['boundary_conditions']['concentration']['right']['value']):.2e} [m^-3]"
+            title_string = f"{self.quantities_of_interest_descriptor[qoi_name]['name']} vs Radius (at different times) in {plot_func_name} scale"
 
-        ax.set_title(title_string)
+            # TODO make a descriptor file in a separate package for YAML parsing; storing and specifying its structure
+            # title_string += f"\n Param-s: T={self.model.config['model_parameters']['T_0']:.2f} [K], G={float(self.model.config['source_terms']['concentration']['source_value']):.2e} [m^-3s^-1], C(a)={float(self.model.config['boundary_conditions']['concentration']['right']['value']):.2e} [m^-3]"
 
-        ax.grid('both')
-        ax.legend(loc='best')
-        #plt.legend([f"t={time}" for time in self.milestone_times])
+            axs[j].set_title(title_string)
+
+            axs[j].grid('both')
+            axs[j].legend(loc='best')
+            #plt.legend([f"t={time}" for time in self.milestone_times])
 
         #plt.show()
         fig.savefig(f"{self.result_folder}/results_{qoi_name}.png")
@@ -307,7 +310,8 @@ class Diagnostics:
         ax.set_ylabel(f"{self.quantities_of_interest_descriptor[qoi_name]['name']} [{self.quantities_of_interest_descriptor[qoi_name]['unit']}]")  # Use the name and unit from the descriptor
 
         title_string = f"{self.quantities_of_interest_descriptor[qoi_name]['name']} vs Radius (in Steady State)"
-        title_string += f"\n Param-s: T={self.model.config['model_parameters']['T_0']:.2f} [K], G={float(self.model.config['source_terms']['concentration']['source_value']):.2e} [m^-3s^-1], C(a)={float(self.model.config['boundary_conditions']['concentration']['right']['value']):.2e} [m^-3]"
+        # TODO make more flexible w.r.t. changes in config and specification of varied parameters
+        # title_string += f"\n Param-s: T={self.model.config['model_parameters']['T_0']:.2f} [K], G={float(self.model.config['source_terms']['concentration']['source_value']):.2e} [m^-3s^-1], C(a)={float(self.model.config['boundary_conditions']['concentration']['right']['value']):.2e} [m^-3]"
         ax.set_title(title_string)
 
         ax.grid('both')
