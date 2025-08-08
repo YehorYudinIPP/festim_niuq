@@ -81,13 +81,13 @@ class Model():
         # print (f" >> Using heat transfer model: {self.model.T.__dict__}") ###DEBUG
 
         # Define Boundary conditions
-        # self._specify_boundary_conditions(config)
+        self._specify_boundary_conditions(config)
 
         # Define source terms
-        # self._add_source_terms(config)
+        self._add_source_terms(config)
 
         # Define derived quantities - TODO implement
-        #self.derived_quantities = self.define_derived_quantities()
+        # self.derived_quantities = self.define_derived_quantities()
 
         # Define exports: result format
         self._specify_outputs(config)
@@ -149,7 +149,7 @@ class Model():
 
         # Option 1) for mesh: use FESTIM's MeshFromVertices
         self.model.mesh = F.MeshFromVertices(
-            #type=self.coordinate_system_type,  # Specify (spherical) mesh type; available coordinate systems: 'cartesian', 'cylindrical', 'spherical'; default is Cartesian
+            type=self.coordinate_system_type,  # Specify (spherical) mesh type; available coordinate systems: 'cartesian', 'cylindrical', 'spherical'; default is Cartesian
             vertices=self.vertices,  # Use the vertices defined above
             )
         #TODO: add a fallback for unsupported coordinate systems
@@ -171,7 +171,8 @@ class Model():
 
         print(f" > config['boundary_conditions'] = \n {config['boundary_conditions']}")  ###DEBUG
 
-        self.model.boundary_conditions = []
+        if self.model.boundary_conditions is None:
+            self.model.boundary_conditions = []
 
         # Spherical case, by default: apply DirichletBC at boundary (in relative terms, r=1.0), NeumannBC (FluxBC) at the center (r=0.0)
         
@@ -278,7 +279,8 @@ class Model():
         """
         print("Adding source terms...")
 
-        self.model.sources = []
+        if self.model.sources is None:
+            self.model.sources = []
 
         print(f" > config['source_terms'] = \n {config['source_terms']}")  ###DEBUG
 
@@ -456,13 +458,13 @@ class Model():
         dt = float(config['simulation']['time_step'])
 
         self.model.dt = F.Stepsize(
-            dt, # op1) fixed time step size
+            # dt, # op1) fixed time step size
 
-            # initial_value=dt,  # op2) initial time step size for adaptive dt
-            # stepsize_change_ratio=float(config['simulation']['stepsize_change_ratio']),  # ratio for adaptive time stepping
-            # #min_value=float(config['simulation']['min_time_step']),  # minimum time step size
-            # max_stepsize=float(config['simulation']['max_stepsize']),  # maximum time step size
-            # dt_min=1e-05,  # minimum time step size for adaptive time stepping
+            initial_value=dt,  # op2) initial time step size for adaptive dt
+            stepsize_change_ratio=float(config['simulation']['stepsize_change_ratio']),  # ratio for adaptive time stepping
+            #min_value=float(config['simulation']['min_time_step']),  # minimum time step size
+            max_stepsize=float(config['simulation']['max_stepsize']),  # maximum time step size
+            dt_min=1e-05,  # minimum time step size for adaptive time stepping
 
             milestones=self.milestone_times, # check points for results export
         ) 
