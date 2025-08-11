@@ -348,9 +348,6 @@ class Model():
             )
             print(f" >> Using steady-state heat problem")  # Debugging output
 
-        # Define heat transfer coefficient (if applicable)
-        h_coeff = float(config['boundary_conditions']['temperature']['right']['hcoeff_value'])  # Convective heat transfer coefficient [W/(m²*K)] #TODO make a fallback or error if not specified
-
         # If exists, apply a heat source term
         self.model.sources = []  # Initialize source terms for heat transfer
 
@@ -425,6 +422,10 @@ class Model():
 
                 # - 3) Convective flux BC: convective heat transfer
                 elif bc['type'] == 'convective_flux':
+                    # Define heat transfer coefficient (if applicable)
+                    h_coeff = float(config['boundary_conditions']['temperature'][surface_name]['hcoeff_value'])  # Convective heat transfer coefficient [W/(m²*K)]
+                    if h_coeff is None:
+                        raise ValueError("Convective heat transfer coefficient (h_coeff) not specified.")
                     # Convective flux boundary condition
                     self.model.boundary_conditions.append(
                         F.ConvectiveFlux(
