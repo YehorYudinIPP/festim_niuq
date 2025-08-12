@@ -77,7 +77,13 @@ def define_parameter_uncertainty(config, CoV=None, distribution=None):
 
     print(f"Defining uncertain parameters with CoV={CoV} and distributions={distribution}")
 
+    # Trial 1) Vary parameter of Arrhenius law
     parameters_used = ['D_0', 'E_D', 'T_0',]
+    # Add BC and Sources
+    parameters_used += ['source_concentration_value', 'right_bc_concentration_value']
+
+    # Trial 2) Vary parameters for thermal conduction
+    #parameters_used = ['thermal_conductivity']
 
     # Define default mean values for parameters
     # - These values can be adjusted based on the specific model requirements and the physical properties of the system being simulated.
@@ -87,9 +93,9 @@ def define_parameter_uncertainty(config, CoV=None, distribution=None):
         "E_D": config.get('materials', None).get('E_D', None).get('mean', None),  # Activation energy
         "T_0": config.get('model_parameters', None).get('T_0', None).get('mean', None),  # Mean temperature
 
-        "source_concentration_value": 1.0e18,  # Mean source value
-        "left_bc_concentration_value": 1.0e15,  # Mean boundary condition value: better to keep right side as the domain boundary and left as centre
-        "right_bc_concentration_value": 1.0e17,  # Mean boundary condition value
+        "source_concentration_value": config.get('source_terms', None).get('concentration', None).get('mean', None),  # Mean source value
+        "left_bc_concentration_value": config.get('boundary_conditions', None).get('concentration', None).get('left', None).get('mean', None),  # Mean left boundary condition value
+        "right_bc_concentration_value": config.get('boundary_conditions', None).get('concentration', None).get('right', None).get('mean', None),  # Mean right boundary condition value
     }
     # TODO read means and default from the configuration file - alternatively, parse the whole YAML UQ file and get the means from there
 
@@ -106,6 +112,8 @@ def define_parameter_uncertainty(config, CoV=None, distribution=None):
             "D_0": config.get('materials', None).get('D_0', None).get('relative_stdev', None),
             "E_D": config.get('materials', None).get('E_D', None).get('relative_stdev', None),
             "T_0": config.get('model_parameters', None).get('T_0', None).get('relative_stdev', None),
+            "source_concentration_value": config.get('source_terms', None).get('concentration', None).get('relative_stdev', None),
+            "right_bc_concentration_value": config.get('boundary_conditions', None).get('right', None).get('relative_stdev', None),
         }
 
     # Define the distributions for uncertain parameters
@@ -118,6 +126,8 @@ def define_parameter_uncertainty(config, CoV=None, distribution=None):
             "D_0": config.get('materials', None).get('D_0', None).get('pdf', 'normal'),
             "E_D": config.get('materials', None).get('E_D', None).get('pdf', 'normal'),
             "T_0": config.get('model_parameters', None).get('T_0', None).get('pdf', 'normal'),
+            "source_concentration_value": config.get('source_terms', None).get('concentration', None).get('pdf', 'normal'),
+            "right_bc_concentration_value": config.get('boundary_conditions', None).get('right', None).get('pdf', 'normal'),
         }
     # -  These distributions can be adjusted based on the specific model requirements and the physical properties of the system being simulated.
 
@@ -209,7 +219,7 @@ def prepare_execution_command():
     
     return execute
 
-def prepare_uq_campaign(config, fixed_params=None):
+def prepare_uq_campaign(config, fixed_params=None, uq_params=None):
     """
     Prepare the uncertainty quantification (UQ) campaign by creating necessary steps: set-up, parameter definitions, encoders, decoders, and actions.
     """
@@ -320,7 +330,12 @@ def prepare_uq_campaign(config, fixed_params=None):
     # This sampler will generate samples based on the defined distributions
 
     # Here we use a Polynomial Chaos Expansion (PCE) sampler!
-    p_order = 2  # Polynomial order for PC expansion
+
+    # Define polynomial order for PC expansion
+    if uq_params is not None and 'p_order' in uq_params:
+        p_order = uq_params['p_order']
+    else:
+        p_order = 1
 
     sampler = uq.sampling.PCESampler(
         vary=distributions,
@@ -412,7 +427,7 @@ def perform_uq_festim(fixed_params=None):
     # Read the configuration file from the command line argument or use a default one
     
     #print(f" >> Passing parameters to the campaign: {fixed_params}") ###DEBUG
-    campaign, qois, distributions, campaign_timestamp, sampler = prepare_uq_campaign(config, fixed_params=fixed_params)
+    campaign, qois, distributions, campaign_timestamp, sampler = prepare_uq_campaign(config, fixed_params=fixed_params, uq_params={'p_order': 1})
 
     # TODO: add more parameter for Arrhenious law (+)
     # TODO: try higher BC concentration values - does it even make sense to have such low BC (+)
