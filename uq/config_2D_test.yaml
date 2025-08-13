@@ -1,0 +1,57 @@
+# FESTIM configuration with values taken from festim workshop example
+model_parameters:
+  total_time: 25.0  # s
+  T_0: 823.0  # initial temperature in [K]
+  #T_ext: 300.0  # external temperature in [K]
+  'heat_model': 'none' # type of heat model to use, options: 'heat_transfer', 'none'
+  transient: False # enable transient simulation
+
+  
+geometry:
+
+  type: "2D"  # specify the geometry type, options: "1D", "2D", "3D"
+  
+  # from XFMF files
+  # mesh_file: "festim_niuq/uq/mesh.xdmf"
+  boundary_file: "meshing/mesh_boundaries.xdmf"
+  volume_file: "meshing/mesh_domains.xdmf"
+
+materials:
+  material1:
+    id: 6
+    D_0: 1
+    E_D: 0
+
+  material2:
+    id: 7
+    D_0: 5
+    E_D: 0
+ 
+simulation:
+  time_step: 1e-5      # s
+  max_stepsize: 0.01   # s
+  stepsize_change_ratio: 1.1
+
+  absolute_tolerance: 1.0e-8
+  relative_tolerance: 1.0e-8
+
+  output_directory: "results/"
+  milestone_times: [0.1, 0.2, 0.5, 1.0, 5.0, 10.0, 25.0] # times at which results are saved [s]
+
+boundary_conditions:
+  left_bc_type: "dirichlet"   # or "neumann"
+  left_bc_value: 1.0          # value in solute concentration units
+
+  right_bc_type: "dirichlet"  # or "neumann"
+  right_bc_value: 0.0
+
+source_terms:
+  source_type: "constant"
+  source_value: 1.0e8  # source term value in [m^-3]
+
+  # source_type: "xdmf"  # use XDMF file for source term for a neutron flux distribution of tallies from a neutron transport code
+  # source_type: xdmf
+  # xdmf_file: "Research/FESTIM/workshop_examples/2D/mesh_boundaries.xdmf"
+  # xdmf_dataset_name: "source"  # match dataset name in the XDMF
+
+# END OF CONFIGURATION FILE
