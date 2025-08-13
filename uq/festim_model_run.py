@@ -17,7 +17,7 @@ if parent_dir not in sys.path:
     sys.path.insert(0, parent_dir)
     
 # Now we can import festim_model from parent directory
-from festim_model import Model
+from festim_model import Model, Model_legacy
 from festim_model.diagnostics import Diagnostics
 
 def load_config(config_file):
@@ -76,10 +76,15 @@ def main():
     # print(f"  Material: {materials.get('material_name', 'Not specified')}")
     # print(f"  Sample length: {geometry.get('length', 'Not specified')} m")
     # print(f"  Number of elements: {simulation.get('n_elements', 'Not specified')}")
+
+    festim_version = "1.4"
     
     # Create an instance of the FESTIM model with configuration
-    model = Model(config=config)
-    
+    if festim_version == "1.4":
+        model = Model_legacy(config=config)
+    else:
+        model = Model(config=config)
+
     # Run the FESTIM model with configuration
     results = model.run()
 

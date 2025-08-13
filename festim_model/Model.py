@@ -10,9 +10,70 @@ import festim as F
 # Local imports
 from .diagnostics import Diagnostics
 
-class Model():
+class BaseModel:
+    """
+    Base class for all models.
+    """
+    def __init__(self, ):
+
+        pass
+
+
+
+    def _specify_geometry(self, config):
+        """
+        Specify the geometry of the model.
+        """
+        raise NotImplementedError("Geometry specification method not implemented in the base class.")
+
+    def _specify_materials(self, config):
+        """
+        Specify the materials used in the model.
+        """
+        raise NotImplementedError("Materials specification method not implemented in the base class.")
+    
+    def _specify_boundary_conditions(self, config):
+        """
+        Specify the boundary conditions for the model.
+        """
+        raise NotImplementedError("Boundary conditions specification method not implemented in the base class.")
+    
+    def _add_source_terms(self, config):
+        """
+        Add source terms to the model.
+        """
+        raise NotImplementedError("Source terms method not implemented in the base class.")
+
+    def _add_heat_conduction(self, config):
+        """
+        Add heat conduction to the model.
+        """
+        raise NotImplementedError("Heat conduction method not implemented in the base class.")
+
+    def _specify_time_integration_settings(self, config):
+        """
+        Specify the time integration settings for the model.
+        """
+        raise NotImplementedError("Time integration settings method not implemented in the base class.")
+
+    def _add_derived_quantities(self, config):
+        """
+        Add derived quantities to the model.
+        """
+        raise NotImplementedError("Derived quantities method not implemented in the base class.")
+    
+    def run(self):
+        """
+        Run the model simulation.
+        This method should be overridden in derived classes.
+        """
+        raise NotImplementedError("The run method must be implemented in derived classes.")
+
+
+class Model_legacy(BaseModel):
     """
     Model class for the FESTIM simulation.
+    Old version: using version 1.4 of FESTIM API
     """
 
     def __init__(self, config=None):
@@ -618,3 +679,49 @@ class Model():
         # print(f">>> Model.run: Printing last {n_elem_print} elements of the results for last time of {self.milestone_times[-1]}: {self.results[-n_elem_print:, -1]}")  # Print last n elements of the results for the last time step ###DEBUG
 
         return self.results
+
+
+class Model(BaseModel):
+    """
+    Model class for the FESTIM simulation.
+    """
+    def __init__(self, **kwargs):
+
+        super().__init__(**kwargs)
+
+    def _specify_geometry(self, config):
+
+        super()._specify_geometry(config)
+
+    def _specify_materials(self, config):
+
+        super()._specify_materials(config)
+
+    def _specify_boundary_conditions(self, config):
+
+        super()._specify_boundary_conditions(config)
+
+    def _add_source_terms(self, config):
+
+        super()._add_source_terms(config)
+
+    def _add_heat_conduction(self, config):
+
+        super()._add_heat_conduction(config)
+
+    def _specify_time_integration_settings(self, config):
+
+        super()._specify_time_integration_settings(config)
+
+    def _specify_outputs(self, config):
+
+        super()._specify_outputs(config)
+
+    def _add_derived_quantities(self, config):
+        
+        super()._add_derived_quantities(config)
+    
+    def run(self):
+
+        self.model.run()
+
