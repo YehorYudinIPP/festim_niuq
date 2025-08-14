@@ -685,43 +685,293 @@ class Model(BaseModel):
     """
     Model class for the FESTIM simulation.
     """
-    def __init__(self, **kwargs):
+    def __init__(self, config=None):
 
-        super().__init__(**kwargs)
+        """
+        Initialize the model with the given parameters.
+
+        Parameters:
+            - config: a nested dictionary generated from the YAML config file
+        """
+        self.name = "FESTIM Model 2.0"
+        self.lib_version = "2.0"
+        print(f" ! Initialising {self.name} !..")
+
+        #TODO:
+        # initalise different model + coupling
+        # for each: initialise base, BC, Sources, Setting, time-stepping
+        # add derived quantities, outputs, postprocessing
+
+        #super().__init__()
 
     def _specify_geometry(self, config):
+        """
+        Specify geometry for the model.
+        That includes: type of coordinate system, dimensions, and mesh details.
+        Has to be called after _specify_materials
+        Parameters:
+            - config: a nested dictionary generated from the YAML config file
+        TODO: this should be a method that can be called for a list of various subdomains
+        """
+        print("Specifying geometry...")
+        
+        # super()._specify_geometry(config)
 
-        super()._specify_geometry(config)
+        print(f" config[geometry]: {config.get('geometry', {})}") ###DEBUG
+
+        # Specifying number of physical dimensions of the model
+        self.n_dimensions = config.get("geometry", {}).get("dimensionality", 1)
+
+        # Specifying type of coordinate system: cartesian, cylindrical (polar), spherical
+        self.coordinate_system_type = config.get("geometry", {}).get("coordinate_system", "cartesian")
+
+        # Specifying type of mesh
+        self.mesh_type = config.get("simulation", {}).get("mesh_type", "regular")
+
+        # Specifying size of the mesh
+        self.n_elements = int(config.get("simulation", {}).get("n_elements", 128))  # Default to 128 elements if not specified
+
+        if self.n_dimensions == 1:
+            # Create a 1D mesh
+
+            self.domain_sizes = {}
+            self.domain_volumes = {}
+            self.domain_surfaces = {}
+            self.domains = {}
+            self.meshes = {}
+
+            self.max_surface_per_domain = 2
+
+            config_domains = config.get("geometry", {}).get("domains", [{}])
+
+            for config_domain in config_domains:
+
+                id = config_domain.get("id", 1)  # Default to 1 if not specified
+
+                self.domain_sizes[id] = config_domain.get("length", 1.0)
+
+                self.domain_volumes[id] = F.VolumeSubdomain1D(
+                        id=id,
+                        borders=[0.0, self.domain_sizes[id]],
+                        material=self.material
+                    )
+
+                self.domain_surfaces[f"{(id-1)*self.max_surface_per_domain+0}"] = F.SurfaceSubdomain1D(id=1, x=0.0)
+                self.domain_surfaces[f"{(id-1)*self.max_surface_per_domain+1}"] = F.SurfaceSubdomain1D(id=2, x=self.domain_sizes[id])
+
+                vertices = np.linspace(0., self.domain_sizes[id], self.n_elements + 1)
+                self.meshes[id] = F.Mesh1D(vertices) #TODO: double check if this is accroding to FESTIM2.0
+
+        elif self.n_dimensions == 2:
+            raise NotImplementedError("2D geometry is not implemented yet.")
+        elif self.n_dimensions == 3:
+            raise NotImplementedError("3D geometry is not implemented yet.")
+        else:
+            raise ValueError(f"Unsupported number of dimensions: {self.n_dimensions}. Only 1D, 2D, and 3D are supported.")
+
+        return self.model.mesh
 
     def _specify_materials(self, config):
+        """
+        Specify materials for the model.
+        Params:
+            - config: a nested dictionary generated from the YAML config file
+        TODO: it should be a list of materials, each could be assigned to a different subdomain
+        """
+        print("Specifying materials...")
 
-        super()._specify_materials(config)
+        #super()._specify_materials(config)
 
-    def _specify_boundary_conditions(self, config):
+        print(f" config[materials]: {config.get('materials', {})}") ###DEBUG
 
-        super()._specify_boundary_conditions(config)
+        self.materials = []
 
-    def _add_source_terms(self, config):
+        for id, material_config in enumerate(config.get("materials", []), start=1):
+            material = F.Material(
+                id=id,
+                name=material_config.get("material_name", "Unknown"),
+                D_0=material_config.get("D_0", {}).get("mean", 0.0),
+                E_D=material_config.get("E_D", {}).get("mean", 0.0),
+                thermal_conductivity=material_config.get("thermal_conductivity", 0.0),
+                density=material_config.get("rho", 0.0),
+                heat_capacity=material_config.get("heat_capacity", 0.0)
+            )
+            self.materials.append(material)
 
-        super()._add_source_terms(config)
+        return self.materials
+
+    def _specify_boundary_conditions(self, config, quantity_filter=None):
+        """
+        Specify boundary conditions for the model.
+        Parameters:
+            - config: a nested dictionary generated from the YAML config file
+            - quantity_filter: the quantity (or type of problem) to which the boundary conditions apply (e.g., temperature, displacement). If None, apply to all those found in config
+        TODO: this should be list of BCs per problem (x domain, x surface)
+        """
+        print("Specifying boundary conditions...")
+
+        #super()._specify_boundary_conditions(config)
+
+        print(f" config[boundary_conditions]: {config.get('boundary_conditions', {})}") ###DEBUG
+
+        # Create an empty list for all the BCs
+        if self.model.boundary_conditions is None:
+            self.model.boundary_conditions = []
+
+        # Map quantity name to their id-s otr FESTIM shorthands
+        quantity_map = {'concentration': 0, 'temperature': "T"}    
+
+        # For 1D problem, map names of the surfaces to their id-s
+        surface_map = {'left': {'festim_id': 1, 'loc_id': 1}, 'right': {'festim_id': 2, 'loc_id': 2}}
+
+        # Iterate over boundary conditions in the configuration
+        for bc_quantity, bc_config in config.get("boundary_conditions", []).items():
+
+            field = quantity_map.get(bc_quantity, "concentration")  # Default to concentration if not specified
+            #TODO should it have a ValueError as a fallback?
+
+            if bc_quantity is quantity_filter or quantity_filter is None:
+                for bc_location, bc_values in bc_config.items():
+
+                    surface_loc_id = surface_map.get(bc_location, 1).get('loc_id', None)
+                    #TODO should it have ValueError as a fallback?
+
+                    if bc_values['type'] == 'dirichlet':
+                        # Dirichlet boundary condition
+                        bc = F.DirichletBC(
+                            species=self.species(bc_values['species']), #TODO: implement species list 
+                            subdomain=self.domain_surfaces[surface_loc_id],
+                            value=float(bc_values.get('value', 0.0)),
+                        )
+                        print(f" >> Using Dirichlet BC at surface {surface_loc_id} with value {bc_values['value']} for field {field}") ###DEBUG
+                    elif bc_values['type'] == 'neumann':
+                        raise NotImplementedError("Neumann boundary conditions are not implemented yet.")
+                    elif bc_values['type'] == 'convective_flux':
+                        print(f"Convective flux applies only to heat transport!")
+                        raise NotImplementedError("Convective flux boundary conditions are not implemented yet.")
+                    else:
+                        raise ValueError(f"Unknown or unsupported boundary condition type: {bc_values['type']}")
+
+                    self.model.boundary_conditions.append(bc)
+
+        return self.model.boundary_conditions
+
+    def _add_source_terms(self, config, quantity_filter=None):
+        """
+        Add source terms to the model.
+        Parameters:
+            - config: a nested dictionary generated from the YAML config file
+            - quantity_filter: the quantity (or type of problem) to which the source terms apply (e.g., concentration, heat). If None, apply to all those found in config
+        TODO: this should be list of source terms per problem (x domain)
+        """
+        print(f"Adding source terms...")
+
+        # super()._add_source_terms(config)
+
+        print(f" config[source_terms]: {config.get('source_terms', {})}") ###DEBUG
+
+        # Create an empty list for all the source terms
+        if self.model.source_terms is None:
+            self.model.source_terms = []
+
+        # Map volume domain names to their FESTIM and local id-s
+        volume_map = {k: k for k in self.domain_volumes.items()} # This could be modified for a more complex mapping if needed
+
+        # # Map source term names to their ids or FESTIM shorthands
+        # source_term_map = {'concentration': 0, 'heat': 'T'}
+
+        # Iterate over source terms in the configuration
+        for source_term_name, source_term_config in config.get("source_terms", {}).items():
+
+            if source_term_name is quantity_filter or quantity_filter is None:
+                if source_term_name == "concentration":
+
+                    source_term = F.ParticleSource(
+                        value=source_term_config.get('source_value', 0.0),  # Source term value
+                        volume=self.domain_volumes[volume_map.get(source_term_config.get('domain_id', 1))],
+                        species=self.species.get(source_term_config.get('species_id', 1)), #TODO: implement species list in Model()
+                    )
+
+                    self.model.source_terms.append(source_term)
+                elif source_term_name == "heat":
+
+                    source_term = F.HeatSource(
+                        value=source_term_config.get('source_value', 0.0),  # Source term value
+                        volume=self.domain_volumes[volume_map.get(source_term_config.get('domain_id', 1))],
+                    )
+
+                    self.model.source_terms.append(source_term)
+                else:
+                    raise ValueError(f"Unknown or unsupported source term type: {source_term_name}")
 
     def _add_heat_conduction(self, config):
+        """
+        Add heat conduction to the model.
+        Parameters:
+            - config: a nested dictionary generated from the YAML config file
+        TODO IMPLEMENT!
+        TODO: Add new coupling model!
+        """
 
         super()._add_heat_conduction(config)
 
     def _specify_time_integration_settings(self, config):
+        """
+        Specify the time integration settings for the model.
+        Parameters:
+            - config: a nested dictionary generated from the YAML config file
+        Has to be applies for transient problems
+        Has to be applies after settings are specified
+        TODO: has to be applied to separate problems
+        """
+        print(f"Specifying time integration settings...")
 
-        super()._specify_time_integration_settings(config)
+        #super()._specify_time_integration_settings(config)
+
+        print(f" config[time_integration]: {config.get('time_integration', {})}") ###DEBUG
+
+        dt = float(config.get("simulation", {}).get("time_step", 1e-5))  # Default to 1e-5 if not specified
+
+        if self.model.settings is not None:
+
+            if config.get("simulation", {}).get("time_stepping_type") == "fixed":
+                self.model.settings.stepsize = F.Stepsize(dt)
+            elif config.get("simulation", {}).get("time_stepping_type") == "adaptive":
+                self.model.settings.stepsize = F.Stepsize(
+                    initial_value=dt,  # Initial time step size
+                    stepsize_change_ratio=float(config.get("simulation", {}).get("stepsize_change_ratio", 1.5)),  # Ratio for adaptive time stepping
+                    max_stepsize=float(config.get("simulation", {}).get("max_stepsize", 1e-3)),  # Maximum time step size
+                    dt_min=float(config.get("simulation", {}).get("min_time_step", 1e-5)),  # Minimum time step size
+                )
+            else:
+                raise ValueError(f"Unknown or unsupported time stepping type: {config.get('simulation', {}).get('time_stepping_type')}")
+            
+        return self.model.settings.stepsize
 
     def _specify_outputs(self, config):
+        """
+        Specify the outputs for the model.
+
+        Parameters:
+            - config: a nested dictionary generated from the YAML config file
+        """
 
         super()._specify_outputs(config)
 
     def _add_derived_quantities(self, config):
-        
+        """
+        Add derived quantities to the model.
+
+        Parameters:
+            - config: a nested dictionary generated from the YAML config file
+        """
+
         super()._add_derived_quantities(config)
     
     def run(self):
+        """
+        Run the model - perfroms the simulation.
+        """
 
         self.model.run()
 
