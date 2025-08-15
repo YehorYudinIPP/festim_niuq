@@ -51,8 +51,10 @@ class Diagnostics:
                     self.mesh[qoi] = self.results[qoi][:, 0]  # Assuming the first column is the mesh coordinates
                     self.results[qoi] = self.results[qoi][:, 1:]  # Keep only the results data (excluding mesh coordinates)
         else:
-            print(f"Warning: No results for {qoi} file found in {self.result_folder}. Please run the simulation first.")
-            self.results[qoi] = None
+            #print(f"Warning: No results for {qoi} file found in {self.result_folder}. Please run the simulation first.")
+            #self.results[qoi] = None
+            print("Results provided directly after the simulation, skipping file reading.")
+            print(f">>> Diagnostics.results: {self.results}")  ###DEBUG print results
 
         # Additionally, read results from derived quantities file if available
         if derived_quantities_flag:
@@ -116,6 +118,9 @@ class Diagnostics:
 
         # n_elem_print = 3
         # print(f">>> Diagnostics.__init__: Printing last {n_elem_print} elements of the results for last time of {self.milestone_times[-1]}: {self.results[-n_elem_print:, -1]}")  # Print last n elements of the results for the last time step ###DEBUG
+
+        # ATTENTION: TODO: make work for both reading from file and from object
+        self.milestone_times = ['final']
 
         # Define data structure (dict) to keep naming, units etc. for quantities of interest
         self.quantities_of_interest_descriptor = {
@@ -225,11 +230,14 @@ class Diagnostics:
         Visualize a specific quantity of interest resolved as a function of a single spatial coordinate (1D).
         
         :param qoi_name: Name of the quantity to visualize.
-        :param quantity: The quantity data to visualize.
+        :param quantity: The quantity data to visualize: numpy array
         """
         if qoi_values is None:
             print(f"No data available for {qoi_name}. Skipping visualization.")
             return
+
+        print(f" >> Visualizing transient 1D quantity: {qoi_name}") ###DEBUG
+        print(f" >> Visualizing transient values: \n{qoi_values}") ###DEBUG
 
         # Making an array of plot for different axis scales
         plot_types = ['plot', 'semilogy']  # Add more plot types if needed
@@ -237,7 +245,7 @@ class Diagnostics:
 
         fig, axs = plt.subplots(1, n_plots, figsize=(n_plots * 8, 6))
 
-        # iterate over the milestone times and plot each
+        # Iterate over the milestone times and plot each
         for (i,time) in enumerate(self.milestone_times):
             # The first column is the radial coordinate values
             # TODO: read file as a CSV file
@@ -345,7 +353,7 @@ class Diagnostics:
             # from fenics import plot
             # plot(model.T.T, title="Temperature Distribution", mode='color', interactive=True)
 
-            if self.model.model.settings.transient:
+            if self.model.transient:
                 print("Transient simulation detected, plotting results over time.")
 
                 # Iterate over each quantity of interest in the results dictionary and plot
