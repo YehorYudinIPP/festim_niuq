@@ -77,7 +77,7 @@ def main():
     # print(f"  Sample length: {geometry.get('length', 'Not specified')} m")
     # print(f"  Number of elements: {simulation.get('n_elements', 'Not specified')}")
 
-    festim_version = "1.4"
+    festim_version = "2.0" # "1.4"
     
     # Create an instance of the FESTIM model with configuration
     if festim_version == "1.4":
