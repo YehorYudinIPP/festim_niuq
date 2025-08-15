@@ -98,7 +98,7 @@ def main():
     # Visualise results
     # TODO make into a separate script such that if this fails, the model results are saved and run passes
     # TODO single out run and post-process scripts and run a single BASH script 
-    diagnostics = Diagnostics(model, results=results, result_folder=model.result_folder)
+    diagnostics = Diagnostics(model, results=results, result_folder=model.result_folder, derived_quantities_flag=False)
     diagnostics.visualise()
     
     print("FESTIM simulation completed successfully!")
@@ -131,64 +131,71 @@ def extract_tritium_inventory(results, model):
     # 2. Integrate concentration over the domain
     # 3. Calculate total inventory
     
-    try:
-        # Example: Read from the results file
-        result_folder = model.result_folder
-        result_file_name = "results_tritium_concentration.txt"
-        result_file = os.path.join(result_folder, result_file_name)
+    if results is not None and model is not None:
+        # Implement extraction logic using results and model
+        print("Extracting tritium inventory from results in the model ...")
+        data = results.get('tritium_concentration', None)
+    elif results is None or model is None:
+        try:
+            # Example: Read from the results file
+            print(f" Reading tritium concentration from: {result_file} ...")
+            result_folder = model.result_folder
+            result_file_name = "results_tritium_concentration.txt"
+            result_file = os.path.join(result_folder, result_file_name)
 
-        if os.path.exists(result_file):
-            # Read and process the results file
-            import numpy as np
-            data = np.genfromtxt(result_file, skip_header=1, delimiter=',')
-            
-            # Option 1) simple example: sum of final concentrations
-            #TODO: Replace with a better inventory calculation
+            if os.path.exists(result_file):
+                # Read and process the results file
+                data = np.genfromtxt(result_file, skip_header=1, delimiter=',')
 
-            ds = 1.0e-12 # a test area of a squared micron [m^2]
-            length_elem_s = model.vertices[1:] - model.vertices[:-1]  # length of each (1D) element [m]
-
-            # # Option 1.1) assume flat geometry and uniform (1D) mesh (~hexahedral in 3D)
-            # length_elem = model.config['geometry']['length'] / model.config['simulation']['n_elements']  # Example length element [m]
-            # volume_elem = ds * length_elem  # Volume of an element [m^3]
-            # if len(data.shape) > 1 and data.shape[0] > 0:
-            #     final_concentrations = data[:, -1]  # Last time step
-            #     inventory = np.sum(final_concentrations) * volume_elem  
-            # else:
-            #     inventory = 1.0e20  # Default value
-
-            # # Option 1.2) assume flat geometry and non-uniform mesh
-            # # Calculate volume of an actual local element - important for a) sph. geometry and b) non-uniform mesh
-            # #TODO test this
-            # volume_elem_s = ds * length_elem_s  # Volume of each element [m^3]
-            
-            # #TODO figure out correct dimensionality of the output data
-            # if len(data.shape) > 1 and data.shape[0] > 0:
-            #     final_concentrations = data[:-1, -1]  # Last time step
-            #     #TODO find correct resolution beteen vertices and elements
-            #     inventory = np.sum(final_concentrations * volume_elem_s)
-            # else:
-            #     inventory = 1.0e20  # Default value
-
-            # Option 1.3) assume spherical geometry and uniform mesh
-            #TODO: test this
-
-            radius_loc_s = model.vertices[:-1]  # Local radius of each spherical element [m]
-
-            volume_elem_s =  4. * np.pi * length_elem_s * (radius_loc_s)**2  # Volume of a spherical element [m^3]
-
-            if len(data.shape) > 1 and data.shape[0] > 0:
-                final_concentrations = data[:-1, -1]  # Last time step
-                inventory = np.sum(final_concentrations * volume_elem_s)
             else:
+                print(f"Warning: Results file not found: {result_file}")
                 inventory = 1.0e20  # Default value
-
-        else:
-            print(f"Warning: Results file not found: {result_file}")
-            inventory = 1.0e20  # Default value
+                return inventory
             
-    except Exception as e:
-        print(f"Error extracting tritium inventory: {e}")
+        except Exception as e:
+            print(f"Error extracting tritium inventory: {e}")
+            inventory = 1.0e20  # Default value
+
+    # Option 1) simple example: sum of final concentrations
+    #TODO: Replace with a better inventory calculation
+
+    ds = 1.0e-12 # a test area of a squared micron [m^2]
+    length_elem_s = model.vertices[1:] - model.vertices[:-1]  # length of each (1D) element [m]
+
+    # # Option 1.1) assume flat geometry and uniform (1D) mesh (~hexahedral in 3D)
+    # length_elem = model.config['geometry']['length'] / model.config['simulation']['n_elements']  # Example length element [m]
+    # volume_elem = ds * length_elem  # Volume of an element [m^3]
+    # if len(data.shape) > 1 and data.shape[0] > 0:
+    #     final_concentrations = data[:, -1]  # Last time step
+    #     inventory = np.sum(final_concentrations) * volume_elem  
+    # else:
+    #     inventory = 1.0e20  # Default value
+
+    # # Option 1.2) assume flat geometry and non-uniform mesh
+    # # Calculate volume of an actual local element - important for a) sph. geometry and b) non-uniform mesh
+    # #TODO test this
+    # volume_elem_s = ds * length_elem_s  # Volume of each element [m^3]
+    
+    # #TODO figure out correct dimensionality of the output data
+    # if len(data.shape) > 1 and data.shape[0] > 0:
+    #     final_concentrations = data[:-1, -1]  # Last time step
+    #     #TODO find correct resolution beteen vertices and elements
+    #     inventory = np.sum(final_concentrations * volume_elem_s)
+    # else:
+    #     inventory = 1.0e20  # Default value
+
+    # Option 1.3) assume spherical geometry and uniform mesh
+    #TODO: test this
+
+    radius_loc_s = model.vertices[:-1]  # Local radius of each spherical element [m]
+
+    volume_elem_s =  4. * np.pi * length_elem_s * (radius_loc_s)**2  # Volume of a spherical layer element [m^3]
+
+    if len(data.shape) > 1 and data.shape[0] > 0:
+        final_concentrations = data[:-1, -1]  # Last time step
+        inventory = np.sum(final_concentrations * volume_elem_s)
+    else:
+        print("Using default value for tritium inventory")
         inventory = 1.0e20  # Default value
 
     # TODO: figure out how to use FESTIM's DerivedQuantities to compute inventory
