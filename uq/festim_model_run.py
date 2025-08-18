@@ -191,8 +191,20 @@ def extract_tritium_inventory(results, model):
 
     volume_elem_s =  4. * np.pi * length_elem_s * (radius_loc_s)**2  # Volume of a spherical layer element [m^3]
 
-    if len(data.shape) > 1 and data.shape[0] > 0:
-        final_concentrations = data[:-1, -1]  # Last time step
+    if len(data.shape) > 0 and data.shape[0] > 0:
+
+        #final_concentrations = data[:-1, -1]  # Last time step
+        
+        if len(data.shape) == 1:
+            final_concentrations = data[-1]
+        elif len(data.shape) > 1:
+            final_concentrations = data[:, -1]
+        else:
+            # fall back option
+            print("Warning: Unexpected data shape, using default tritium inventory value.")
+            unit_concentration = 1.0e10  # Default value
+            final_concentrations = unit_concentration * np.ones(data.shape[0])  # Default to ones if data is empty
+
         inventory = np.sum(final_concentrations * volume_elem_s)
     else:
         print("Using default value for tritium inventory")
