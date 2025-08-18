@@ -717,14 +717,18 @@ class Model(BaseModel):
         else:
             self.quantities_of_interest = {'tritium_concentration': None}
 
-        # Specify dictionary of problems: keys are names, values are FESTIM 2.0 problems instances
-        if "problems" in config.get("model_parameters", {}):
-            self.problems = {k: {} for k,_ in config["model_parameters"]["problems"].items()}
-        else:
-            self.problems = {'tritium_transport': {},}
+        # Map quantity name to their id-s otr FESTIM shorthands
+        self.quantity_map = {'concentration': 0, 'temperature': "T"}  
 
         # Get common model parameters
         model_parameters_problems_config = config.get("model_parameters", {}).get("problems", {})
+
+        # Specify dictionary of problems: keys are names, values are FESTIM 2.0 problems instances
+        if "problems" in config.get("model_parameters", {}):
+            self.problems = {k: {} for k,_ in model_parameters_problems_config.items()}
+        else:
+            self.problems = {'tritium_transport': {},}
+        print(f" > Model problems: {self.problems}")  ###DEBUG
 
         # Specify materials used
         self._specify_materials(config)
@@ -734,22 +738,24 @@ class Model(BaseModel):
         self._specify_geometry(config)
 
         # Type of the models
-        self.transient = config.get("model_parameters", {}).get("transient", False)
+        self.transient = bool(config.get("model_parameters", {}).get("transient", False))
 
         # Specify whether the model has non-stationary term or not
         if self.transient:
-            self.total_time = config.get("model_parameters", {}).get("total_time", 1.0)
+            self.total_time = float(config.get("model_parameters", {}).get("total_time", 1.0))
 
         # Initialise each problem separately, add all necessary components
         for problem_name, problem_instance in self.problems.items():
             print(f"Initialising problem for: {problem_name}")
+
             # Add problem-specific initialisation here
             if problem_name == "tritium_transport":
-                # Read the config dictionary for the particular problem
+                # Read the config dictionary for the particular problem: tritium transport
                 config_tritium_transport = model_parameters_problems_config.get("tritium_transport", {})
 
                 # Set up name(s) of the relevant quantities of interest
                 problem_instance['qoi_name'] = 'tritium_concentration'
+                # TODO this could be a list of QoI names
 
                 # Create a FESTIM problem instance
                 problem_instance['festim_problem'] = F.HydrogenTransportProblem()
@@ -760,28 +766,36 @@ class Model(BaseModel):
                     problem_instance['festim_problem'].settings = F.Settings(
                         transient=True,
                         final_time=self.total_time,
-                        atol=1e+6,
-                        rtol=1e-6
+                        atol=float(config.get("simulation", {}).get("absolute_tolerance", 1.0)),
+                        rtol=float(config.get("simulation", {}).get("relative_tolerance", 1.0)),
                 )
                 else:
                     problem_instance['festim_problem'].settings = F.Settings(
                         transient=False,
-                        atol=1e+6,
-                        rtol=1e-6
+                        atol=float(config.get("simulation", {}).get("absolute_tolerance", 1.0)),
+                        rtol=float(config.get("simulation", {}).get("relative_tolerance", 1.0)),
                     )
 
                 # Set species in question
-                species_names = config_tritium_transport.get("species", [])
+                species_names_config = config_tritium_transport.get("species", [])
+
+                self.species_descriptor = {
+                    "Tritium": {"festim_name": "T"}
+                }
+
                 if not hasattr(self, 'species') or self.species is None:
-                    self.species = {k:None for k in species_names}
-                self.species['Tritium'] = F.Species("T")
+                    self.species = {k:None for k in species_names_config} # TODO can be merged with the following code block ...
+                
+                for species_k, _ in self.species.items():
+                    self.species[species_k] = F.Species(self.species_descriptor[species_k]["festim_name"])
+                # TODO make automatic parsing of names; create species naming dictionary or make them the same
 
                 # Specify species list for FESTIM Model
                 problem_instance['festim_problem'].species = [v for _,v in self.species.items()]
 
-                # Specify geometry and mesh
+                # Specify geometry and mesh # must be called after _specify_geometry()
                 problem_instance['festim_problem'].subdomains = self.subdomains
-                problem_instance['festim_problem'].mesh = self.meshes[config_tritium_transport.get("domains", [{}])[0].get("id", 1)]
+                problem_instance['festim_problem'].mesh = self.meshes[int(config_tritium_transport.get("domains", [{}])[0].get("id", 1))]
 
                 # Specify Boundary Conditions
                 problem_instance['festim_problem'].boundary_conditions = self._specify_boundary_conditions(config, quantity_filter='concentration')
@@ -789,11 +803,14 @@ class Model(BaseModel):
                 # Add Source terms
                 problem_instance['festim_problem'].sources = self._add_source_terms(config, quantity_filter='concentration')
 
-                # Set back the specified problem instance
-                self.problems[problem_name] = problem_instance
+                # Set back the specified problem instance - should work in situ in Python3
+                # self.problems[problem_name] = problem_instance
+
+                print(f" > Finished problem initialisation for gas transport")
+                print(f" >> State of the self.problems after {problem_name} initialisation: {self.problems}") ###DEBUG
 
             elif problem_name == "heat_transport":
-                # Read the config dictionary for the particular problem
+                # Read the config dictionary for the particular problem: heat transport
                 config_heat_transport = model_parameters_problems_config.get("heat_transport", {})
 
                 # Set up name(s) of the relevant quantities of interest
@@ -808,31 +825,39 @@ class Model(BaseModel):
                     problem_instance['festim_problem'].settings = F.Settings(
                         transient=True,
                         final_time=self.total_time,
-                        atol=1e+6,
-                        rtol=1e-6
+                        atol=float(config.get("simulation", {}).get("absolute_tolerance", 1.0)),
+                        rtol=float(config.get("simulation", {}).get("relative_tolerance", 1.0)),
                 )
                 else:
                     problem_instance['festim_problem'].settings = F.Settings(
                         transient=False,
-                        atol=1e+6,
-                        rtol=1e-6
+                        atol=float(config.get("simulation", {}).get("absolute_tolerance", 1.0)),
+                        rtol=float(config.get("simulation", {}).get("relative_tolerance", 1.0)),
                     )
 
                 # Specify geometry and mesh
                 problem_instance['festim_problem'].subdomains = self.subdomains
-                problem_instance['festim_problem'].mesh = self.meshes[config_heat_transport.get("domains", [{}])[0].get("id", 1)]
+                problem_instance['festim_problem'].mesh = self.meshes[int(config_heat_transport.get("domains", [{}])[0].get("id", 1))]
 
                 # Specify Boundary Conditions
                 problem_instance['festim_problem'].boundary_conditions = self._specify_boundary_conditions(config, quantity_filter='heat')
 
-                # Add Source terms
-                problem_instance['festim_problem'].sources = self._add_source_terms(config, quantity_filter='concentration')
+                # Specify Initial Conditions
+                self._specify_initial_conditions(config, quantity_filter='temperature')
 
-                # Set back the specified problem instance
-                self.problems[problem_name] = problem_instance
+                # Add Source terms
+                problem_instance['festim_problem'].sources = self._add_source_terms(config, quantity_filter='heat')
+
+                # Set back the specified problem instance  - should work in situ in Python3
+                #self.problems[problem_name] = problem_instance
+
+                print(f" > Finished problem initialisation for heat transport")
+                print(f" >> State of the self.problems after {problem_name} initialisation: {self.problems}") ###DEBUG
+                # TODO: the two problems can be specified without if-statement with a map of name and FESTIM object class
 
         if 'tritium_transport' in model_parameters_problems_config and 'heat_transport' in model_parameters_problems_config:
             # Add coupling model for tritium transport and heat transport
+            print(f" > Coupling tritium transport and heat transport problems...")
 
             #self.problems['tritium_heat_coupling'] = {}
             #self.problems['tritium_heat_coupling']['qoi_name'] = None
@@ -848,16 +873,31 @@ class Model(BaseModel):
                 self.model.settings = F.Settings(
                     transient=True,
                     final_time=self.total_time,
-                    atol=1e+6,
-                    rtol=1e-6
+                    atol=float(config.get("simulation", {}).get("absolute_tolerance", 1.0)),
+                    rtol=float(config.get("simulation", {}).get("relative_tolerance", 1.0)),
             )
                 self._specify_time_integration_settings(config)
             else:
                 self.model.settings = F.Settings(
                     transient=False,
-                    atol=1e+6,
-                    rtol=1e-6
+                    atol=float(config.get("simulation", {}).get("absolute_tolerance", 1.0)),
+                    rtol=float(config.get("simulation", {}).get("relative_tolerance", 1.0)),
                 )
+        else:
+            print(f"No models to couple found!")
+            model_to_solve = 'heat_transport'
+            print(f" Setting single (first, {model_to_solve}) problem as the model to solve")
+
+            # Setting time stepping before tritium transport problem is set to be main model to be solved
+            if self.transient:
+                self._specify_time_integration_settings(config)
+
+            # Set constant background temperature
+            if 'tritium_transport' in self.models.keys():
+                self.problems['tritium_transport']['festim_problem'].temperature = float(config.get("initial_conditions", {}).get("temperature", {}).get("value", 300.0))  # Default to 300 K if not specified
+
+            self.model = self.problems[model_to_solve]['festim_problem']
+            # TODO make Python refer it by reference 
 
         print(f" >> Initialised problems: \n {self.problems}")  ###DEBUG
 
@@ -883,13 +923,13 @@ class Model(BaseModel):
         print(f" config[geometry]: {config.get('geometry', {})}") ###DEBUG
 
         # Specifying number of physical dimensions of the model
-        self.n_dimensions = config.get("geometry", {}).get("dimensionality", 1)
+        self.n_dimensions = int(config.get("geometry", {}).get("dimensionality", 1))
 
         # Specifying type of coordinate system: cartesian, cylindrical (polar), spherical
-        self.coordinate_system_type = config.get("geometry", {}).get("coordinate_system", "cartesian")
+        self.coordinate_system_type = str(config.get("geometry", {}).get("coordinate_system", "cartesian"))
 
         # Specifying type of mesh
-        self.mesh_type = config.get("simulation", {}).get("mesh_type", "regular")
+        self.mesh_type = str(config.get("simulation", {}).get("mesh_type", "regular"))
 
         # Specifying size of the mesh
         self.n_elements = int(config.get("simulation", {}).get("n_elements", 128))  # Default to 128 elements if not specified
@@ -922,7 +962,7 @@ class Model(BaseModel):
                 self.domain_volumes[id] = F.VolumeSubdomain1D(
                         id=id,
                         borders=[0.0, self.domain_sizes[id]],
-                        material=self.materials[config_domain.get("material", 1)]
+                        material=self.materials[int(config_domain.get("material", 1))]
                     )
 
                 # Create 1D surface subdomain to the left (centre, boundary points)
@@ -937,6 +977,9 @@ class Model(BaseModel):
                 self.meshes[id] = F.Mesh1D(vertices) #TODO: double check if this is accroding to FESTIM2.0
                 # TODO: add spherical coordinates
                 # TODO: add refined meshes
+
+                # For 1D problem, map names of the surfaces to their id-s
+                self.surface_map = {'left': {'festim_id': 1, 'loc_id': 1}, 'right': {'festim_id': 2, 'loc_id': 2}}
 
                 print(f" >> Created 1D mesh with {self.n_elements} elements for domain {id} of size {self.domain_sizes[id]}")  ###DEBUG
                 print(f" >> Domain {id} volume: {self.domain_volumes[id].__dict__}")  ###DEBUG
@@ -976,20 +1019,21 @@ class Model(BaseModel):
             # Create a FESTIM material object
             material = F.Material(
                 #id=material_config.get("material_id", 1),
-                name=material_config.get("material_name", "Unknown"),
-                D_0=material_config.get("D_0", {}).get("mean", 0.0), # Diffusion coefficient [m^2/s]
-                E_D=material_config.get("E_D", {}).get("mean", 0.0), # Activation energy [eV]
-                thermal_conductivity=material_config.get("thermal_conductivity", {}).get("mean", 0.0), # Thermal conductivity [W/(m*K)]
-                density=material_config.get("rho", 0.0), # Density [kg/m^3]
-                heat_capacity=material_config.get("heat_capacity", 0.0) # Heat capacity [J/(kg*K)]
+                name=str(material_config.get("material_name", "Unknown")),
+                D_0=float(material_config.get("D_0", {}).get("mean", 0.0)), # Diffusion coefficient [m^2/s]
+                E_D=float(material_config.get("E_D", {}).get("mean", 0.0)), # Activation energy [eV]
+                thermal_conductivity=float(material_config.get("thermal_conductivity", {}).get("mean", 0.0)), # Thermal conductivity [W/(m*K)]
+                density=float(material_config.get("rho", 0.0)), # Density [kg/m^3]
+                heat_capacity=float(material_config.get("heat_capacity", 0.0)) # Heat capacity [J/(kg*K)]
             )
-            self.materials[material_config.get("material_id", 1)] = material
+            self.materials[int(material_config.get("material_id", 1))] = material
 
         return self.materials
 
     def _specify_boundary_conditions(self, config, quantity_filter=None):
         """
         Specify boundary conditions for the model.
+        Prepares a list of BCs that has to be assigned to a concrete problem later.
         Parameters:
             - config: a nested dictionary generated from the YAML config file
             - quantity_filter: the quantity (or type of problem) to which the boundary conditions apply (e.g., temperature, displacement). If None, apply to all those found in config
@@ -1005,18 +1049,12 @@ class Model(BaseModel):
         if not hasattr(self, 'boundary_conditions') or self.boundary_conditions is None:
             self.boundary_conditions = []
 
-        boundary_conditions = []
-
-        # Map quantity name to their id-s otr FESTIM shorthands
-        quantity_map = {'concentration': 0, 'temperature': "T"}    
-
-        # For 1D problem, map names of the surfaces to their id-s
-        surface_map = {'left': {'festim_id': 1, 'loc_id': 1}, 'right': {'festim_id': 2, 'loc_id': 2}}
+        boundary_conditions = []  
 
         # Iterate over boundary conditions in the configuration
         for bc_quantity, bc_config in config.get("boundary_conditions", []).items():
 
-            field = quantity_map.get(bc_quantity, "concentration")  # Default to concentration if not specified
+            field = self.quantity_map.get(bc_quantity, "concentration")  # Default to concentration if not specified
             #TODO should it have a ValueError as a fallback?
 
             # Check if the boundary condition applies to the specified quantity
@@ -1024,11 +1062,12 @@ class Model(BaseModel):
                 # Iterate over boundary condition locations (surfaces)
                 for bc_location, bc_values in bc_config.items():
 
-                    surface_loc_id = surface_map.get(bc_location, 1).get('loc_id', None)
+                    surface_loc_id = self.surface_map.get(bc_location, 1).get('loc_id', None)
                     #TODO should it have ValueError as a fallback?
 
                     # Specify BC for solute concentration
                     if bc_quantity == "concentration":
+
                         if bc_values['type'] == 'dirichlet':
                             # Dirichlet boundary condition
                             bc = F.FixedConcentrationBC(
@@ -1037,29 +1076,36 @@ class Model(BaseModel):
                                 value=float(bc_values.get('value', 0.0)),
                             )
                             print(f" >> Using Dirichlet BC at surface {surface_loc_id} with value {bc_values['value']} for field {field}") ###DEBUG
+                        
                         elif bc_values['type'] == 'neumann':
                             bc = F.ParticleFluxBC(
                                 species=self.species.get(bc_values.get('species', 'Tritium'), None),
                                 subdomain=self.domain_surfaces[surface_loc_id],
                                 value=float(bc_values.get('value', 0.0)),
                             )
+                        
                         elif bc_values['type'] == 'surface_reaction':
                             raise NotImplementedError("Surface reaction boundary conditions are not implemented yet.")
+                       
                         else:
                             raise ValueError(f"Unknown or unsupported boundary condition type: {bc_values['type']}")
+                        
                     # Specify BC for heat
                     elif bc_quantity == "heat":
+
                         if bc_values['type'] == 'dirichlet':
                             # Dirichlet BC for temperature
                             bc = F.FixedTemperatureBC(
                                 subdomain=self.domain_surfaces[surface_loc_id],
                                 value=float(bc_values.get('value', 0.0)),
                             )
+
                         elif bc_values['type'] == 'neumann':
                             bc = F.HeatFluxBC(
                                 subdomain=self.domain_surfaces[surface_loc_id],
                                 value=float(bc_values.get('value', 0.0)),
                             )
+
                         elif bc_values['type'] == 'convective_flux':
                             T_ext = float(bc_values.get('T_ext_value', 0.0))  # External temperature
                             h_coeff = float(bc_values.get('h_coeff_value', 0.0))  # Convective heat transfer coefficient
@@ -1067,6 +1113,7 @@ class Model(BaseModel):
                                 subdomain=self.domain_surfaces[surface_loc_id],
                                 value=lambda x : h_coeff * (T_ext - x), 
                             )
+
                         else:
                             raise ValueError(f"Unknown or unsupported boundary condition type: {bc_values['type']}")
 
@@ -1076,9 +1123,44 @@ class Model(BaseModel):
 
         return boundary_conditions
 
+    def _specify_initial_conditions(self, config, quantity_filter=None):
+        """
+        Specify initial conditions for the model.
+        """
+        if not hasattr(self, 'initial_conditions') or self.initial_conditions is None:
+            self.initial_conditions = []
+
+        for ic_name, ic_config in config.get("initial_conditions", {}).items():
+            if ic_name == "temperature":
+                # Add IC to the FESTIM2.0 Model
+                if "heat_transport" in self.problems:
+                    if self.problems['heat_transport']['festim_problem'] is not None:
+                        # For heat transport problem, set initial temperature
+                        initial_temp_value = ic_config.get("value", 300.0)
+                        initial_temp_domain = self.domain_volumes.get(int(ic_config.get("domain_id", 1)), 1)
+
+                        initial_condition = F.InitialTemperature(
+                            value=initial_temp_value,
+                            volume=initial_temp_domain,
+                        )
+
+                        self.problems['heat_transport']['festim_problem'].initial_conditions = [initial_condition]
+
+                        self.initial_conditions.append(initial_condition)
+
+                    else:
+                        raise ValueError("Heat transport problem does not have FESTIM model initialised.")
+                else:
+                    raise ValueError("Heat transport problem is not defined.")
+            else:
+                raise ValueError(f"Unknown or unsupported initial condition type: {ic_name}")
+
+        return self.initial_conditions
+
     def _add_source_terms(self, config, quantity_filter=None):
         """
         Add source terms to the model.
+        Prepare a list of source terms that has to be assigned to a specific problem later.
         Parameters:
             - config: a nested dictionary generated from the YAML config file
             - quantity_filter: the quantity (or type of problem) to which the source terms apply (e.g., concentration, heat). If None, apply to all those found in config
@@ -1094,53 +1176,63 @@ class Model(BaseModel):
         if not hasattr(self, 'source_terms') or self.source_terms is None:
             self.source_terms = []
 
+        # Create a local list for the current source terms (specific to a problem and quantity, to be assigned later)
         source_terms = []
 
         # Map volume domain names to their FESTIM and local id-s
-        volume_map = {k: k for k in self.domain_volumes.items()} # This could be modified for a more complex mapping if needed
-
-        # # Map source term names to their ids or FESTIM shorthands
-        # source_term_map = {'concentration': 0, 'heat': 'T'}
+        volume_map = {k: k for k,v in self.domain_volumes.items()} # This could be modified for a more complex mapping if needed
+        print(" >>> volume_map:", volume_map) ###DEBUG
+        print(" >>> self.domain_volumes:", self.domain_volumes) ###DEBUG
 
         # Iterate over source terms in the configuration
         for source_term_name, source_term_config in config.get("source_terms", {}).items():
             # Check if the source term applies to the specified quantity
-            if source_term_name is quantity_filter or quantity_filter is None:
+            if source_term_name == quantity_filter or quantity_filter is None:
+                print(f" >> Adding source term for: {source_term_name}") ###DEBUG
+
+                source_term_value = float(source_term_config.get('source_value', 0.0))
+                print(f" >>> Source term value = {source_term_value}") ###DEBUG
+
+                source_term_domain = self.domain_volumes.get(int(volume_map.get(source_term_config.get('domain_id', 1))), 1)
+
                 # Apply a source term for solute concentration
                 if source_term_name == "concentration":
 
                     # Create a FESTIM particle source
                     source_term = F.ParticleSource(
-                        value=source_term_config.get('source_value', 0.0),  # Source term value
-                        volume=self.domain_volumes[volume_map.get(source_term_config.get('domain_id', 1))],
+                        value=source_term_value,
+                        volume=source_term_domain,
                         species=self.species.get(source_term_config.get('species', "Tritium")),
                     )
 
                     source_terms.append(source_term)
+
                 # Apply a source term for heat
                 elif source_term_name == "heat":
 
                     # Create a FESTIM heat source
                     source_term = F.HeatSource(
-                        value=source_term_config.get('source_value', 0.0),  # Source term value
-                        volume=self.domain_volumes[volume_map.get(source_term_config.get('domain_id', 1))],
+                        value=source_term_value,
+                        volume=source_term_domain,
                     )
 
                     source_terms.append(source_term)
+
                 else:
                     raise ValueError(f"Unknown or unsupported source term type: {source_term_name}")
                 
         self.source_terms.extend(source_terms)
+
+        print(f" >>> Local source terms are: \n{source_terms}") ###DEBUG
 
         return source_terms
 
     def _add_heat_conduction(self, config):
         """
         Add heat conduction to the model.
+        ATTENTION: FESTIM 2.0 does not need this function.
         Parameters:
             - config: a nested dictionary generated from the YAML config file
-        TODO IMPLEMENT!
-        TODO: Add new coupling model!
         """
 
         super()._add_heat_conduction(config)
@@ -1160,23 +1252,43 @@ class Model(BaseModel):
 
         #super()._specify_time_integration_settings(config)
 
-        print(f" config[time_integration]: {config.get('time_integration', {})}") ###DEBUG
+        print(f" config[time_integration]: {config.get('simulation', {}).get('time_step', {})}") ###DEBUG
 
         dt = float(config.get("simulation", {}).get("time_step", 1e-5))  # Default to 1e-5 if not specified
 
-        problem_list = [self.model] + [problem['festim_problem'] for _,problem in self.problems.items() if 'festim_problem' in problem]
+        # Apply SAME timestepping for all the problems in the list, which should include self.model if it is coupling
+        if hasattr(self, 'model') and self.model is not None:
+            problem_list = [self.model]
+
+            # print(f" >>> self.model is found among the problems: {self.model in [self.problems['festim_problem'] for _,self.problems in self.problems.items() if 'festim_problem' in self.problems]}") ###DEBUG
+        
+        else:
+            problem_list = []
+
+        print (f" >> State of self.problems before adding timestepping settings: {self.problems}")
+
+        problem_list += [problem['festim_problem'] for _,problem in self.problems.items() if 'festim_problem' in problem]
+
+        #TODO assure that (1) all objects in the list are FESTIM2.0 problems, (2) problems do not repeat, e.g. self.model is not the reference to one of the model as in the case of no coupling
 
         for problem in problem_list:
             if problem.settings is not None:
 
                 if config.get("simulation", {}).get("time_stepping_type") == "fixed":
+                    print(f" >>> Setting fixed timestep for {problem}") ###DEBUG
                     problem.settings.stepsize = F.Stepsize(dt)
                 elif config.get("simulation", {}).get("time_stepping_type") == "adaptive":
+                    print(f" >>> Setting adaptive timestep for {problem}") ###DEBUG
+                    stepsize_change_ratio=float(config.get("simulation", {}).get("stepsize_change_ratio", 1.5))
+                    max_stepsize=float(config.get("simulation", {}).get("max_stepsize", 1e-3))
+                    dt_min=float(config.get("simulation", {}).get("min_time_step", 1e-5))
+                    print(f" >>> initial stepsize = {dt} \n >>> max stepsize = {max_stepsize} \n >>> stepsize change ratio = {stepsize_change_ratio}") ###DEBUG
+
                     problem.settings.stepsize = F.Stepsize(
                         initial_value=dt,  # Initial time step size
-                        stepsize_change_ratio=float(config.get("simulation", {}).get("stepsize_change_ratio", 1.5)),  # Ratio for adaptive time stepping
-                        max_stepsize=float(config.get("simulation", {}).get("max_stepsize", 1e-3)),  # Maximum time step size
-                        dt_min=float(config.get("simulation", {}).get("min_time_step", 1e-5)),  # Minimum time step size
+                        stepsize_change_ratio=stepsize_change_ratio,  # Ratio for adaptive time stepping
+                        max_stepsize=max_stepsize,  # Maximum time step size
+                        dt_min=dt_min,  # Minimum time step size
                 )
             else:
                 raise ValueError(f"Unknown or unsupported time stepping type: {config.get('simulation', {}).get('time_stepping_type')}")
@@ -1196,41 +1308,47 @@ class Model(BaseModel):
         #super()._specify_outputs(config)
 
         # Define outputs for the simulation - folder for saving results
-        self.result_folder = config.get('simulation', {}).get('output_directory', '')
+        self.result_folder = str(config.get('simulation', {}).get('output_directory', ''))
 
         # Specify milestone times for results export
         self.milestone_times = config.get('simulation', {}).get('milestone_times', [])  # List of times to export results
 
-        # Apply mutliple milestone output for transient problems
-        if self.transient:
+        # Apply mutliple milestone output for transient/steady problems
+        #if self.transient:
 
-            # Iterate over problems to get different QoIs
-            for problem_name, problem in self.problems.items():
-                print(f" >> Specifying outputs for problem: {problem}") ###DEBUG
-                if 'festim_problem' in problem:
-                    # Get tritium transport related data
-                    if problem['qoi_name'] == 'tritium_concentration':
-                        if not hasattr(problem['festim_problem'], 'exports') or problem['festim_problem'].exports is None:
-                            problem['festim_problem'].exports = []
-                        problem['festim_problem'].exports.append(
-                            F.VTXSpeciesExport(
-                                field=problem['festim_problem'].species,
-                                filename=f"{self.result_folder}/tritium_concentration.vtx",
-                                checkpoint=True,
-                            )
+        print(f" >>> State of self.problems before specifying outputs: {self.problems}") ###DEBUG
+
+        # Iterate over problems to get different QoIs
+        for problem_name, problem in self.problems.items():
+            print(f" >> Specifying outputs for problem: {problem}") ###DEBUG
+            
+            if 'festim_problem' in problem:
+                # Get tritium transport related data
+                if problem['qoi_name'] == 'tritium_concentration':
+                    if not hasattr(problem['festim_problem'], 'exports') or problem['festim_problem'].exports is None:
+                        problem['festim_problem'].exports = []
+                    problem['festim_problem'].exports.append(
+                        F.VTXSpeciesExport(
+                            field=problem['festim_problem'].species,
+                            filename=f"{self.result_folder}/tritium_concentration.vtx",
+                            checkpoint=self.transient,
                         )
-                    # Get heat transport related data
-                    if problem['qoi_name'] == 'temperature':
-                        if not hasattr(problem['festim_problem'], 'exports') or problem['festim_problem'].exports is None:
-                            problem['festim_problem'].exports = []
-                        problem['festim_problem'].exports.append(
-                            F.VTXTemperatureExport(
-                                filename=f"{self.result_folder}/temperature.vtx",
-                                #times=self.milestone_times,
-                            )
+                    )
+                
+                # Get heat transport related data
+                if problem['qoi_name'] == 'temperature':
+                    if not hasattr(problem['festim_problem'], 'exports') or problem['festim_problem'].exports is None:
+                        problem['festim_problem'].exports = []
+                    problem['festim_problem'].exports.append(
+                        F.VTXTemperatureExport(
+                            filename=f"{self.result_folder}/temperature.vtx",
+                            #times=self.milestone_times,
+                            #checkpoint=self.transient,
                         )
-        else:    
-            raise NotImplementedError("Exporting results is only implemented for transient problems.")
+                    )
+    
+        # else:    
+        #     raise NotImplementedError("Exporting results is only implemented for transient problems.")
 
     def _add_derived_quantities(self, config):
         """
@@ -1251,7 +1369,29 @@ class Model(BaseModel):
             if 'festim_problem' in problem:
                 print(f" >> Exporting results for problem: {problem_name}") 
                 #self.results[problem['qoi_name']] = {}
+
+                # Export the final state fo the fileds into results
                 self.results[problem['qoi_name']] = problem['festim_problem'].u.x.array
+
+    def inspect_model_structure(self):
+        """Print detailed structure of the FESTIM 2.0 model object."""
+        print("FESTIM 2.0 Model Structure:")
+        print("=" * 50)
+        
+        # Model object structure
+        print(f"Problems: {len(self.problems)}")
+
+        for i, problem in enumerate(self.problems.values()):
+
+            print(f"  Problem {i}: {type(problem)} - {[attr for attr in dir(problem) if not attr.startswith('_')]}")
+
+            print(f"{problem['festim_problem'].__dict__}")
+
+        # Recursively print all the attributes of self.model
+        print(f"Content of self.model (coupled problem)")
+        for attr in dir(self.model):
+            if not attr.startswith('_'):
+                print(f"  {attr}: {getattr(self.model, attr)}")
 
     def run(self):
         """
@@ -1260,6 +1400,9 @@ class Model(BaseModel):
 
         # Initialize the model
         self.model.initialise()
+
+        # Inspect the model
+        self.inspect_model_structure()
 
         try:
             self.model.run()
