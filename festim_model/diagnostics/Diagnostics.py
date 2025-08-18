@@ -28,8 +28,9 @@ class Diagnostics:
         self.result_folder = result_folder if result_folder else './results' # TODO by default, try to read results from the model attribute
         self.mesh = {}  # Dictionary to store mesh coordinates for each quantity of interest
 
-        # If result is none, read from the result folder
+
         if self.results is None:
+            # If result is none, read from the result folder
             print(f"Diagnostics: No results provided, trying to read from {self.result_folder}/")
             self.results = {}
 
@@ -40,6 +41,7 @@ class Diagnostics:
                 # Read results from the file if available
                 print(f"Reading results for {qoi} from {self.result_folder}")
 
+                # This path assumes you results folder should have a "results_[qoi_name].txt" file for every QoI of the output
                 result_file = os.path.join(self.result_folder, f'results_{qoi}.txt')
 
                 # Check if the result file exists
@@ -119,7 +121,7 @@ class Diagnostics:
         # n_elem_print = 3
         # print(f">>> Diagnostics.__init__: Printing last {n_elem_print} elements of the results for last time of {self.milestone_times[-1]}: {self.results[-n_elem_print:, -1]}")  # Print last n elements of the results for the last time step ###DEBUG
 
-        # ATTENTION: TODO: make work for both reading from file and from object
+        # ATTENTION: this is a workaround; TODO: make work for both reading from file and from object
         self.milestone_times = ['final']
 
         # Define data structure (dict) to keep naming, units etc. for quantities of interest
@@ -144,12 +146,15 @@ class Diagnostics:
             },
         }
 
+        #TODO: put all the descriptors like naming mapping here
+
     def compute_qoi(self, qoi_name):
         """
         Compute a quality of interest (QoI) from the results.
-        
-        :param qoi_name: Name of the QoI to compute.
-        :return: Computed QoI value.
+
+        Params:
+            param qoi_name: Name of the QoI to compute.
+            return: Computed QoI value.
         """
         # Placeholder for actual QoI computation logic
         return self.results.get(qoi_name, None)
@@ -203,6 +208,11 @@ class Diagnostics:
     def _visualise_transient_0d_quantity(self, qoi_name, qoi_values, times):
         """
         Visualise a specific scalar (0D) quantity of interest resolved as a function of time.
+
+        Params:
+            qoi_name: Name of the quantity to visualize.
+            qoi_values: The quantity data to visualize: numpy array
+            times: The time points corresponding to the data.
         """
         if qoi_values is None:
             print(f"No data available for {qoi_name}. Skipping visualization.")
@@ -232,12 +242,17 @@ class Diagnostics:
         :param qoi_name: Name of the quantity to visualize.
         :param quantity: The quantity data to visualize: numpy array
         """
+        # Check the existence of the passed quantity data
         if qoi_values is None:
             print(f"No data available for {qoi_name}. Skipping visualization.")
             return
 
+        # Check the numpy array dimensionality of the passed data: assumes data to be [num_elements, num_times] array
+        if qoi_values.ndim == 1:
+            qoi_values = qoi_values.reshape(-1, 1)  # Reshape to 2D if it's 1D
+            
         print(f" >> Visualizing transient 1D quantity: {qoi_name}") ###DEBUG
-        print(f" >> Visualizing transient values: \n{qoi_values}") ###DEBUG
+        #print(f" >>> Visualizing transient values: \n{qoi_values}") ###DEBUG
 
         # Making an array of plot for different axis scales
         plot_types = ['plot', 'semilogy']  # Add more plot types if needed
@@ -250,7 +265,12 @@ class Diagnostics:
             # The first column is the radial coordinate values
             # TODO: read file as a CSV file
             # TODO: consider that there might be no result data for a given milestone time
-            print(f"> Plotting results for time {time} [s]")
+            
+            # Make a string time label (if it is a number)
+            if not isinstance(time, str):
+                time = f"{time:.2f}" 
+
+            print(f"> Plotting results for time: {time} [s]")
 
             for j, plot_func_name in enumerate(plot_types): 
 
@@ -262,7 +282,7 @@ class Diagnostics:
                 plot_func(
                     self.model.vertices[:], 
                     qoi_values[:, i], 
-                    label=f"t={time:.2f} s", 
+                    label=f"t={time} s", 
                     #marker='o',
                 )
 
