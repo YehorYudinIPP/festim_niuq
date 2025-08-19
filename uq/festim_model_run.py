@@ -111,7 +111,8 @@ def save_results_for_uq(results, model):
     
     # Extract quantities of interest (QoIs)
     # TODO: double-check the implementation; think of a good integration scheme
-    tritium_inventory = extract_tritium_inventory(results, model)
+    #tritium_inventory = extract_tritium_inventory(results, model)
+    tritium_inventory = 0.0 #ATTENTION: workaround for heat DEBUG
     
     # Save as CSV for EasyVVUQ decoder
     output_file = "output.csv"
@@ -194,7 +195,7 @@ def extract_tritium_inventory(results, model):
     if len(data.shape) > 0 and data.shape[0] > 0:
 
         #final_concentrations = data[:-1, -1]  # Last time step
-        
+
         if len(data.shape) == 1:
             final_concentrations = data[-1]
         elif len(data.shape) > 1:
