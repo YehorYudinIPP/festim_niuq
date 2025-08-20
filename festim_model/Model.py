@@ -18,8 +18,6 @@ class BaseModel:
 
         pass
 
-
-
     def _specify_geometry(self, config):
         """
         Specify the geometry of the model.
@@ -359,18 +357,18 @@ class Model_legacy(BaseModel):
             
             # Check if the source term matches the specified quantity
             if source_type == quantity:
-                if source_specs['source_type'] == 'constant':
+                if source_specs['type'] == 'constant':
                     # Constant source term
                     self.model.sources.append(
                         F.Source(
-                            value=float(source_specs['source_value']),  # Source term value
+                            value=float(source_specs['value']),  # Source term value
                             volume=1,  # Assuming a single volume for the entire mesh
                             field=field,  # Field for the source term
                         )
                     )
-                    print(f" >> Using constant source term with value {source_specs['source_value']} for field {field}") ###DEBUG
+                    print(f" >> Using constant source term with value {source_specs['value']} for field {field}") ###DEBUG
                 else:
-                    raise ValueError(f"Unknown or unsupported source term type: {source_specs['source_type']}")
+                    raise ValueError(f"Unknown or unsupported source term type: {source_specs['type']}")
 
         print(f" >> Using source terms: {self.model.sources}")  ###DEBUG
         return self.model.sources
@@ -416,8 +414,8 @@ class Model_legacy(BaseModel):
         self.model.sources = []  # Initialize source terms for heat transfer
 
         if 'heat' in config['source_terms']:
-            if config['source_terms']['heat']['source_type'] == 'constant':
-                Q_source = float(config['source_terms']['heat']['source_value'])  # Heat source term [W/m³]
+            if config['source_terms']['heat']['type'] == 'constant':
+                Q_source = float(config['source_terms']['heat']['value'])  # Heat source term [W/m³]
 
                 self.model.sources.append(
                     F.Source(
@@ -774,7 +772,7 @@ class Model(BaseModel):
                 if not hasattr(self, 'species') or self.species is None:
                     self.species = {k:None for k in species_names_config} # TODO can be merged with the following code block ...
                 
-                for species_k, _ in self.species.items():
+                for species_k, species_v in self.species.items():
                     self.species[species_k] = F.Species(self.species_descriptor[species_k]["festim_name"])
                 # TODO make automatic parsing of names; create species naming dictionary or make them the same
 
@@ -829,13 +827,13 @@ class Model(BaseModel):
             print(f" >> State of the self.problems after {problem_name} initialisation: {self.problems}") ###DEBUG
             # TODO: the two problems can be specified without if-statement with a map of name and FESTIM object class
 
-        ###DEBUG BLOCK
-        self.problems['heat_transport']['festim_problem'].boundary_conditions = [
-            F.FixedTemperatureBC(subdomain=self.domain_surfaces[1], value=600.0),
-            F.FixedTemperatureBC(subdomain=self.domain_surfaces[2], value=550.0),
-        ] ###DEBUG
-        print(f" >>>! Manually re-specified boundary conditions for {qoi_name_condition_local}: {problem_instance['festim_problem'].boundary_conditions}") ###DEBUG
-        ###
+        # ###DEBUG BLOCK
+        # self.problems['heat_transport']['festim_problem'].boundary_conditions = [
+        #     F.FixedTemperatureBC(subdomain=self.domain_surfaces[1], value=600.0),
+        #     F.FixedTemperatureBC(subdomain=self.domain_surfaces[2], value=550.0),
+        # ] ###DEBUG
+        # print(f" >>>! Manually re-specified boundary conditions for {qoi_name_condition_local}: {problem_instance['festim_problem'].boundary_conditions}") ###DEBUG
+        # ###
 
         # Check if a pair of problems is present
         if 'tritium_transport' in model_parameters_problems_config and 'heat_transport' in model_parameters_problems_config:
@@ -874,7 +872,7 @@ class Model(BaseModel):
         
         else:
             print(f"No models to couple found!")
-            model_to_solve = 'heat_transport' #ATTENTION: workaround for DEBUG
+            model_to_solve = 'tritium_transport' #ATTENTION: workaround for DEBUG
             print(f" Setting single (first, {model_to_solve}) problem as the model to solve")
 
             # Setting time stepping before tritium transport problem is set to be main model to be solved
@@ -895,6 +893,38 @@ class Model(BaseModel):
 
         print(f"Model {self.name} initialized with {len(self.problems)} problems and {len(self.materials)} materials. Number of mesh elements: {self.n_elements}.")
         print(f" > Initialisation finished !")
+
+    def _get_config_entry(self, config_node, entry_name, entry_type: (float| int| str| list) = float):
+        """
+        Get a configuration entry from the config node (sub-dictionary generated from a YAML config file)
+        """
+        entry = config_node.get(entry_name, {})
+
+        # Check if the entry is empty
+        if entry_name not in config_node:
+            print(f" >>>! Warning: Configuration entry '{entry_name}' of type {entry_type} not found in {config_node} !")
+            return {}
+
+        # If the entry is of the expected type, return it
+        if isinstance(entry, entry_type):
+            return entry
+
+        # If the entry is a dictionary, return the mean value
+        if isinstance(entry, dict):
+            entry = entry.get("mean", None)  # Return the mean value if it's a dictionary
+
+            # Check if the mean value is None
+            if entry is None:
+                print(f"Warning: Configuration entry '{entry_name}' is None.")
+                return {}
+
+            # Convert the entry to the expected type
+            entry = entry_type(entry)  # Convert to the expected type
+
+            return entry
+
+        print(f" >>> Returning empty dictionary for {config_node}.{entry_name} = {entry}")
+        return {}
 
     def _specify_geometry(self, config):
         """
@@ -944,7 +974,8 @@ class Model(BaseModel):
 
                 id = int(config_domain.get("id", 1))  # Default to 1 if not specified
 
-                print(f" >> Specifying domain {id}") ###DEBUG
+                print(f" > Specifying domain {id}") ###DEBUG
+                print(f" >> config domain: \n{config_domain}")
 
                 # Set the physical size (length in 1D) of the domain
                 self.domain_sizes[id] = float(config_domain.get("length", 1.0))
@@ -1018,8 +1049,8 @@ class Model(BaseModel):
                 D_0=float(material_config.get("D_0", {}).get("mean", 0.0)), # Diffusion coefficient [m^2/s]
                 E_D=float(material_config.get("E_D", {}).get("mean", 0.0)), # Activation energy [eV]
                 thermal_conductivity=float(material_config.get("thermal_conductivity", {}).get("mean", 0.0)), # Thermal conductivity [W/(m*K)]
-                density=float(material_config.get("rho", 0.0)), # Density [kg/m^3]
-                heat_capacity=float(material_config.get("heat_capacity", 0.0)) # Heat capacity [J/(kg*K)]
+                density=float(material_config.get("rho", {}).get("mean", 0.0)), # Density [kg/m^3]
+                heat_capacity=float(material_config.get("heat_capacity", {}).get("mean", 0.0)) # Heat capacity [J/(kg*K)]
             )
             self.materials[int(material_config.get("material_id", 1))] = material
 
@@ -1061,23 +1092,30 @@ class Model(BaseModel):
                     surface_loc_id = int(self.surface_map.get(bc_location, 1).get('loc_id', None))
                     #TODO should it have ValueError as a fallback? Alternatively, use bc_values['id']
 
-                    value = float(bc_values.get('value', 0.0))
+                    value = self._get_config_entry(bc_values, 'value', float)  # Get the value of the boundary condition
 
                     # Specify BC for solute concentration
                     if bc_quantity == "concentration":
 
+                        species = self.species.get(bc_values.get('species', 'Tritium'), None)
+
+                        # print(f" >>> Species is a FESTIM class: {isinstance(species, F.Species)}") ###DEBUG
+
                         if bc_values['type'] == 'dirichlet':
                             # Dirichlet boundary condition
+
                             bc = F.FixedConcentrationBC(
-                                species=self.species.get(bc_values.get('species', 'Tritium'), None),
+                                species=species,
                                 subdomain=self.domain_surfaces[surface_loc_id],
                                 value=value,
                             )
-                            print(f" >> Using {bc_values['type']} BC for {bc_quantity} at surface {surface_loc_id} with value {bc_values['value']} for field {field}") ###DEBUG
-                        
+
+                            print(f" >> Using {bc_values['type']} BC for {bc_quantity} at surface {surface_loc_id} with value {bc_values['value']} for field {field} and species {species}") ###DEBUG
+
                         elif bc_values['type'] == 'neumann':
+                            
                             bc = F.ParticleFluxBC(
-                                species=self.species.get(bc_values.get('species', 'Tritium'), None),
+                                species=species,
                                 subdomain=self.domain_surfaces[surface_loc_id],
                                 value=value,
                             )
@@ -1150,7 +1188,7 @@ class Model(BaseModel):
                     if "heat_transport" in self.problems:
                         if self.problems['heat_transport']['festim_problem'] is not None:
                             # For heat transport problem, set initial temperature
-                            initial_temp_value = ic_config.get("value", 300.0)
+                            initial_temp_value = self._get_config_entry(ic_config, "value", float)
                             initial_temp_domain = self.domain_volumes.get(int(ic_config.get("domain_id", 1)), 1)
 
                             initial_condition = F.InitialTemperature(
@@ -1206,7 +1244,7 @@ class Model(BaseModel):
             if source_term_name == quantity_filter or quantity_filter is None:
                 print(f" >> Adding source term for: {source_term_name}") ###DEBUG
 
-                source_term_value = float(source_term_config.get('source_value', 0.0))
+                source_term_value = self._get_config_entry(source_term_config, 'value', float)
 
                 source_term_domain = self.domain_volumes.get(int(volume_map.get(source_term_config.get('domain_id', 1))), 1)
 
@@ -1391,7 +1429,7 @@ class Model(BaseModel):
                 # Export the final state fo the fileds into results
                 self.results[problem['qoi_name']] = problem['festim_problem'].u.x.array
 
-                # print(f" >> Results for {problem['qoi_name']}: \n{problem['festim_problem'].u.x.array}") ###DEBUG
+                print(f" >> Results for {problem['qoi_name']}: \n{problem['festim_problem'].u.x.array}") ###DEBUG
 
     def inspect_model_structure(self):
         """Print detailed structure of the FESTIM 2.0 model object."""
@@ -1422,7 +1460,7 @@ class Model(BaseModel):
         self.model.initialise()
 
         # Inspect the model
-        self.inspect_model_structure()
+        # self.inspect_model_structure()
 
         try:
             self.model.run()
