@@ -742,6 +742,9 @@ class Model(BaseModel):
         if self.transient:
             self.total_time = float(config.get("model_parameters", {}).get("total_time", 1.0))
 
+        # Read tolerances config input
+        tolerance_config = config.get("simulation", {}).get("tolerances", {})
+
         # Initialise each problem separately, add all necessary components
         for problem_name, problem_instance in self.problems.items():
             print(f"Initialising problem for: {problem_name}")
@@ -793,20 +796,25 @@ class Model(BaseModel):
                 # Specify Initial Conditions
                 self._specify_initial_conditions(config, quantity_filter=qoi_name_condition_local)
 
+            # Read tolerances from the config input
+            absolute_tolerance = float(tolerance_config.get("absolute_tolerance", 1.e0).get(problem_name, 1.e0))
+            relative_tolerance = float(tolerance_config.get("relative_tolerance", 1.e-10))
+
             # Specify settings, including transient/steady
             if self.transient:
                 # Set settings for transient problem, including time stepping
+
                 problem_instance['festim_problem'].settings = F.Settings(
-                    transient=True,
-                    final_time=self.total_time,
-                    atol=float(config.get("simulation", {}).get("absolute_tolerance", 1e8)),
-                    rtol=float(config.get("simulation", {}).get("relative_tolerance", 1e-10)),
+                    transient=self.transient,
+                    final_time=self.total_time, # difference here (and time step size) for transient problems #TODO could be done by in-line comprehension, e.g. ternary operator
+                    atol=absolute_tolerance,
+                    rtol=relative_tolerance,
                 )
             else:
                 problem_instance['festim_problem'].settings = F.Settings(
-                    transient=False,
-                    atol=float(config.get("simulation", {}).get("absolute_tolerance", 1e8)),
-                    rtol=float(config.get("simulation", {}).get("relative_tolerance", 1e-10)),
+                    transient=self.transient,
+                    atol=absolute_tolerance,
+                    rtol=relative_tolerance,
                 )
 
             # Specify geometry and mesh # must be called after _specify_geometry()
@@ -850,12 +858,16 @@ class Model(BaseModel):
                     hydrogen_problem=self.problems['tritium_transport']['festim_problem'],
                 )
 
+                # Define absolute tolerance: minimal of abs. tol. across problems
+                absolute_tolerance = min([tol for _, tol in tolerance_config.get("absolute_tolerance", {}).items()])
+                relative_tolerance = tolerance_config.get("relative_tolerance", 1.e-10)
+
                 # Set settings and time stepping for the transient model
                 self.model.settings = F.Settings(
                     transient=True,
                     final_time=self.total_time,
-                    atol=float(config.get("simulation", {}).get("absolute_tolerance", 1e8)),
-                    rtol=float(config.get("simulation", {}).get("relative_tolerance", 1e-10)),
+                    atol=absolute_tolerance,  #TODO: what should abs. tol. for coupled problem be? min? max? no?
+                    rtol=relative_tolerance,
                 )
 
                 # Set the time stepping for all transient models
@@ -866,9 +878,11 @@ class Model(BaseModel):
 
                 self.model.settings = F.Settings(
                     transient=False,
-                    atol=float(config.get("simulation", {}).get("absolute_tolerance", 1e8)),
-                    rtol=float(config.get("simulation", {}).get("relative_tolerance", 1e-10)),
+                    #atol=float(config.get("simulation", {}).get("absolute_tolerance", 1.e10).get(problem_name, 1.e0)),
+                    rtol=float(config.get("simulation", {}).get("relative_tolerance", 1.e-10)),
                 )
+
+                raise NotImplementedError("Steady-state coupled model is not implemented yet in FESTIM 2.0")
         
         else:
             print(f"No models to couple found!")
@@ -1141,10 +1155,13 @@ class Model(BaseModel):
                             print(f" >> Using {bc_values['type']} BC for {bc_quantity} at surface {surface_loc_id} with value {bc_values['value']} for field {field}") ###DEBUG
 
                         elif bc_values['type'] == 'neumann':
+
                             bc = F.HeatFluxBC(
                                 subdomain=self.domain_surfaces[surface_loc_id],
                                 value=value,
                             )
+
+                            print(f"Using heat flux boundary conditions at surface {surface_loc_id}") ###DEBUG
 
                         elif bc_values['type'] == 'convective_flux':
                             T_ext = float(bc_values.get('T_ext_value', 0.0))  # External temperature
@@ -1307,9 +1324,13 @@ class Model(BaseModel):
 
         #super()._specify_time_integration_settings(config)
 
-        print(f" config[time_integration]: {config.get('simulation', {}).get('time_step', {})}") ###DEBUG
+        # Read the time step settings from the input config
+        time_step_config = config.get("simulation", {}).get("time_step", {})
 
-        dt = float(config.get("simulation", {}).get("time_step", 1e-5))  # Default to 1e-5 if not specified
+        print(f" config[time_integration]: {time_step_config}") ###DEBUG
+
+        # Read the default time step size [s]
+        dt = float(time_step_config.get("default_value", 1.e-5))  # Default to 1e-5 if not specified
 
         # Apply SAME timestepping for all the problems in the list, which should include self.model if it is coupling
         if hasattr(self, 'model') and self.model is not None:
@@ -1330,14 +1351,14 @@ class Model(BaseModel):
         for problem in problem_list:
             if problem.settings is not None:
 
-                if config.get("simulation", {}).get("time_stepping_type") == "fixed":
+                if time_step_config.get("time_stepping_type") == "fixed":
                     print(f" >>> Setting fixed timestep (dt={dt}) for {problem}") ###DEBUG
                     problem.settings.stepsize = F.Stepsize(dt)
-                elif config.get("simulation", {}).get("time_stepping_type") == "adaptive":
+                elif time_step_config.get("time_stepping_type") == "adaptive":
                     print(f" >>> Setting adaptive timestep for {problem}") ###DEBUG
-                    stepsize_change_ratio=float(config.get("simulation", {}).get("stepsize_change_ratio", 1.5))
-                    max_stepsize=float(config.get("simulation", {}).get("max_stepsize", 1e-3))
-                    dt_min=float(config.get("simulation", {}).get("min_time_step", 1e-5))
+                    stepsize_change_ratio=float(time_step_config.get("stepsize_change_ratio", 1.5))
+                    max_stepsize=float(time_step_config.get("max_stepsize", 1e-3))
+                    dt_min=float(time_step_config.get("min_time_step", 1e-5))
                     print(f" >>> initial stepsize = {dt} \n >>> max stepsize = {max_stepsize} \n >>> stepsize change ratio = {stepsize_change_ratio}") ###DEBUG
 
                     problem.settings.stepsize = F.Stepsize(
