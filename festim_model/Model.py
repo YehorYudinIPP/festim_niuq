@@ -866,7 +866,7 @@ class Model(BaseModel):
                 self.model.settings = F.Settings(
                     transient=True,
                     final_time=self.total_time,
-                    atol=absolute_tolerance,  #TODO: what should abs. tol. for coupled problem be? min? max? no?
+                    atol=absolute_tolerance,  #ATTENTION: FESTIM2.0 does not use this parameter for coupled problems
                     rtol=relative_tolerance,
                 )
 
@@ -929,7 +929,7 @@ class Model(BaseModel):
 
             # Check if the mean value is None
             if entry is None:
-                print(f"Warning: Configuration entry '{entry_name}' is None.")
+                print(f" >>>! Warning: Configuration entry '{entry_name}' is None !")
                 return {}
 
             # Convert the entry to the expected type
@@ -1135,8 +1135,23 @@ class Model(BaseModel):
                             )
                         
                         elif bc_values['type'] == 'surface_reaction':
-                            raise NotImplementedError("Surface reaction boundary conditions are not implemented yet.")
-                       
+
+                            k_r0 = self._get_config_entry(bc_values, "k_r0", float)
+                            E_kr = self._get_config_entry(bc_values, "E_kr", float)
+                            k_d0 = self._get_config_entry(bc_values, "k_d0", float)
+                            E_kd = self._get_config_entry(bc_values, "E_kd", float)
+                            P_g = self._get_config_entry(bc_values, "P_g", float)
+
+                            bc = F.SurfaceReactionBC(
+                                reactant=[species],
+                                subdomain=self.domain_surfaces[surface_loc_id],
+                                gas_pressure=P_g,
+                                k_r0=k_r0,
+                                E_kr=E_kr,
+                                k_d0=k_d0,
+                                E_kd=E_kd,  
+                            )
+
                         else:
                             raise ValueError(f"Unknown or unsupported boundary condition type: {bc_values['type']}")
 
@@ -1164,11 +1179,45 @@ class Model(BaseModel):
                             print(f"Using heat flux boundary conditions at surface {surface_loc_id}") ###DEBUG
 
                         elif bc_values['type'] == 'convective_flux':
-                            T_ext = float(bc_values.get('T_ext_value', 0.0))  # External temperature
-                            h_coeff = float(bc_values.get('h_coeff_value', 0.0))  # Convective heat transfer coefficient
+
+                            T_ext = self._get_config_entry(bc_values, "T_ext", float) # External temperature
+                            h_conv = self._get_config_entry(bc_values, "h_conv", float)  # Convective heat transfer coefficient
+
+                            flux_function = lambda T: h_conv * (T - T_ext)
+
                             bc = F.HeatFluxBC(
                                 subdomain=self.domain_surfaces[surface_loc_id],
-                                value=lambda x : h_coeff * (T_ext - x), 
+                                value=flux_function, 
+                            )
+
+                        elif bc_values['type'] == 'radiative_flux':
+
+                            T_amb = self._get_config_entry(bc_values, "T_amb", float)  # External ambient temperature
+                            epsilon = self._get_config_entry(bc_values, "emissivity", float) # Emissivity of ceramics
+
+                            sigma = 5.671e-8 # Stefan-Boltzmann constant [W m^-2 K^-4]
+
+                            flux_function = lambda T: epsilon * sigma * (T**4 - T_amb**4)
+
+                            bc = F.HeatFluxBC(
+                                subdomain=self.domain_surfaces[surface_loc_id],
+                                value=flux_function, 
+                            )
+
+                        elif bc_values['type'] == 'combined_flux':
+
+                            T_ext = self._get_config_entry(bc_values, "T_ext", float) # External temperature (He)
+                            h_conv = self._get_config_entry(bc_values, "h_conv", float)  # Convective heat transfer coefficient
+                            T_amb = self._get_config_entry(bc_values, "T_amb", float)  # External ambient temperature
+                            epsilon = self._get_config_entry(bc_values, "emissivity", float) # Emissivity of ceramics
+
+                            sigma = 5.671e-8 # Stefan-Boltzmann constant [W m^-2 K^-4]
+
+                            flux_function = lambda T: h_conv * (T_ext - T) + epsilon * sigma * (T**4 - T_amb**4)
+
+                            bc = F.HeatFluxBC(
+                                subdomain=self.domain_surfaces[surface_loc_id],
+                                value=flux_function, 
                             )
 
                         else:
