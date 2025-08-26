@@ -1213,7 +1213,8 @@ class Model(BaseModel):
 
                             sigma = 5.671e-8 # Stefan-Boltzmann constant [W m^-2 K^-4]
 
-                            flux_function = lambda T: h_conv * (T_ext - T) + epsilon * sigma * (T**4 - T_amb**4)
+                            flux_function = lambda T: h_conv * (T - T_ext) + epsilon * sigma * (T**4 - T_amb**4)
+                            # TODO double check the direction convention, assuming here that '+' is outwards
 
                             bc = F.HeatFluxBC(
                                 subdomain=self.domain_surfaces[surface_loc_id],
