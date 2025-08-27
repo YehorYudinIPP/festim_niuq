@@ -171,6 +171,11 @@ class AdvancedYAMLEncoder(YAMLEncoder):
         
         # Traverse the nested structure and set the value
         for key in keys[:-1]:
+            # Check if the key is a list
+            if isinstance(current, list):
+                # If current is a list, choose the first element
+                current = current[0]
+            # Check if the key exists in the current level
             if key not in current:
                 # Create a new dictionary if the key does not exist
                 current[key] = {}
