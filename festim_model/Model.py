@@ -886,7 +886,9 @@ class Model(BaseModel):
         
         else:
             print(f"No models to couple found!")
+
             model_to_solve = 'tritium_transport' #ATTENTION: workaround for DEBUG
+
             print(f" Setting single (first, {model_to_solve}) problem as the model to solve")
 
             # Setting time stepping before tritium transport problem is set to be main model to be solved
@@ -895,7 +897,12 @@ class Model(BaseModel):
 
             # Set constant background temperature
             if 'tritium_transport' in self.problems:
-                self.problems['tritium_transport']['festim_problem'].temperature = float(config.get("initial_conditions", {}).get("temperature", {}).get("value", 300.0))  # Default to 300 K if not specified
+
+                # Read the IC for the problem for tempearature
+                initial_conditions_config = config.get("initial_conditions", {}).get("temperature", {})
+
+                # Set the IC as background temperature: here - constant T
+                self.problems['tritium_transport']['festim_problem'].temperature = self._get_config_entry(initial_conditions_config, "value", float)
 
             self.model = self.problems[model_to_solve]['festim_problem']
             # TODO make Python refer it by reference 
@@ -1020,9 +1027,9 @@ class Model(BaseModel):
                 print(f" >> Created 1D mesh with {self.n_elements} elements for domain {id} of size {self.domain_sizes[id]}")  ###DEBUG
            
             for surface_id in self.domain_surfaces:
-                print(f" >> Domain {surface_id} surfaces: {self.domain_surfaces[surface_id].__dict__}")  ###DEBUG
+                print(f" >> Domain surface {surface_id}: {self.domain_surfaces[surface_id].__dict__}")  ###DEBUG
             for volume_id in self.domain_volumes:
-                print(f" >> Domain {volume_id} volumes: {self.domain_volumes[volume_id].__dict__}")  ###DEBUG
+                print(f" >> Domain volume {volume_id}: {self.domain_volumes[volume_id].__dict__}")  ###DEBUG
 
         elif self.n_dimensions == 2:
             raise NotImplementedError("2D geometry is not implemented yet.")
@@ -1248,6 +1255,9 @@ class Model(BaseModel):
             self.initial_conditions = []
 
         for ic_name, ic_config in config.get("initial_conditions", {}).items():
+
+            print(f" >> initial condition config for {ic_name}: \n{ic_config}") ###DEBUG
+
             if ic_name == quantity_filter or quantity_filter is None:
                 # Add IC to the FESTIM 2.0 Model
                 if ic_name == "temperature":
@@ -1256,7 +1266,7 @@ class Model(BaseModel):
                         if self.problems['heat_transport']['festim_problem'] is not None:
                             # For heat transport problem, set initial temperature
                             initial_temp_value = self._get_config_entry(ic_config, "value", float)
-                            initial_temp_domain = self.domain_volumes.get(int(ic_config.get("domain_id", 1)), 1)
+                            initial_temp_domain = self.domain_volumes.get(self._get_config_entry(ic_config, "domain_id", int), 1)
 
                             initial_condition = F.InitialTemperature(
                                 value=initial_temp_value,
