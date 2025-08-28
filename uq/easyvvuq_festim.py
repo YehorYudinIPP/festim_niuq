@@ -22,7 +22,7 @@ import chaospy as cp
 import easyvvuq as uq
 
 from easyvvuq.actions import Encode, Decode, ExecuteLocal, Actions, CreateRunDirectory
-from easyvvuq.actions import QCGPJPool
+from easyvvuq.actions import QCGPJPool, EasyVVUQBasicTemplate, EasyVVUQParallelTemplate
 
 # local imports
 from util.utils import load_config, add_timestamp_to_filename, get_festim_python, validate_execution_setup
@@ -86,28 +86,31 @@ def define_parameter_uncertainty(config, CoV=None, distribution=None):
     #parameters_used = ['thermal_conductivity']
 
     # Trial 3) Vary parameters for coupled gas and heat transport: 2 problems x (1 tr. coefficients + 1 const source + 1 BC reaction parameter)
-    parameters_used = ['D_0', 'E_kr', 'G', 'kappa', 'h_conv', 'Q']
+    parameters_used = ['D_0', 'kappa','G', 'Q', 'E_kr', 'h_conv']
 
     # Define default mean values for parameters
+    material_num = config.get('geometry', None).get('domains', None)[0].get('material', None)
+
     # - These values can be adjusted based on the specific model requirements and the physical properties of the system being simulated.
     means = {
 
-        "D_0": config.get('materials', None)[0].get('D_0', None).get('mean', None),  # Diffusion coefficient base value
-        "kappa": config.get('materials', None)[0].get('thermal_conductivity', None).get('mean', None),  # Thermal conductivity
-        "G": config.get('sources', None).get("concentration", None).get('value', None).get('mean', None),  # Mass transfer coefficient
-        "Q": config.get('sources', None).get('heat', None).get('value', None).get('mean', None),  # Heat source term
+        "D_0": config.get('materials', None)[material_num-1].get('D_0', None).get('mean', None),  # Diffusion coefficient base value
+        "kappa": config.get('materials', None)[material_num-1].get('thermal_conductivity', None).get('mean', None),  # Thermal conductivity
+        "G": config.get('source_terms', None).get("concentration", None).get('value', None).get('mean', None),  # Gas concentration source term
+        "Q": config.get('source_terms', None).get('heat', None).get('value', None).get('mean', None),  # Heat source term
         "E_kr": config.get('boundary_conditions', None).get("concentration", None).get("right", None).get('E_kr', None).get('mean', None),  # Reaction rate coefficient
-        "h_conv": config.get('boundary_conditions', None).get("heat", None).get("right", None).get('h_conv', None).get('mean', None),  # Convective heat transfer coefficient
+        "h_conv": config.get('boundary_conditions', None).get("temperature", None).get("right", None).get('h_conv', None).get('mean', None),  # Convective heat transfer coefficient
 
 
-        "E_D": config.get('materials', None)[0].get('E_D', None).get('mean', None),  # Activation energy
-        "T_0": config.get('initial_conditions', None).get('temperature', None).get("value", None).get('mean', None),  # Mean temperature
+        # "E_D": config.get('materials', None)[material_num-1].get('E_D', None).get('mean', None),  # Activation energy
+        # "T_0": config.get('initial_conditions', None).get('temperature', None).get("value", None).get('mean', None),  # Mean temperature
 
         # "source_concentration_value": config.get('source_terms', None).get('concentration', None).get('mean', None),  # Mean source value
         # "left_bc_concentration_value": config.get('boundary_conditions', None).get('concentration', None).get('left', None).get('mean', None),  # Mean left boundary condition value
         # "right_bc_concentration_value": config.get('boundary_conditions', None).get('concentration', None).get('right', None).get('mean', None),  # Mean right boundary condition value
     }
     # TODO read means and default from the configuration file - alternatively, parse the whole YAML UQ file and get the means from there
+    print(f" >>> Mean values for uncertain parameters: {means}") ###DEBUG
 
     # Define standard deviations for the parameters
     if CoV is not None:
@@ -119,18 +122,21 @@ def define_parameter_uncertainty(config, CoV=None, distribution=None):
     else:
         # parse the YAML UQ file to get the CoV for each parameter
         relative_stds = {
-            "D_0": config.get('materials', None)[0].get('D_0', None).get('relative_stdev', None),  # Diffusion coefficient base value
-            "kappa": config.get('materials', None)[0].get('thermal_conductivity', None).get('relative_stdev', None),  # Thermal conductivity
-            "G": config.get('sources', None).get("concentration", None).get('value', None).get('relative_stdev', None),  # Mass transfer coefficient
-            "Q": config.get('sources', None).get('heat', None).get('value', None).get('relative_stdev', None),  # Heat source term
+            "D_0": config.get('materials', None)[material_num-1].get('D_0', None).get('relative_stdev', None),  # Diffusion coefficient base value
+            "kappa": config.get('materials', None)[material_num-1].get('thermal_conductivity', None).get('relative_stdev', None),  # Thermal conductivity
+            "G": config.get('source_terms', None).get("concentration", None).get('value', None).get('relative_stdev', None),  # Gas concentration source term
+            "Q": config.get('source_terms', None).get('heat', None).get('value', None).get('relative_stdev', None),  # Heat source term
             "E_kr": config.get('boundary_conditions', None).get("concentration", None).get("right", None).get('E_kr', None).get('relative_stdev', None),  # Reaction rate coefficient
-            "h_conv": config.get('boundary_conditions', None).get("heat", None).get("right", None).get('h_conv', None).get('relative_stdev', None),  # Convective heat transfer coefficient
+            "h_conv": config.get('boundary_conditions', None).get("temperature", None).get("right", None).get('h_conv', None).get('relative_stdev', None),  # Convective heat transfer coefficient
 
-            "E_D": config.get('materials', None)[0].get('E_D', None).get('mean', None),  # Activation energy
-            "T_0": config.get('initial_conditions', None).get('temperature', None).get("value", None).get('mean', None),  # Mean temperature
+
+            # "E_D": config.get('materials', None)[material_num-1].get('E_D', None).get('relative_stdev', None),  # Activation energy
+            # "T_0": config.get('initial_conditions', None).get('temperature', None).get("value", None).get('relative_stdev', None),  # Mean temperature
+
             # "source_concentration_value": config.get('source_terms', None).get('concentration', None).get('relative_stdev', None),
             # "right_bc_concentration_value": config.get('boundary_conditions', None).get('right', None).get('relative_stdev', None),
         }
+    print(f" >>> Relative STDs for uncertain parameters: {relative_stds}") ###DEBUG
 
     # Define the distributions for uncertain parameters
     if distribution is not None:
@@ -139,20 +145,22 @@ def define_parameter_uncertainty(config, CoV=None, distribution=None):
     else:
         # use the default distributions from the configuration file
         distributions = {
-                "D_0": config.get('materials', None)[0].get('D_0', None).get('pdf', 'normal'),  # Diffusion coefficient base value
-                "kappa": config.get('materials', None)[0].get('thermal_conductivity', None).get('pdf', 'normal'),  # Thermal conductivity
-                "G": config.get('sources', None).get("concentration", None).get('value', None).get('pdf', 'normal'),  # Mass transfer coefficient
-                "Q": config.get('sources', None).get('heat', None).get('value', None).get('pdf', 'normal'),  # Heat source term
-                "E_kr": config.get('boundary_conditions', None).get("concentration", None).get("right", None).get('E_kr', None).get('pdf', 'normal'),  # Reaction rate coefficient
-                "h_conv": config.get('boundary_conditions', None).get("heat", None).get("right", None).get('h_conv', None).get('pdf', 'normal'),  # Convective heat transfer coefficient
+            "D_0": config.get('materials', None)[material_num-1].get('D_0', None).get('pdf', None),  # Diffusion coefficient base value
+            "kappa": config.get('materials', None)[material_num-1].get('thermal_conductivity', None).get('pdf', None),  # Thermal conductivity
+            "G": config.get('source_terms', None).get("concentration", None).get('value', None).get('pdf', None),  # Gas concentration source term
+            "Q": config.get('source_terms', None).get('heat', None).get('value', None).get('pdf', None),  # Heat source term
+            "E_kr": config.get('boundary_conditions', None).get("concentration", None).get("right", None).get('E_kr', None).get('pdf', None),  # Reaction rate coefficient
+            "h_conv": config.get('boundary_conditions', None).get("temperature", None).get("right", None).get('h_conv', None).get('pdf', None),  # Convective heat transfer coefficient
 
-                "E_D": config.get('materials', None)[0].get('E_D', None).get('mean', None),  # Activation energy
-                "T_0": config.get('initial_conditions', None).get('temperature', None).get("value", None).get('mean', None),  # Mean temperature
+
+            # "E_D": config.get('materials', None)[material_num-1].get('E_D', None).get('pdf', None),  # Activation energy
+            # "T_0": config.get('initial_conditions', None).get('temperature', None).get("value", None).get('pdf', None),  # Mean temperature
 
             # "source_concentration_value": config.get('source_terms', None).get('concentration', None).get('pdf', 'normal'),
             # "right_bc_concentration_value": config.get('boundary_conditions', None).get('right', None).get('pdf', 'normal'),
         }
-    # -  These distributions can be adjusted based on the specific model requirements and the physical properties of the system being simulated.
+    
+    print(f" >>> Distributions for uncertain parameters: {distributions}") ###DEBUG
 
     # Define coefficients to recalculate distribution defining parameters - absolute bounds of the (uniform) distribution is a function of the mean and CoV
     # - for COV of U[a,b]: STD = (b-a)/sqrt(12) , meaning it should be a=mean*(1-sqrt(3)CoV), b=mean*(1+sqrt(3)CoV)
@@ -243,9 +251,13 @@ def prepare_execution_command():
     # Get the Python executable and script path - validate and setup environment
     python_exe, script_path = validate_execution_setup()
 
-    # Use the filename that the encoder creates (config.yaml)
-    exec_command_line = f"{python_exe} {script_path} --config config.yaml"
-    
+    # Use the filename that the encoder creates (config.uq.yaml)
+    config_suffix = f"--config config/config.uq.yaml"
+
+    # - option 1) run via calling the python3 command - be sure that the correct environment is used
+    exec_command_line = f"{python_exe} {script_path} {config_suffix}"
+    # - option 2) run using shebang in the python script (as an executable)
+
     print(f"Execution command line: {exec_command_line}")
 
     # Execute the script locally - prepare the ExecuteLocal action
@@ -286,14 +298,14 @@ def prepare_uq_campaign(config, fixed_params=None, uq_params=None):
         template_fname="festim_yaml.template",
         target_filename="config.yaml",
         parameter_map={ # TODO: store the YAML schema as a separate file; ideally, read from an existing YAML config file
-            "D_0": "materials.D_0",
-            "kappa": "materials.thermal_conductivity",
+            "D_0": "materials.D_0.mean",
+            "kappa": "materials.thermal_conductivity.mean",
             "G": "source_terms.concentration.value.mean",
             "Q": "source_terms.heat.value.mean",
-            "E_kr": "boundary_conditions.concentration.right.k_r0",
-            "h_conv": "boundary_conditions.heat.right.h_conv",
+            "E_kr": "boundary_conditions.concentration.right.E_kr.mean",
+            "h_conv": "boundary_conditions.temperature.right.h_conv.mean",
 
-            "E_D": "materials[0].E_D",
+            "E_D": "materials[0].E_D.mean",
             "T": "initial_conditions.temperature.value.mean",
             # "source_concentration_value": "source_terms.concentration.source_value",
             # "left_bc_concentration_value": "boundary_conditions.concentration.left.value",
@@ -401,8 +413,21 @@ def run_uq_campaign(campaign, resource_pool=None):
     Run the UQ campaign using the specified resource pool.
     If no resource pool is provided, it will use the default QCGPJPool.
     """
+    # If no pool is generated priorly and passed - create a new one
     if resource_pool is None:
-        resource_pool = QCGPJPool()
+
+        # Make sure the right parameters are passed to the pool: virtual environment, working directory, etc.
+        template = EasyVVUQBasicTemplate()
+        template_params = {
+            "venv": "/home/yhy25yyp/anaconda3/envs/festim2-env",
+            # "working_directory": "/path/to/working/directory"
+        }
+
+        # By default, run with resource pool by QCG-PJ
+        resource_pool = QCGPJPool(
+            template=template,
+            template_params=template_params,
+        )
 
     # Execute the campaign
     with resource_pool as pool:

@@ -168,7 +168,9 @@ class AdvancedYAMLEncoder(YAMLEncoder):
             raise ValueError("Path cannot be empty.")
         keys = path.split('.')
         current = config
-        
+
+        # print(f" >>>> Encoding via keys: {keys}") ###DEBUG
+
         # Traverse the nested structure and set the value
         for key in keys[:-1]:
             # Check if the key is a list
@@ -179,6 +181,7 @@ class AdvancedYAMLEncoder(YAMLEncoder):
             if key not in current:
                 # Create a new dictionary if the key does not exist
                 current[key] = {}
+            # print(f" >>>> Encoding @: {current} >> {key}") ###DEBUG
             current = current[key]
         
         # Set the final key to the value

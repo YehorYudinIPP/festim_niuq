@@ -1,4 +1,4 @@
-#!/home/yehor/miniconda3/envs/festim-env/bin/python3
+#!/home/yhy25yyp/anaconda3/envs/festim2-env/bin/python3
 import sys
 import os
 
