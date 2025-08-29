@@ -59,7 +59,9 @@ def get_festim_python():
     """Get the correct Python executable for FESTIM environment."""
     
     # Method 1: Check if specific conda environment exists
-    conda_python = "/home/yehor/miniconda3/envs/festim2-env/bin/python3"
+    # conda_python = "/home/yhy25yyp/anaconda3/envs/festim2-env/bin/python3"
+    conda_python = "/home/yhy25yyp/workspace/festim2-venv/bin/python3"
+    
     if os.path.exists(conda_python):
         return conda_python
     
