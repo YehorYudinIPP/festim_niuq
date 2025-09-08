@@ -235,8 +235,9 @@ def define_festim_model_parameters():
         # "t=1.00e+01s",
         # "t=2.50e+01s",
 
-        # "t=steady",  # Steady state value, if simulation for performed for a stationary model
-        "t=final" # Final values extracted from the model
+        "t=steady",  # Steady state value, if simulation for performed for a stationary model
+
+        # "t=final" # Final values extracted from the model
     ]
     
     #print(f"Model parameters defined: {parameters}") ####DEBUG
@@ -350,10 +351,13 @@ def prepare_uq_campaign(config, fixed_params=None, uq_params=None):
 
     # Create a decoder object
     # The decoder will read the results from the output file and extract the quantities of interest (QoIs)
+
     # TODO change the output and decoder to YAML (for UQ derived quantities) or other format (?)
+
     decoder = uq.decoders.SimpleCSV(
         #target_filename="output.csv", # option for synthetic diagnostics specifically chosen for UQ
-        target_filename="results/results_tritium_concentration.txt",  # Results from the base data of a simulation
+        target_filename="results/results_tritium_concentration.txt",  # Results from the base data of a simulation, FESTIM1.4 version of TXT outputs for 1D data
+        # target_filename="results/results_tritium_concentration.csv",  # Results from the base data of a simulation, FESTIM 2.0 version of CSV outputs for 1D data
         output_columns=qois
         )
     
