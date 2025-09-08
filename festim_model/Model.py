@@ -1462,8 +1462,10 @@ class Model(BaseModel):
             if 'festim_problem' in problem:
                 # Get tritium transport related data
                 if problem['qoi_name'] == 'tritium_concentration':
+
                     if not hasattr(problem['festim_problem'], 'exports') or problem['festim_problem'].exports is None:
                         problem['festim_problem'].exports = []
+
                     problem['festim_problem'].exports.append(
                         F.VTXSpeciesExport(
                             field=problem['festim_problem'].species,
@@ -1471,11 +1473,22 @@ class Model(BaseModel):
                             checkpoint=self.transient,
                         )
                     )
-                
+
+                    # Specify bespoke export for 1D profiles, for tritium concentration
+                    problem['festim_problem'].exports.append(
+                        ProfileExport(
+                            field=problem['festim_problem'].species[0],
+                            volume=self.domain_volumes[1],  # Assuming domain ID 1 for the profile export
+                            # filename=f"{self.result_folder}/tritium_concentration_profile.txt",
+                        )
+                    )
+
                 # Get heat transport related data
                 if problem['qoi_name'] == 'temperature':
+
                     if not hasattr(problem['festim_problem'], 'exports') or problem['festim_problem'].exports is None:
                         problem['festim_problem'].exports = []
+
                     problem['festim_problem'].exports.append(
                         F.VTXTemperatureExport(
                             filename=f"{self.result_folder}/temperature.vtx",
@@ -1483,9 +1496,18 @@ class Model(BaseModel):
                             #checkpoint=self.transient,
                         )
                     )
+
+                    # # Specify bespoke export for 1D profiles, for temperature
+                    # problem['festim_problem'].exports.append(
+                    #     ProfileExport(
+                    #         field=problem['festim_problem'].u,
+                    #         volume=self.domain_volumes[1],  # Assuming domain ID 1 for the profile export
+                    #         # filename=f"{self.result_folder}/temperature_profile.txt",
+                    #     )
+                    # )
     
-        # else:    
-        #     raise NotImplementedError("Exporting results is only implemented for transient problems.")
+            # else:    
+            #     raise NotImplementedError("Exporting results is only implemented for transient problems.")
 
     def _add_derived_quantities(self, config):
         """
@@ -1508,9 +1530,9 @@ class Model(BaseModel):
                 #self.results[problem['qoi_name']] = {}
 
                 # Export the final state fo the fileds into results
-                self.results[problem['qoi_name']] = problem['festim_problem'].u.x.array
+                self.results[problem['qoi_name']] = problem['festim_problem'].u.x.array[:].copy()
 
-                print(f" >> Results for {problem['qoi_name']}: \n{problem['festim_problem'].u.x.array}") ###DEBUG
+                # print(f" >> Results for {problem['qoi_name']}: \n{problem['festim_problem'].u.x.array}") ###DEBUG
 
     def inspect_model_structure(self):
         """Print detailed structure of the FESTIM 2.0 model object."""
@@ -1553,6 +1575,15 @@ class Model(BaseModel):
         except Exception as e:
             print(f"! Error occurred while running the model: {e}")
 
+        print(f" >>> tritium concentration profile data collected: {self.problems['tritium_transport']['festim_problem'].exports[1].data}")
+
         print(f" ... Finishing the simulation... \n")
         return self.results
 
+
+class ProfileExport(F.VolumeQuantity):
+
+    def compute(self):
+        profile = self.field.solution.x.array[:].copy()
+
+        self.data.append(profile)

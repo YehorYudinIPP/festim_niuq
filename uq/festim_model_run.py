@@ -113,8 +113,8 @@ def save_results_for_uq(results, model):
     # TODO: double-check the implementation; think of a good integration scheme
     #tritium_inventory = extract_tritium_inventory(results, model)
     tritium_inventory = 0.0 #ATTENTION: workaround for heat DEBUG
-    
-    # Save as CSV for EasyVVUQ decoder
+
+    # Save as CSV (with 0d scalar properties; here: tritium inventory) for EasyVVUQ decoder
     output_file = "output.csv"
     with open(output_file, 'w', newline='') as csvfile:
         writer = csv.writer(csvfile)
@@ -123,6 +123,21 @@ def save_results_for_uq(results, model):
     
     print(f"Results saved to {output_file}")
     print(f"Tritium inventory: {tritium_inventory:.2e}")
+
+    # Save TXT files with 1D profiles (if available) from results
+    # ATTENTION: mimics TXTExport from FESTIM1.4
+    for qoi_name, qoi_values in results.items():
+
+        profile_folder_name = model.result_folder
+        profile_file_name = f"results_{qoi_name}.txt"
+        profile_file_path = os.path.join(profile_folder_name, profile_file_name)
+
+        grid_values = model.vertices  # Assuming model has an attribute 'vertices' for the spatial grid
+        data = np.column_stack((grid_values, qoi_values))
+
+        np.savetxt(profile_file_path, data, header=f"x,t=steady", delimiter=',', comments='')
+
+        print(f" > Profile {qoi_name} saved to {profile_file_path}") ###DEBUG
 
 def extract_tritium_inventory(results, model):
     """Extract tritium inventory from FESTIM results."""
