@@ -157,22 +157,45 @@ def plot_sobols_seconds_vs_r(r, sobols_second, qoi_name_s, foldername="", filena
     - filename: name of the file to save the plot
     """
 
-    for qoi_name_1, qoi_name_2 in itertools.product(qoi_name_s, repeat=2):
-        sobols_second_qoi = sobols_second.get(qoi_name_1, None)
+    fig, ax = plt.subplots()
+    
+    #for qoi_name_1, qoi_name_2 in itertools.product(qoi_name_s, repeat=2): # TODO: should be param_name_s
 
-        if sobols_second_qoi is not None:
+    # Get Sobol dictionary for each QoI
+    for qoi_name in qoi_name_s:
 
-            fig, ax = plt.subplots()
+        # sobols_second_qoi = sobols_second.get(qoi_name_1, None).get(qoi_name_2, None) if sobols_second and qoi_name_1 != qoi_name_2 else None # TODO: get rid of the repetition of pairs
 
-            ax.plot(r, sobols_second_qoi, label=f"Second-order Sobol indices for {qoi_name_1}")
-            
-            ax.set_xlabel("Radius")
-            ax.set_ylabel("Sobol index for (fraction of unity)")
-            ax.set_title(f"Second-order Sobol indices vs Radius for {qoi_name_1}")
-            ax.legend()
+        sobol_data = sobols_second.get(qoi_name, None)
+        if sobol_data is None:
+            print(f"Warning: No second-order Sobol data found for QoI '{qoi_name}'")
+            continue
 
-            fig.savefig(f"{foldername}/{filename_base}_{qoi_name_1}_{qoi_name_2}.pdf")
-            plt.close()
+        # Iterate over pairs of parameters for second-order Sobol indices
+        for param_name_1 in sobol_data:
+            for param_name_2 in sobol_data[param_name_1]:
+                # Avoid plotting the same pair twice or diagonal elements
+                if param_name_1 > param_name_2:
+                    
+                    sobols_second_qoi = sobol_data[param_name_1][param_name_2] 
+                    if sobols_second_qoi is not None:
+
+                        ax.plot(r, 
+                                sobols_second_qoi, 
+                                label=f"{param_name_1} & {param_name_2}",
+                                )
+                        # fig.savefig(f"{foldername}/{filename_base}_{qoi_name_1}_{qoi_name_2}.pdf")
+
+        ax.set_xlabel(f"Radius [m]")
+        ax.set_ylabel(f"Sobol index [fraction of unity]")
+
+        ax.set_title(f"Second-order Sobol indices vs Radius at {qoi_name}")
+        ax.legend(loc='best')
+
+        ax.grid()
+
+        fig.savefig(f"{foldername}/{filename_base}_{qoi_name}_second_order_sobols.pdf")
+        plt.close()
 
     return 0
 
@@ -274,10 +297,11 @@ def plot_stats_vs_r(results, qois:list[str], plot_folder_name:str, plot_timestam
     file_type = "pdf"  # Assuming we want to save as PDF
     plot_unc_qoi(stats_dict_s, qoi_name=qoi, foldername=plot_folder_name, filename=add_timestamp_to_filename(f"qoi_uncertainty_vs_r.{file_type}", plot_timestamp),r_ind=r_ind_qoi)
 
-    #TODO add total Sobol indices as well, probaly higher order separately
+    #TODO add total Sobol indices as well
+
     # Read second-order Sobol indices from the UQ results object
     sobols_second = results.sobols_second()
-    print(f" >> Second-order Sobol indices for QoI with EasyVVUQ: {qoi} : \n {sobols_second}")
+    print(f" >> Second-order Sobol indices for QoI with EasyVVUQ: {qoi} : \n {sobols_second}") ###DEBUG
     plot_sobols_seconds_vs_r(rs, sobols_second, qois, foldername=plot_folder_name, filename_base="sobols_second_vs_r")
 
     return 0
