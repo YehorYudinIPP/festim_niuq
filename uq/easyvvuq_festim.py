@@ -252,7 +252,7 @@ def prepare_execution_command():
     python_exe, script_path = validate_execution_setup()
 
     # Use the filename that the encoder creates (config.uq.yaml)
-    config_suffix = f" --config config/config.uq.yaml "
+    config_suffix = f" --config config.yaml "
 
     # - Assuring correct environment: 
     # - - running activation command
@@ -424,8 +424,8 @@ def run_uq_campaign(campaign, resource_pool=None):
         # Make sure the right parameters are passed to the pool: virtual environment, working directory, etc.
         template = EasyVVUQBasicTemplate()
         template_params = {
-            #"venv": "/home/yhy25yyp/anaconda3/envs/festim2-env",
-            "venv": "/home/yhy25yyp/workspace/festim2-venv/",
+            "venv": "/home/yhy25yyp/anaconda3/envs/festim2-env",
+            #"venv": "/home/yhy25yyp/workspace/festim2-venv/",
             # "working_directory": "/path/to/working/directory"
         }
 
