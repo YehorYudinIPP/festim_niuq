@@ -10,6 +10,17 @@ import festim as F
 # Local imports
 from .diagnostics import Diagnostics
 
+
+##### Class definitions #####
+
+class ProfileExport(F.VolumeQuantity):
+
+    def compute(self):
+        profile = self.field.solution.x.array[:].copy()
+
+        self.data.append(profile)
+
+
 class BaseModel:
     """
     Base class for all models.
@@ -1580,10 +1591,3 @@ class Model(BaseModel):
         print(f" ... Finishing the simulation... \n")
         return self.results
 
-
-class ProfileExport(F.VolumeQuantity):
-
-    def compute(self):
-        profile = self.field.solution.x.array[:].copy()
-
-        self.data.append(profile)
