@@ -209,9 +209,9 @@ def define_festim_model_parameters():
 
     "h_conv": {"type": "float", "default": 1000.0,},
 
-    "E_D": {"type": "float", "default": 0.1,},
+    # "E_D": {"type": "float", "default": 0.1,},
 
-    "T_0": {"type": "float", "default": 300.0,},
+    # "T_0": {"type": "float", "default": 300.0,},
 
     # "source_concentration_value": {"type": "float", "default": 1.0e20,},
 
@@ -304,6 +304,7 @@ def prepare_uq_campaign(config, fixed_params=None, uq_params=None):
         template_fname="festim_yaml.template",
         target_filename="config.yaml",
         parameter_map={ # TODO: store the YAML schema as a separate file; ideally, read from an existing YAML config file
+            # ATTENTION: for lists, pattern will always choose the first element, e.g. for materials, domains
             "D_0": "materials.D_0.mean",
             "kappa": "materials.thermal_conductivity.mean",
             "G": "source_terms.concentration.value.mean",
@@ -311,12 +312,14 @@ def prepare_uq_campaign(config, fixed_params=None, uq_params=None):
             "E_kr": "boundary_conditions.concentration.right.E_kr.mean",
             "h_conv": "boundary_conditions.temperature.right.h_conv.mean",
 
-            "E_D": "materials[0].E_D.mean",
-            "T": "initial_conditions.temperature.value.mean",
+            # "E_D": "materials.E_D.mean",
+            # "T": "initial_conditions.temperature.value.mean",
+
             # "source_concentration_value": "source_terms.concentration.source_value",
             # "left_bc_concentration_value": "boundary_conditions.concentration.left.value",
             # "right_bc_concentration_value": "boundary_conditions.concentration.right.value",
-            "length": "geometry.length", 
+            
+            "length": "geometry.domains.length", 
         },
         type_conversions={
             "D_0": float,
@@ -509,7 +512,8 @@ def perform_uq_festim(fixed_params=None):
 
     # Read the configuration file from the command line argument or use a default one
     
-    #print(f" >> Passing parameters to the campaign: {fixed_params}") ###DEBUG
+    print(f" >> Passing parameters to the campaign: {fixed_params}") ###DEBUG
+
     campaign, qois, distributions, campaign_timestamp, sampler = prepare_uq_campaign(config, fixed_params=fixed_params, uq_params={'p_order': 1})
 
     # TODO: add more parameter for Arrhenious law (+)

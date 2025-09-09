@@ -147,9 +147,9 @@ def param_scan_sensitivity_analysis(config, param_name='length', level_variation
         print(f"Warning: Default value for {param_name} not found in configuration, using 1.0")
         param_def_val = 1.0 
     
-    # specifically, for the length parameter
+    # Specifically, for the length parameter
     if param_name == 'length':
-        param_def_val = float(config['geometry'].get('length', 1.0))
+        param_def_val = float(config.get('geometry', {}).get('domains', [{}])[0].get('length', 1.0))
         print(f"Using default length value: {param_def_val} m")
         param_name = 'length'  # Use the full path to the parameter in the config
 
@@ -176,8 +176,9 @@ def param_scan_sensitivity_analysis(config, param_name='length', level_variation
     param_values = [float(value) for value in param_values]
 
     # Custom list of parameter values (for a restart after an error)
-    #param_values = [param_def_val * x for x in [1.0e+0, 1.0e+1, 1.0e+2, 1.0e+3]]
-    param_values = [param_def_val * x for x in [1.0e+3]]
+    # param_values = [param_def_val * x for x in [1.0e+0, 1.0e+1, 1.0e+2, 1.0e+3]]
+    # param_values = [param_def_val * x for x in [1.0e+3]]
+
     print(f"Parameter values for sensitivity analysis: {param_values}")
 
     if param_values is None or len(param_values) == 0:
@@ -186,8 +187,8 @@ def param_scan_sensitivity_analysis(config, param_name='length', level_variation
 
     # Perform sensitivity analysis logic here
     for param_value in param_values:
+        print(f"\n Iteration of sensitivity analysis scan for {param_name} = {param_value} ...")
         # For now, just print the parameters
-        print(f"Parameter: {param_name}, Value: {param_value}")
 
         #TODO make sure type conversion during iteration over numpy array is correct
         perform_uq_festim(fixed_params={param_name: param_value})
@@ -201,8 +202,8 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser(description='Run FESTIM model SCAN with a default YAML configuration')
 
     parser.add_argument('--config', '-c',
-                       default='config.yaml',
-                       help='Path to YAML configuration file (default: config.yaml)'
+                       default='config.uq.yaml',
+                       help='Path to YAML configuration file (default: config.uq.yaml)'
                        )
 
     args = parser.parse_args()

@@ -173,20 +173,22 @@ class AdvancedYAMLEncoder(YAMLEncoder):
 
         # Traverse the nested structure and set the value
         for key in keys[:-1]:
-            # Check if the key is a list
-            if isinstance(current, list):
-                # If current is a list, choose the first element
-                current = current[0]
             # Check if the key exists in the current level
             if key not in current:
                 # Create a new dictionary if the key does not exist
                 current[key] = {}
-            # print(f" >>>> Encoding @: {current} >> {key}") ###DEBUG
+            print(f" >>>> Encoding @: {current} >> {key}") ###DEBUG
             current = current[key]
+            # Check if the key is a list
+            if isinstance(current, list):
+                # ATTENTION: If current is a list, choose the first element
+                current = current[0]
         
+        # print(f" >>>> Setting a leave of the config @: {current} >> {key}") ###DEBUG
         # Set the final key to the value
         current[keys[-1]] = value
         # print(f"Set nested value at {path} to {value}") ###DEBUG
+        # ATTENTION: will not handle list at the end of the path
 
         # Ensure the value is correctly set
         if not math.isclose(current[keys[-1]], value):
