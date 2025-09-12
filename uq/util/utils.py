@@ -3,6 +3,7 @@ import sys
 import subprocess
 import yaml
 from pathlib import Path
+import numpy as np
 
 from datetime import datetime
 
@@ -124,3 +125,42 @@ def save_sa_results_yaml():
 
     print(f"✓ Sensitivity analysis results saved to: {filename}")
     return filename
+
+def integrate_statistics(uq_resuls):
+    """
+    A function to integrate statistics over the quantities it is conditioned on:
+    s_int = int_X s(x)dx
+    12/09/2025: basic functionality is to integrate Sobol indices over the domain of radius values: r e [0., R_max]
+    """
+
+    # Integrating Sobol indices over the domain of radius values: r e [0., R_max]
+
+    # Get first sobol indices for all quantities of interest
+    qois = uq_resuls.get_qoi_names()
+    print(f"Quantities of interest: {qois}")
+
+    for qoi in qois[1:]:  # Skip the first 'run' entry
+        print(f"\n>>> Integrating statistics for quantity of interest: {qoi}")
+
+        # Get the first-order Sobol indices for this quantity of interest
+        sobol_first = uq_resuls.get_sobol_first(qoi)
+        print(f"Sobol first-order indices shape: {sobol_first.shape}")  # (n_samples, n_params)
+
+        # Assuming the first dimension corresponds to the varying parameter (e.g., radius)
+        # and the second dimension corresponds to different parameters
+
+        # Integrate over the first dimension (e.g., radius)
+        stat_integrated = {}
+        for param_idx in range(sobol_first.shape[1]):
+            param_name = f"param_{param_idx+1}"
+            param_values = uq_resuls.get_param_values(param_name)
+            if param_values is None:
+                print(f"Parameter values for {param_name} not found, skipping integration.")
+                continue
+
+            # Simple trapezoidal integration over the parameter values
+            integrated_value = np.trapz(sobol_first[:, param_idx], x=param_values)
+            stat_integrated[param_name] = integrated_value
+            print(f"Integrated Sobol index for {param_name}: {integrated_value}")
+
+    return stat_integrated
