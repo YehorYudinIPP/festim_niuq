@@ -221,7 +221,7 @@ def extract_tritium_inventory(results, model):
             unit_concentration = 1.0e10  # Default value
             final_concentrations = unit_concentration * np.ones(data.shape[0])  # Default to ones if data is empty
 
-        inventory = np.sum(final_concentrations * volume_elem_s)
+        inventory = np.trapz(final_concentrations * volume_elem_s)
     else:
         print("Using default value for tritium inventory")
         inventory = 1.0e20  # Default value
