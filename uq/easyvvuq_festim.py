@@ -401,18 +401,49 @@ def prepare_uq_campaign(config, fixed_params=None, uq_params=None):
     # Define sampling method and create a sampler for the campaign
     # This sampler will generate samples based on the defined distributions
 
-    # Here we use a Polynomial Chaos Expansion (PCE) sampler!
+    if uq_params is not None:
+        if 'uq_scheme' in uq_params:
+            if uq_params['uq_scheme'] == 'pce':
+                # Option A) Polynomial Chaos Expansion (PCE) sampler
+                # - define polynomial order for PC expansion
+                if 'p_order' in uq_params:
+                    p_order = uq_params['p_order']
+                else:
+                    p_order = 1
 
-    # Define polynomial order for PC expansion
-    if uq_params is not None and 'p_order' in uq_params:
-        p_order = uq_params['p_order']
+                print(f"Using UQ scheme: {uq_params['uq_scheme']} with polynomial order: {p_order}") ###DEBUG
+                
+                sampler = uq.sampling.PCESampler(
+                    vary=distributions,
+                    polynomial_order=p_order,
+                )
+
+            elif uq_params['uq_scheme'] == 'qmc':
+                # Option B) quasi-Monte Carlo sampler
+                # - define number of samples
+                if 'n_samples' in uq_params:
+                    n_samples = uq_params['n_samples']
+                else:
+                    n_samples = 128  # Default number of samples if not specified
+
+                print(f"Using UQ scheme: {uq_params['uq_scheme']} with number of samples: {n_samples}") ###DEBUG
+
+                sampler = uq.sampling.QMCSampler(
+                    vary=distributions,
+                    n_mc_samples=n_samples,  # Number of samples to generate
+                )
+
+            else:
+                raise ValueError(f"Unsupported UQ scheme: {uq_params['uq_scheme']}. Supported schemes are 'pce' and 'qmc'.")
+        else:
+            raise ValueError("UQ scheme not specified in uq_params. Please provide 'uq_scheme' as either 'pce' or 'qmc'.")
     else:
-        p_order = 1
-
-    sampler = uq.sampling.PCESampler(
-        vary=distributions,
-        polynomial_order=p_order,
-    )
+        # Default to PCE sampler with polynomial order 1 if no UQ parameters are provided
+        print("No UQ parameters provided, defaulting to PCE sampler with polynomial order 1.")
+        sampler = uq.sampling.PCESampler(
+            vary=distributions,
+            polynomial_order=1,
+        )
 
     campaign.set_sampler(sampler)
     print(f"Sampler prepared and set for the campaign: {sampler}")
@@ -444,7 +475,13 @@ def run_uq_campaign(campaign, resource_pool=None):
 
     # Execute the campaign
     with resource_pool as pool:
+
+        print(f"> Running the campaign with resource pool: {pool}")
+
         campaign_results = campaign.execute(pool=pool)
+
+        print("> Execution completed! Collating the results...")
+
         campaign_results.collate()
 
     # Get results from the campaign
@@ -452,18 +489,34 @@ def run_uq_campaign(campaign, resource_pool=None):
 
     return campaign, campaign_results
 
-def analyse_uq_results(campaign, qois, sampler):
+def analyse_uq_results(campaign, qois, sampler, uq_params=None):
     """
     Perform analysis on the UQ results.
     This function is a placeholder for future analysis methods.
     """
-    # Perform PCE analysis on the campaign results
-    analysis = uq.analysis.PCEAnalysis(sampler=sampler, qoi_cols=qois)
+    if uq_params is not None:
+        if 'uq_scheme' in uq_params:
+            print(f"Performing analysis for UQ scheme: {uq_params['uq_scheme']}") ###DEBUG
+            if uq_params['uq_scheme'] == 'pce':
+                # Perform PCE analysis on the campaign results
+                analysis = uq.analysis.PCEAnalysis(sampler=sampler, qoi_cols=qois)
+            elif uq_params['uq_scheme'] == 'qmc':
+                # Perform QMC analysis on the campaign results
+                analysis = uq.analysis.BasicAnalysis(sampler=sampler, qoi_cols=qois)
+            else:
+                raise ValueError(f"Unsupported UQ scheme: {uq_params['uq_scheme']}. Supported schemes are 'pce' and 'qmc'.")
+        else:
+            print("UQ scheme not specified in uq_params. Proceeding with default analysis.")
+    else:
+        print("No UQ parameters provided. Proceeding with default analysis.")
+
     #TODO Probably get last analysis results from the campaign
     campaign.apply_analysis(analysis)
 
     # Get the last analysis results
     results = campaign.get_last_analysis()
+
+    print(f"\n >>> Analysis completed. Results:\n{results}") ###DEBUG
 
     # Display the results of the analysis
     for qoi in qois[1:]:
@@ -512,9 +565,16 @@ def perform_uq_festim(fixed_params=None):
 
     # Read the configuration file from the command line argument or use a default one
     
-    print(f" >> Passing parameters to the campaign: {fixed_params}") ###DEBUG
+    print(f" >> Passing parameters fixed to the campaign: {fixed_params}") ###DEBUG
 
-    campaign, qois, distributions, campaign_timestamp, sampler = prepare_uq_campaign(config, fixed_params=fixed_params, uq_params={'p_order': 1})
+    # Define UQ parameters for the campaign
+    uq_params = {
+        'uq_scheme': 'qmc',  # 'pce' or 'qmc'
+        'p_order': 1,        # for PCE
+        'n_samples': 4,   # for QMC
+    }
+
+    campaign, qois, distributions, campaign_timestamp, sampler = prepare_uq_campaign(config, fixed_params=fixed_params, uq_params=uq_params)
 
     # TODO: add more parameter for Arrhenious law (+)
     # TODO: try higher BC concentration values - does it even make sense to have such low BC (+)
@@ -525,7 +585,10 @@ def perform_uq_festim(fixed_params=None):
     campaign, campaign_results = run_uq_campaign(campaign)
 
     # Save the results
-    results_filename = add_timestamp_to_filename("results.hdf5")
+    result_filename_base = "results.hdf5"
+    results_filename = add_timestamp_to_filename(result_filename_base)
+    print(f">> Saving the campaign results into {results_filename}") ###DEBUG
+    #campaign.campaign_db.save(results_filename)
     campaign.campaign_db.dump()
 
     # Perform the analysis
