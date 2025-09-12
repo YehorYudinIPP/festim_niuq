@@ -10,6 +10,8 @@ import festim as F
 # Local imports
 from .diagnostics import Diagnostics
 
+# Import DOLFINX
+import dolfinx
 
 ##### Class definitions #####
 
@@ -922,6 +924,21 @@ class Model(BaseModel):
 
         # Specify outputs
         self._specify_outputs(config)
+
+        # Specify logging level
+
+        if 'log_level' in config.get("simulation", {}):
+            log_level = config.get("simulation", {}).get("log_level", "info")
+            if log_level == "debug":
+                dolfinx.log.set_log_level(dolfinx.log.LogLevel.DEBUG)
+            elif log_level == "info":
+                dolfinx.log.set_log_level(dolfinx.log.LogLevel.INFO)
+            elif log_level == "warning":
+                dolfinx.log.set_log_level(dolfinx.log.LogLevel.WARNING)
+            elif log_level == "error":
+                dolfinx.log.set_log_level(dolfinx.log.LogLevel.ERROR)
+            else:
+                print(f" >>>! Warning: Unknown log level '{log_level}', skipping.")
 
         print(f"Model {self.name} initialized with {len(self.problems)} problems and {len(self.materials)} materials. Number of mesh elements: {self.n_elements}.")
         print(f" > Initialisation finished !")
