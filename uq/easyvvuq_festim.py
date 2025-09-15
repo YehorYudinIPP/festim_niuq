@@ -178,10 +178,11 @@ def define_parameter_uncertainty(config, CoV=None, distribution=None):
         "exponential": cp.Exponential,
     }
 
+    # Create the distributions for the parameters
     parameters_distributions = { 
             name:  distribution_lookup[distributions[name]](
-                means[name]*(1.-expansion_factor_lookup[distributions[name]]*relative_stds[name]), 
-                means[name]*(1.+expansion_factor_lookup[distributions[name]]*relative_stds[name])
+                (means[name]*(1.-expansion_factor_lookup[distributions[name]]*relative_stds[name])) if distributions[name] == 'uniform' else (means[name]) if distributions[name] == 'normal' else means[name],  # lower bound for uniform, mean for normal
+                (means[name]*(1.+expansion_factor_lookup[distributions[name]]*relative_stds[name])) if distributions[name] == 'uniform' else (means[name]*relative_stds[name]) if distributions[name] == 'normal' else means[name]*relative_stds[name],  # upper bound for uniform, mean for normal
                 ) 
         for name in parameters_used}
     #TODO: tackle not implemented distributions, e.g. lognormal, beta, gamma, exponential
@@ -502,7 +503,7 @@ def analyse_uq_results(campaign, qois, sampler, uq_params=None):
                 analysis = uq.analysis.PCEAnalysis(sampler=sampler, qoi_cols=qois)
             elif uq_params['uq_scheme'] == 'qmc':
                 # Perform QMC analysis on the campaign results
-                analysis = uq.analysis.BasicAnalysis(sampler=sampler, qoi_cols=qois)
+                analysis = uq.analysis.QMCAnalysis(sampler=sampler, qoi_cols=qois)
             else:
                 raise ValueError(f"Unsupported UQ scheme: {uq_params['uq_scheme']}. Supported schemes are 'pce' and 'qmc'.")
         else:
@@ -569,9 +570,9 @@ def perform_uq_festim(fixed_params=None):
 
     # Define UQ parameters for the campaign
     uq_params = {
-        'uq_scheme': 'qmc',  # 'pce' or 'qmc'
-        'p_order': 1,        # for PCE
-        'n_samples': 4,   # for QMC
+        'uq_scheme': 'pce',  # 'pce' or 'qmc'
+        'p_order': 2,        # for PCE
+        'n_samples': 8,   # for QMC
     }
 
     campaign, qois, distributions, campaign_timestamp, sampler = prepare_uq_campaign(config, fixed_params=fixed_params, uq_params=uq_params)
@@ -592,7 +593,7 @@ def perform_uq_festim(fixed_params=None):
     campaign.campaign_db.dump()
 
     # Perform the analysis
-    results = analyse_uq_results(campaign, qois, sampler)
+    results = analyse_uq_results(campaign, qois, sampler, uq_params=uq_params)
 
     # Get the individual results from the campaign
     runs = campaign.campaign_db.runs() # return an iterator over runs in the campaign
