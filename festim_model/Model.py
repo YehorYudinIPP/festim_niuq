@@ -997,10 +997,10 @@ class Model(BaseModel):
         self.coordinate_system_type = str(config.get("geometry", {}).get("coordinate_system", "cartesian"))
 
         # Specifying type of mesh
-        self.mesh_type = str(config.get("simulation", {}).get("mesh_type", "regular"))
+        self.mesh_type = str(config.get("simulation", {}).get("meshes", [{}])[0].get("mesh_type", "regular"))
 
         # Specifying size of the mesh
-        self.n_elements = int(config.get("simulation", {}).get("n_elements", 128))  # Default to 128 elements if not specified
+        self.n_elements = int(config.get("simulation", {}).get("meshes", [{}])[0].get("n_elements", 128))  # Default to 128 elements if not specified
 
         # Create datastructures for some of the main geometry elements
         self.subdomains = []
@@ -1018,10 +1018,15 @@ class Model(BaseModel):
 
             config_domains = config.get("geometry", {}).get("domains", [{}])
 
+            config_meshes = config.get("simulation", {}).get("meshes", [{}])
+
             # Iterate over domain configurations, each being an interval
             for config_domain in config_domains:
 
                 id = int(config_domain.get("id", 1))  # Default to 1 if not specified
+
+                # Get the corresponding mesh configuration for the domain
+                config_mesh = next((m for m in config_meshes if int(m.get("domain_id", 1)) == id), {})
 
                 print(f" > Specifying domain {id}") ###DEBUG
                 print(f" >> config domain: \n{config_domain}")
@@ -1040,10 +1045,34 @@ class Model(BaseModel):
                 self.domain_surfaces[(id-1)*self.max_surface_per_domain+1] = F.SurfaceSubdomain1D(id=(id-1)*self.max_surface_per_domain+1, x=0.0)
 
                 # Create 1D surface subdomain to the right (outer surface, boundary points)
+                # Numbering of surfaces assumes max_surface_per_domain surfaces per domain, then offset by domain id
                 self.domain_surfaces[(id-1)*self.max_surface_per_domain+2] = F.SurfaceSubdomain1D(id=(id-1)*self.max_surface_per_domain+2, x=self.domain_sizes[id])
 
                 # Create a 1D mesh
-                vertices = np.linspace(0., self.domain_sizes[id], self.n_elements + 1)
+                if self.mesh_type == "regular":
+                    # Regular mesh with uniformly spaced elements
+                    print(f" >> Creating regular mesh with {self.n_elements} elements for domain {id} of size {self.domain_sizes[id]}")  ###DEBUG
+                    vertices = np.linspace(0., self.domain_sizes[id], self.n_elements + 1)
+                elif self.mesh_type == "refined":
+                    # Refined mesh with more elements near the surfaces (ends)
+                    print(f" >> Creating refined mesh with {self.n_elements} elements for domain {id} of size {self.domain_sizes[id]}")  ###DEBUG
+                    if config_mesh.get("refinement", "").get("rule", "") == "quadratic":
+                        print(f" >>> Using quadratic refinement")  ###DEBUG
+                        if config_mesh.get("refinement", "").get("location", "") == "right":
+                            print(f" >>> Refining mesh towards the right end")  ###DEBUG
+                            x = np.linspace(0., 1., self.n_elements + 1)
+                            vertices = self.domain_sizes[id] * (1 - (1 - x)**2 / (1 - x[0])**2)  # Quadratic refinement
+                        elif config_mesh.get("refinement", "").get("location", "") == "left":
+                            print(f" >>> Refining mesh towards the left end")  ###DEBUG
+                            x = np.linspace(0., 1., self.n_elements + 1)
+                            vertices = self.domain_sizes[id] * (x**2) / (x[-1]**2)  # Quadratic refinement
+                        else:
+                            raise ValueError(f"Unknown refinement location: {config_mesh.get('locations', '')}")
+                    else:
+                        raise ValueError(f"Unknown refinement rule: {config_mesh.get('refinement', '').get('rule', '')}")
+                else:
+                    raise ValueError(f"Unknown mesh type: {self.mesh_type}")
+
                 self.vertices = vertices
                 self.meshes[id] = F.Mesh1D(vertices) #TODO: double check if this is accroding to FESTIM2.0
                 # TODO: add spherical coordinates
