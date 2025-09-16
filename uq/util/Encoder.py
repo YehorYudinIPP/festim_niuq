@@ -177,7 +177,7 @@ class AdvancedYAMLEncoder(YAMLEncoder):
             if key not in current:
                 # Create a new dictionary if the key does not exist
                 current[key] = {}
-            print(f" >>>> Encoding @: {current} >> {key}") ###DEBUG
+            # print(f" >>>> Encoding @: {current} >> {key}") ###DEBUG
             current = current[key]
             # Check if the key is a list
             if isinstance(current, list):
