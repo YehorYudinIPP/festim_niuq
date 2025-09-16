@@ -5,6 +5,7 @@ import subprocess
 from datetime import datetime
 import numpy as np
 
+import pickle
 import argparse
 
 # consider import visualisation libraries optional
@@ -519,6 +520,12 @@ def analyse_uq_results(campaign, qois, sampler, uq_params=None):
 
     print(f"\n >>> Analysis completed. Results:\n{results}") ###DEBUG
 
+    # Save the analysis results to a file
+    result_filename_base = "analysis_results_uq_campaign.pickle"
+    results_filename = add_timestamp_to_filename(result_filename_base)
+    print(f">> Saving the campaign results into {results_filename}") ###DEBUG
+    pickle.dump(results, open(results_filename, "wb"))
+
     # Display the results of the analysis
     for qoi in qois[1:]:
         print(f"Results for {qoi}:")
@@ -527,10 +534,6 @@ def analyse_uq_results(campaign, qois, sampler, uq_params=None):
 
     #TODO extract more data, in particular, on the individual trajectories of the QoI
 
-    # Save the analysis results
-    analysis_filename = add_timestamp_to_filename("analysis_results.hdf5")
-
-    #print(f"Results saved to: {results_filename}")
     # TODO: specify the results filename in the campaign or save it in a specific folder
     # TODO: save the results of a campaign
     # TODO: add config files and parameters distriubtions to the saved results
@@ -571,7 +574,7 @@ def perform_uq_festim(fixed_params=None):
     # Define UQ parameters for the campaign
     uq_params = {
         'uq_scheme': 'pce',  # 'pce' or 'qmc'
-        'p_order': 2,        # for PCE
+        'p_order': 1,        # for PCE
         'n_samples': 8,   # for QMC
     }
 
@@ -585,15 +588,16 @@ def perform_uq_festim(fixed_params=None):
     # Run the campaign
     campaign, campaign_results = run_uq_campaign(campaign)
 
-    # Save the results
-    result_filename_base = "results.hdf5"
-    results_filename = add_timestamp_to_filename(result_filename_base)
-    print(f">> Saving the campaign results into {results_filename}") ###DEBUG
     #campaign.campaign_db.save(results_filename)
     campaign.campaign_db.dump()
 
-    # Perform the analysis
+    # Perform the analysis - also saves a Pickle file with results
     results = analyse_uq_results(campaign, qois, sampler, uq_params=uq_params)
+
+    # Save campaign configuration and parameters distributions to a YAML file
+    config_filename = add_timestamp_to_filename("uq_campaign_config.pickle")
+    pickle.dump(config, open(config_filename, "wb"))
+    print(f" >> Campaign configuration saved to: {config_filename}")
 
     # Get the individual results from the campaign
     runs = campaign.campaign_db.runs() # return an iterator over runs in the campaign
