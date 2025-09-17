@@ -941,6 +941,9 @@ class Model(BaseModel):
                 print(f" >>>! Warning: Unknown log level '{log_level}', skipping.")
 
         print(f"Model {self.name} initialized with {len(self.problems)} problems and {len(self.materials)} materials. Number of mesh elements: {self.n_elements}.")
+
+        print(f" >>> Material parameters used: \n{self.problems['tritium_transport']['festim_problem'].volume_subdomains[0].material.__dict__}") ###DEBUG
+
         print(f" > Initialisation finished !")
 
     def _get_config_entry(self, config_node, entry_name, entry_type: (float| int| str| list) = float):
