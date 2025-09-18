@@ -2,6 +2,8 @@
 import sys
 import os
 
+from util.utils import compute_absolute_tolerance
+
 # Set environment variables to suppress Qt warnings
 os.environ['QT_LOGGING_RULES'] = '*.debug=false;qt.qpa.*=false'
 os.environ['XDG_RUNTIME_DIR'] = '/tmp/runtime-' + str(os.getuid())
@@ -190,12 +192,24 @@ def param_scan_sensitivity_analysis(config, param_name='length', level_variation
         print(f"\n Iteration of sensitivity analysis scan for {param_name} = {param_value} ...")
         # For now, just print the parameters
 
+        # Compute appropriate absolute tolerance for the tritium transport problem
+        default_tt_atol = config.get("simulation", {}).get('tolerances', {}).get('absolute_tolerance', {}).get('tritium_transport', 1.0)
+        orig_params = {param_name: param_def_val}
+        new_params = {param_name: param_value}
+        tt_atol = compute_absolute_tolerance(default_tt_atol, orig_params, new_params)
+
+        print(f"Computing new solver tolerances:..\n Old parameter values: {param_name}={orig_params[param_name]}\n New parameter values: {param_name}={new_params[param_name]}\n   (Log difference: {np.log10(new_params[param_name] / orig_params[param_name])})\n Old tolerance value: {default_tt_atol}\n Computed tritium transport absolute tolerance: {tt_atol}")
+
         #TODO make sure type conversion during iteration over numpy array is correct
-        perform_uq_festim(fixed_params={param_name: param_value})
+        perform_uq_festim(
+            fixed_params={
+                param_name: param_value,
+                "tritium_transport_absolute_tolerance": tt_atol, # to avoid solver issues during the scan
+            }
+        )
         #TODO save and display the modified parameter in the scan
 
     # TODO make a plot of Sensitivity indices (at r=0) as a function of the parameter value (here: sample length); maybe a surface 3D plot
-
 
 if __name__ == "__main__":
     # Parse command line arguments
@@ -217,6 +231,6 @@ if __name__ == "__main__":
         # parameter_scan(config, param_name='length', level_variation=3)
 
         # Perform sensitivity analysis scan
-        param_scan_sensitivity_analysis(config, param_name='length', level_variation=3)
+        param_scan_sensitivity_analysis(config, param_name='length', level_variation=1)
     else:
         print("Failed to load configuration. Exiting.")

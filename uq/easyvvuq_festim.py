@@ -322,6 +322,8 @@ def prepare_uq_campaign(config, fixed_params=None, uq_params=None):
             # "right_bc_concentration_value": "boundary_conditions.concentration.right.value",
             
             "length": "geometry.domains.length", 
+
+            "tritium_transport_absolute_tolerance": "simulation.tolerances.absolute_tolerance.tritium_transport",
         },
         type_conversions={
             "D_0": float,
@@ -494,7 +496,6 @@ def run_uq_campaign(campaign, resource_pool=None):
 def analyse_uq_results(campaign, qois, sampler, uq_params=None):
     """
     Perform analysis on the UQ results.
-    This function is a placeholder for future analysis methods.
     """
     if uq_params is not None:
         if 'uq_scheme' in uq_params:
@@ -604,7 +605,7 @@ def perform_uq_festim(fixed_params=None):
 
     # print(f">> Iterating over runs in the campaign DB") ###DEBUG
     # for run in runs:
-    #     print(f" >> Runs: {run}") ###DEBUG
+    #     print(f" >> Runs: {run}") ###DEBUG1912:
 
     # Visualize the results
     visualisation_of_results(results, distributions, qois, "plots_festim_uq_" + campaign_timestamp, plot_timestamp=campaign_timestamp, runs_info=runs)
@@ -618,7 +619,17 @@ if __name__ == "__main__":
     This will execute the UQ campaign when the script is run directly.
     """
     try:
-        perform_uq_festim()
+        # Simple case: run with default parameters
+        # perform_uq_festim()
+
+        # More complex case: run with a scan over a fixed parameter, e.g. sample length
+        fixed_params = {
+            "length": 5.e-4,  # Length of the sample in meters
+            "tritium_transport_absolute_tolerance": 1.0e+7,  # Absolute tolerance for tritium transport solver
+
+        }
+        perform_uq_festim(fixed_params=fixed_params)
+
     except Exception as e:
         print(f"An error occurred during the UQ campaign: {e}")
         sys.exit(1)
