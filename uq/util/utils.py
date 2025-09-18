@@ -164,3 +164,43 @@ def integrate_statistics(uq_resuls):
             print(f"Integrated Sobol index for {param_name}: {integrated_value}")
 
     return stat_integrated
+
+def compute_absolute_tolerance(default_atol, orig_params, new_params):
+    """
+    Compute absolute tolerance by multiplying default absolute tolerance with a factors according to parameter changes.
+    
+    Args:
+        default_atol (float): Default absolute tolerance
+        orig_params (dict): Original parameter values
+        new_params (dict): New parameter values
+
+    Returns:
+        float: Computed absolute tolerance
+    """
+
+    if not orig_params or not new_params:
+        print("Original or new parameters are empty, returning default absolute tolerance.")
+        return default_atol
+
+    # Dictionary of problem QoI sensitivities to parameters changes
+    log_sensitivities = {
+        "length": 2.0,
+        "G": 1.0,
+        "right_bc_concentration_value": 0.5,
+        "T": 6.0, # special rule has to be applied, i.e. 10**(6.0 * T_new/T_orig)
+    }
+
+    # Compute the exponential factor based on parameter changes
+    multiplier = 1.0
+    exp_factor = 1.0
+
+    for key in new_params:
+        if key in orig_params:
+            log_ratio = np.log10(abs(new_params[key] / orig_params[key])) if orig_params[key] != 0 else 0
+            sensitivity = log_sensitivities.get(key, 1.0)  # Default sensitivity is 1.0 if not specified
+            exp_factor += sensitivity * log_ratio
+            multiplier *= 10 ** exp_factor
+        else:
+            print(f"Warning: Parameter {key} not found in original parameters, skipping.")
+
+    return default_atol * multiplier
