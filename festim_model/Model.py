@@ -813,6 +813,9 @@ class Model(BaseModel):
             absolute_tolerance = float(tolerance_config.get("absolute_tolerance", 1.e0).get(problem_name, 1.e0))
             relative_tolerance = float(tolerance_config.get("relative_tolerance", 1.e-10))
 
+            # TODO: pass other parameters
+            # TODO: test on a case with spurious oscillations
+            # E.G.: /home/yhy25yyp/workspace/festim_niuq/uq/runs_uq/runs_20250916/festim_campaign_20250916_191904_e5hzbeur
             # Specify settings, including transient/steady
             if self.transient:
                 # Set settings for transient problem, including time stepping
@@ -1057,18 +1060,59 @@ class Model(BaseModel):
                     print(f" >> Creating regular mesh with {self.n_elements} elements for domain {id} of size {self.domain_sizes[id]}")  ###DEBUG
                     vertices = np.linspace(0., self.domain_sizes[id], self.n_elements + 1)
                 elif self.mesh_type == "refined":
+
                     # Refined mesh with more elements near the surfaces (ends)
                     print(f" >> Creating refined mesh with {self.n_elements} elements for domain {id} of size {self.domain_sizes[id]}")  ###DEBUG
+                    
                     if config_mesh.get("refinement", "").get("rule", "") == "quadratic":
+
                         print(f" >>> Using quadratic refinement")  ###DEBUG
+
                         if config_mesh.get("refinement", "").get("location", "") == "right":
+
                             print(f" >>> Refining mesh towards the right end")  ###DEBUG
+
                             x = np.linspace(0., 1., self.n_elements + 1)
                             vertices = self.domain_sizes[id] * (1 - (1 - x)**2 / (1 - x[0])**2)  # Quadratic refinement
+
                         elif config_mesh.get("refinement", "").get("location", "") == "left":
+
                             print(f" >>> Refining mesh towards the left end")  ###DEBUG
+
                             x = np.linspace(0., 1., self.n_elements + 1)
                             vertices = self.domain_sizes[id] * (x**2) / (x[-1]**2)  # Quadratic refinement
+                        elif config_mesh.get("refinement", "").get("location", "") == "both":
+
+                            print(f" >>> Refining mesh towards both ends")  ###DEBUG
+
+                            x = np.linspace(0., 1., self.n_elements + 1)
+                            vertices = self.domain_sizes[id] * (1 - (1 - x)**2 / (1 - x[0])**2)  # Quadratic refinement towards right
+                            vertices = np.minimum(vertices, self.domain_sizes[id] * (x**2) / (x[-1]**2))  # Combine with refinement towards left 
+                        else:
+                            raise ValueError(f"Unknown refinement location: {config_mesh.get('locations', '')}")
+
+                    elif config_mesh.get("refinement", "").get("rule", "") == "linear":
+
+                        print(f" >>> Using local linear refinement for a particular region") ###DEBUG
+
+                        refined_fraction_domain = config_mesh.get("refinement", "").get("fraction_domain", 0.)
+                        refined_fraction_elements = config_mesh.get("refinement", "").get("fraction_elements", 0.)
+                        refined_elements_count = int(self.n_elements * refined_fraction_elements)
+
+                        if config_mesh.get("refinement", "").get("location", "") == "right":
+                            
+                            vertices = np.concatenate((
+                                np.linspace(0., self.domain_sizes[id] * (1. - refined_fraction_domain), self.n_elements - refined_elements_count + 1), # unrefined (larger inner) part of the mesh
+                                np.linspace(self.domain_sizes[id] * (1. - refined_fraction_domain), self.domain_sizes[id], refined_elements_count + 1)[1:] # refined (smaller outer) part of the mesh
+                            ))
+                            
+                        elif config_mesh.get("refinement", "").get("location", "") == "left":
+                                                       
+                            vertices = np.concatenate((
+                                np.linspace(0., self.domain_sizes[id] * refined_fraction_domain, refined_elements_count + 1), # refined (smaller inner) part of the mesh
+                                np.linspace(self.domain_sizes[id] * refined_fraction_domain, self.domain_sizes[id], self.n_elements - refined_elements_count)[1:] # unrefined (larger outer) part of the mesh
+                            ))
+                                                       
                         else:
                             raise ValueError(f"Unknown refinement location: {config_mesh.get('locations', '')}")
                     else:
@@ -1635,7 +1679,7 @@ class Model(BaseModel):
         except Exception as e:
             print(f"! Error occurred while running the model: {e}")
 
-        print(f" >>> tritium concentration profile data collected: {self.problems['tritium_transport']['festim_problem'].exports[1].data}")
+        # print(f" >>> tritium concentration profile data collected: {self.problems['tritium_transport']['festim_problem'].exports[1].data}") ###DEBUG
 
         print(f" ... Finishing the simulation... \n")
         return self.results

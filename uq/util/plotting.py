@@ -62,7 +62,7 @@ def plot_unc_vs_r(r, y, sy, y10, y90, qoi_name:str, foldername:str="", filename:
 
             # Iterating over individual runs
             for run_id, run_info in runs_info:
-                print(f" >> Plotting run {run_id} for {qoi_name}")  ###DEBUGs
+                # print(f" >> Plotting run {run_id} for {qoi_name}")  ###DEBUGs
                 #print(f" >> Run {run_id} info: {run_info}")  ###DEBUG
 
                 # Checking if individual run has non-empty results
