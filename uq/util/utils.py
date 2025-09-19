@@ -167,7 +167,7 @@ def integrate_statistics(uq_resuls):
 
 def compute_absolute_tolerance(default_atol, orig_params, new_params):
     """
-    Compute absolute tolerance by multiplying default absolute tolerance with a factors according to parameter changes.
+    Compute (a heuristic for) absolute tolerance by multiplying default absolute tolerance with a factors according to parameter changes.
     
     Args:
         default_atol (float): Default absolute tolerance
@@ -183,6 +183,11 @@ def compute_absolute_tolerance(default_atol, orig_params, new_params):
         return default_atol
 
     # Dictionary of problem QoI sensitivities to parameters changes
+    """
+    The sensitivities are derived from physical considerations and dimensional analysis of the tritium transport problem.
+    The sensitivity A_i for parameter x_i (out of N input parameters) indicates how much the absolute tolerance should change in response to a change in that parameter.
+    The change by the following rule: atol_new = atol_orig * 10**( SUM_{i=1}^{N} (A_i * log10(x_i_new/x_i_orig)) ))
+    """
     log_sensitivities = {
         "length": 2.0,
         "G": 1.0,
@@ -199,8 +204,9 @@ def compute_absolute_tolerance(default_atol, orig_params, new_params):
             log_ratio = np.log10(abs(new_params[key] / orig_params[key])) if orig_params[key] != 0 else 0
             sensitivity = log_sensitivities.get(key, 1.0)  # Default sensitivity is 1.0 if not specified
             exp_factor += sensitivity * log_ratio
+            # This is done not as a sume fist because different rules can be applied to different parameters
             multiplier *= 10 ** exp_factor
         else:
             print(f"Warning: Parameter {key} not found in original parameters, skipping.")
 
-    return default_atol * multiplier
+    return float(default_atol * multiplier)
