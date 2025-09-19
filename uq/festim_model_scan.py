@@ -134,7 +134,7 @@ def param_scan_sensitivity_analysis(config, param_name='length', level_variation
     Perform sensitivity analysis for the FESTIM model with a given parameter being scanned.
     This function is a placeholder for actual sensitivity analysis logic.
     """
-    print("Performing sensitivity analysis SCAN ...")
+    print(" !!! Performing sensitivity analysis SCAN ...")
 
     # Load the configuration
     if not config:
@@ -146,7 +146,7 @@ def param_scan_sensitivity_analysis(config, param_name='length', level_variation
     param_def_val = config.get(param_name, 1.0)
 
     if param_def_val is None:
-        print(f"Warning: Default value for {param_name} not found in configuration, using 1.0")
+        print(f"> Warning: Default value for {param_name} not found in configuration, using 1.0")
         param_def_val = 1.0 
     
     # Specifically, for the length parameter
@@ -188,8 +188,8 @@ def param_scan_sensitivity_analysis(config, param_name='length', level_variation
         return
 
     # Perform sensitivity analysis logic here
-    for param_value in param_values:
-        print(f"\n Iteration of sensitivity analysis scan for {param_name} = {param_value} ...")
+    for i, param_value in enumerate(param_values):
+        print(f"\n Iteration {i} of sensitivity analysis scan for {param_name} = {param_value} ...")
         # For now, just print the parameters
 
         # Compute appropriate absolute tolerance for the tritium transport problem
@@ -198,16 +198,25 @@ def param_scan_sensitivity_analysis(config, param_name='length', level_variation
         new_params = {param_name: param_value}
         tt_atol = compute_absolute_tolerance(default_tt_atol, orig_params, new_params)
 
-        print(f"Computing new solver tolerances:..\n Old parameter values: {param_name}={orig_params[param_name]}\n New parameter values: {param_name}={new_params[param_name]}\n   (Log difference: {np.log10(new_params[param_name] / orig_params[param_name])})\n Old tolerance value: {default_tt_atol}\n Computed tritium transport absolute tolerance: {tt_atol}")
+        print(f"\n Computing new solver tolerances:..\n  Old parameter values: {param_name}={orig_params[param_name]:.2E}\n  New parameter values: {param_name}={new_params[param_name]:.2E}\n    (Log difference: {np.log10(new_params[param_name] / orig_params[param_name]):.2E})\n  Old tolerance value: {default_tt_atol:.2E}\n Computed tritium transport absolute tolerance: {tt_atol:.2E}\n")
 
         #TODO make sure type conversion during iteration over numpy array is correct
-        perform_uq_festim(
-            fixed_params={
-                param_name: param_value,
-                "tritium_transport_absolute_tolerance": tt_atol, # to avoid solver issues during the scan
-            }
-        )
+        print(f" > Next: calling a UQ campaign")
+        try:
+            perform_uq_festim(
+                fixed_params={
+                    param_name: param_value,
+                    "tritium_transport_absolute_tolerance": tt_atol, # to avoid solver issues during the scan
+                }
+            )
+        except Exception as e:
+            print(f"Error occurred while calling UQ campaign: {e}")
+            # sys.exit(1)
+
         #TODO save and display the modified parameter in the scan
+        print(f" > Sensitivity analysis iteration {i} for {param_name} = {param_value} completed.\n")
+    
+    return 0    
 
     # TODO make a plot of Sensitivity indices (at r=0) as a function of the parameter value (here: sample length); maybe a surface 3D plot
 
