@@ -341,6 +341,8 @@ def prepare_uq_campaign(config, fixed_params=None, uq_params=None):
             "right_bc_concentration_value": float, 
 
             "length": float,
+
+            "tritium_transport_absolute_tolerance": float,
         },
         fixed_parameters=fixed_params,  # Pass the dictionary of parameters to be fixed to the encoder
     )
@@ -477,14 +479,15 @@ def run_uq_campaign(campaign, resource_pool=None):
             template_params=template_params,
         )
 
+    print(f" >> Prepared the resource pool to run the campaign: {resource_pool}")
     # Execute the campaign
     with resource_pool as pool:
 
-        print(f"> Running the campaign with resource pool: {pool}")
+        print(f">>> Running the campaign with resource pool: {pool}")
 
         campaign_results = campaign.execute(pool=pool)
 
-        print("> Execution completed! Collating the results...")
+        print(">>> Execution completed! Collating the results...")
 
         campaign_results.collate()
 
@@ -548,6 +551,7 @@ def perform_uq_festim(fixed_params=None):
     """
     # EasyVVUQ script to be executed as a function
     print(" \n ! Starting FESTIM UQ campaign !.. \n")
+    print(f" time: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}")
 
     # Prepare the UQ campaign
     # This includes defining parameters, encoders, decoders, and actions
@@ -587,13 +591,17 @@ def perform_uq_festim(fixed_params=None):
     # TODO: check if there are actually negative concentrations, if yes - check model and specify correct params ranges - work out expressions for quantiles for unfiorm distribution based on PCE(p=2) (+)
 
     # Run the campaign
+    print(f" >> Now running the UQ campaign...")
     campaign, campaign_results = run_uq_campaign(campaign)
+    print(f" >> Campaign run completed. Campaign results: {campaign_results}") ###DEBUG
 
     #campaign.campaign_db.save(results_filename)
     campaign.campaign_db.dump()
+    print(f" >> Campaign database dumped. Database: {campaign.campaign_db}.\nNow performing analysis...") ###DEBUG
 
     # Perform the analysis - also saves a Pickle file with results
     results = analyse_uq_results(campaign, qois, sampler, uq_params=uq_params)
+    print(f" >> Analysis of results completed. Results: {results}") ###DEBUG
 
     # Save campaign configuration and parameters distributions to a YAML file
     config_filename = add_timestamp_to_filename("uq_campaign_config.pickle")
@@ -611,6 +619,7 @@ def perform_uq_festim(fixed_params=None):
     visualisation_of_results(results, distributions, qois, "plots_festim_uq_" + campaign_timestamp, plot_timestamp=campaign_timestamp, runs_info=runs)
 
     print("FESTIM UQ campaign completed successfully!")
+    return 0
 
 
 if __name__ == "__main__":
@@ -626,7 +635,6 @@ if __name__ == "__main__":
         fixed_params = {
             "length": 5.e-4,  # Length of the sample in meters
             "tritium_transport_absolute_tolerance": 1.0e+7,  # Absolute tolerance for tritium transport solver
-
         }
         perform_uq_festim(fixed_params=fixed_params)
 
