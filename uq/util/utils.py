@@ -129,7 +129,7 @@ def save_sa_results_yaml():
 def integrate_statistics(uq_resuls):
     """
     A function to integrate statistics over the quantities it is conditioned on:
-    s_int = int_X s(x)dx
+    s_int = INT_X s(x)dx
     12/09/2025: basic functionality is to integrate Sobol indices over the domain of radius values: r e [0., R_max]
     """
 
@@ -204,7 +204,7 @@ def compute_absolute_tolerance(default_atol, orig_params, new_params):
             log_ratio = np.log10(abs(new_params[key] / orig_params[key])) if orig_params[key] != 0 else 0
             sensitivity = log_sensitivities.get(key, 1.0)  # Default sensitivity is 1.0 if not specified
             exp_factor += sensitivity * log_ratio
-            # This is done not as a sume fist because different rules can be applied to different parameters
+            # This is done not as a sum first because different rules can be applied to different parameters
             multiplier *= 10 ** exp_factor
         else:
             print(f"Warning: Parameter {key} not found in original parameters, skipping.")
