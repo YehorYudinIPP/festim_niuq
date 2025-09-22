@@ -27,10 +27,60 @@ from festim_model.diagnostics import Diagnostics
 # Import UQ functions from easyvvuq_festim
 from easyvvuq_festim import perform_uq_festim, run_uq_campaign, analyse_uq_results, visualisation_of_results
 
-def parameter_scan(config, param_name='length', level_variation=3):
+def make_parameter_values_list(param_def_val, level_variation=3, scale='log'):
+    """
+    Generate a list of parameter values to scan based on a default value and level of variation.
+    
+    Args:
+        param_def_val (float): Default value of the parameter.
+        level_variation (int): Level of variation (number of orders of magnitude).
+        Returns:
+        param_values (list): List of parameter values to scan.
+    """
+    if scale not in ['log', 'linear']:
+        raise ValueError("Scale must be either 'log' or 'linear'")
+    if level_variation < 1:
+        raise ValueError("Level of variation must be at least 1")   
+    
+    if scale == 'log':
+        # 1) use logarithmic scale, specify range of magnitudes
+        log_base = 10.0  # Base for logarithmic scale
+        log_scale_range = level_variation # try log_scale_range number of orders of magnitude towards higher and lower values #TODO think of a better way to specify the range
+
+        param_value_lo_bound = param_def_val * 10**(-log_scale_range)
+        param_value_hi_bound = param_def_val * 10**(log_scale_range)
+
+        n_runs = 2*log_scale_range + 1  # Number of runs for the scan
+
+        param_values = param_def_val * np.logspace(
+            -log_scale_range,
+            +log_scale_range,
+            num=n_runs, 
+            base=log_base,
+        )
+
+    elif scale == 'linear':
+        # 2) use linear scale, specify range of values
+        vary_factor = 0.1
+        linear_scale_range = level_variation * vary_factor * param_def_val # try level_variation * 10% of the default value towards higher and lower values
+
+        param_value_lo_bound = param_def_val - linear_scale_range
+        param_value_hi_bound = param_def_val + linear_scale_range 
+
+        n_runs = 2*level_variation + 1  # Number of runs for the scan
+
+        param_values = np.linspace(param_value_lo_bound, param_value_hi_bound, num=n_runs)
+
+    else:
+        # Should not reach here due to earlier check
+        raise ValueError("Scale must be either 'log' or 'linear'")
+
+    return param_values
+
+def parameter_scan(config, param_name='length', level_variation=3, target_dir="./", scale='log'):
     """
     Perform parameter scan for the FESTIM model.
-    This function is a placeholder for actual parameter scanning logic.
+    This function varies a given parameter over a specified range and runs the model for each value.
     """
     # Load the base configuration
     if not config:
@@ -48,61 +98,82 @@ def parameter_scan(config, param_name='length', level_variation=3):
         config = load_config(args.config)
         print(f"Loaded configuration from: {args.config}")
     
-    print(f"Performing parameter scan for {param_name}...")
+    print(f"\n ..!Performing parameter scan for {param_name}!..\n")
 
     # Get the default value of the parameter from the configuration
-    param_def_val = config.get(param_name, 1.0)
+    # TODO write and store pathes to parameters!
+    # For the length parameter
+
+    param_explanation = {
+        'length': 'Size of the physical sample',
+        'G': 'Tritium generation rate, volumetric',
+        'T_in': 'Temperature inside the sample',
+    }
+
+    param_units = {
+        'length': r"$m$",
+        'G': r"$m^{-3} s^{-1}$",
+        'T_in': r"$K$",
+    }
+
+    if param_name == 'length':
+        param_def_val = float(config.get('geometry', {}).get("domains", [{}])[0].get('length', 1.0))
+    elif param_name == 'G':
+        param_def_val = float(config.get('source_terms', {}).get('concentration', {}).get('value', {}).get('mean', 0.0))
+    elif param_name == 'T_in':
+        param_def_val = float(config.get('boundary_conditions', {}).get('temperature', {}).get('left', {}).get('value', {}).get('mean', 0.0))
+    else:
+        raise NotImplementedError(f"Parameter {param_name} cannot be find in the config")
+
+    # param_def_val = config.get(param_name, 1.0)
 
     if param_def_val is None:
         print(f"Warning: Default value for {param_name} not found in configuration, using 1.0")
         param_def_val = 1.0 
     
-    # specifically, for the length parameter
-    if param_name == 'length':
-        param_def_val = float(config['geometry'].get('length', 1.0))
-        print(f"Using default length value: {param_def_val} m")
+    print(f"Using default {param_name} value: {param_def_val} [{param_units[param_name]}]")
+    # print(f"> Default value of {param_name} = {param_def_val}") ###DEBUG
 
     # Specify the list of parameter values to scan
-
     # Option 1) use logarithmic scale, specify range of magnitudes
-    log_base = 10.0  # Base for logarithmic scale
-    log_scale_range = level_variation # try log_scale_range number of orders of magnitude towards higher and lower values #TODO think of a better way to specify the range
-    param_value_lo_bound = param_def_val * 10**(-log_scale_range)
-    param_value_hi_bound = param_def_val * 10**(log_scale_range)
-
-    n_runs = 2*log_scale_range + 1  # Number of runs for the scan
-
-    param_values = param_def_val * np.logspace(
-        np.log(param_value_lo_bound) / np.log(log_base),
-        np.log(param_value_hi_bound) / np.log(log_base), 
-        num=n_runs, 
-        base=log_base
-    )
+    param_values = make_parameter_values_list(param_def_val, level_variation, scale=scale)
 
     # Option 2) use logarithmic scale, specify range of values
 
     # Option 3) use linear scale, specify range of values
 
+    print(f"> List of {param_name} values for the scan:\n{param_values}") ###DEBUG
+
     results = []
 
     for value in param_values:
-        print(f"Running simulation with {param_name} = {value}")
+        print(f"\nRunning simulation with {param_name} = {value}")
 
         # Update the configuration with the specific results folder name
-        config['simulation']['output_directory'] = f"results_{param_name}_{value:.2e}"
+        config['simulation']['output_directory'] = f"{target_dir}/results_{param_name}_{value:.2e}"
 
         # Update the configuration with the current parameter value
         config[param_name] = value #TODO make fall back if config does not have this parameter or the structure is different
         
         # Specifically, for the length parameter
         if param_name == 'length':
-            config['geometry']['length'] = value
+            config['geometry']['domains'][0]['length'] = value
+        elif param_name == 'G':
+            config['source_terms']['concentration']['value']['mean'] = value
+        elif param_name == 'T_in':
+            config['boundary_conditions']['temperature']['left']['value']['mean'] = value
+        else:
+            raise NotImplementedError(f"Parameter {param_name} cannot be located in the config")
         
         # Create a model instance with the updated configuration
         model = Model(config=config)
         
         # Run the model and collect results
         result = model.run()
+
+        print(f"Run for {param_name}={value} completed!")
+        print(f"Result:\n{result}") ###DEBUG
+
         results.append(result)
 
         # Visualise results
@@ -117,16 +188,38 @@ def parameter_scan(config, param_name='length', level_variation=3):
     print("Plotting results...")
     import matplotlib.pyplot as plt
     plt.figure(figsize=(10, 6))
-    plt.plot(param_values, results, marker='o')
-    plt.xscale('log')  # Use logarithmic scale for x-axis
-    plt.xlabel(param_name)
-    plt.ylabel('Result')
-    plt.title(f'Parameter Scan: {param_name}')
+
+    # Select scalars to plot
+    # Tritium concentration in centre
+    results_toplot = [r['tritium_concentration'][0] for r in results]
+    y_qoi_name = r"$C_T(r=0) [m^{{-3}}]$"
+
+    # Compute the log-log slope of the scale
+    if scale == 'log':
+        r_scale_slope = (np.log10(results_toplot[-1]) - np.log10(results_toplot[0])) / (np.log10(param_values[-1]) - np.log10(param_values[0]))
+    elif scale == 'linear':
+        r_scale_slope = (np.log10(results_toplot[-1]) - np.log10(results_toplot[0])) / (param_values[-1] - param_values[0])
+    else:
+        raise NotImplementedError(f"Scale {scale} for scan no implemented")
+    print(f"Slope of the log-log scale for {param_name}={r_scale_slope}")
+
+    plt.plot(param_values, results_toplot, marker='o', label=y_qoi_name)
+
+    plt.xscale(scale)  # Use logarithmic scale for x-axis
+    plt.yscale('log')  # Use logarithmic scale for y-axis
+
+    plt.xlabel(r"${param_name} [{param_units[param_name]}]$")
+    plt.ylabel(f"Value of QoI")
+    plt.title(f"Parameter Scan: {param_name} - {param_explanation[param_name]}")
+
+    plt.legend(loc='best')
     plt.grid(True)
-    plt.savefig(f'parameter_scan_{param_name}.png')
+
+    plt.savefig(f"{target_dir}/parameter_scan_{param_name}.png")
     plt.close()
     #TODO for the length scan specifically, map the results on the [0,1] normalised coordinate system, e.g. r = r/length
 
+    print(f"Finished plotting results!")
     return results
 
 def param_scan_sensitivity_analysis(config, param_name='length', level_variation=3):
@@ -158,21 +251,7 @@ def param_scan_sensitivity_analysis(config, param_name='length', level_variation
     # Specify the list of parameter values to scan
 
     # 1) use logarithmic scale, specify range of magnitudes
-    log_base = 10.0  # Base for logarithmic scale
-    log_scale_range = level_variation # try log_scale_range number of orders of magnitude towards higher and lower values #TODO think of a better way to specify the range
-    param_value_lo_bound = param_def_val * 10**(-log_scale_range)
-    param_value_hi_bound = param_def_val * 10**(log_scale_range)
-
-    n_runs = 2*log_scale_range + 1  # Number of runs for the scan
-
-    param_values = param_def_val * np.logspace(
-        # np.log(param_value_lo_bound) / np.log(log_base),
-        # np.log(param_value_hi_bound) / np.log(log_base), 
-        -log_scale_range,
-        +log_scale_range,
-        num=n_runs, 
-        base=log_base,
-    )
+    param_values = make_parameter_values_list(param_def_val, level_variation, scale='log')
 
     # Convert to list of floats
     param_values = [float(value) for value in param_values]
@@ -229,17 +308,54 @@ if __name__ == "__main__":
                        help='Path to YAML configuration file (default: config.uq.yaml)'
                        )
 
+    parser.add_argument('--type', '-t',
+                       default='single',
+                       help='Options to perform scans: single (run a single simulation per parameter value) or uq (run a UQ campaign per parameter value) (default: single)'
+                       )
+    
+    parser.add_argument('--parameter', '-p',
+                       default='length',
+                       help='Parameter which to vary during the scan (default: length))'
+                       )
+
+    parser.add_argument('--targetdir', '-d',
+                       default='./',
+                       help='Target directory where to save the results of runs'
+                       )
+    
+    parser.add_argument('--scale', '-s',
+                       default='log',
+                       help='Scale to apply to the varying parameter'
+                       )
+    
     args = parser.parse_args()
 
     # Load the configuration from the specified file
     config = load_config(args.config)
 
+    # Get the type of scan from arguments
+    scan_type = args.type.lower()
+
+    # Get the paramter to scan
+    param_name = args.parameter
+
+    # Get the target directory to store the results
+    target_dir = args.targetdir
+
+    # Get the scale for the varying parameter
+    scale = args.scale
+
     if config:
 
-        # # Perform parameter scan
-        # parameter_scan(config, param_name='length', level_variation=3)
+        if scan_type == "single":
+            # Perform parameter scan
+            parameter_scan(config, param_name=param_name, level_variation=3, target_dir=target_dir, scale=scale)
 
-        # Perform sensitivity analysis scan
-        param_scan_sensitivity_analysis(config, param_name='length', level_variation=1)
+        elif scan_type == "uq":
+            # Perform UQ campaign scan
+            param_scan_sensitivity_analysis(config, param_name='length', level_variation=3)
+        else:
+            print(f"Unknown scan type: {scan_type}. Please use 'single' or 'uq'.")
+
     else:
         print("Failed to load configuration. Exiting.")
