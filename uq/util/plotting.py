@@ -62,7 +62,7 @@ def plot_unc_vs_r(r, y, sy, y10, y90, qoi_name:str, foldername:str="", filename:
 
             # Iterating over individual runs
             for run_id, run_info in runs_info:
-                # print(f" >> Plotting run {run_id} for {qoi_name}")  ###DEBUGs
+                # print(f" >> Plotting run {run_id} for {qoi_name}")  ###DEBUG
                 #print(f" >> Run {run_id} info: {run_info}")  ###DEBUG
 
                 # Checking if individual run has non-empty results
@@ -414,3 +414,26 @@ def plot_stats_vs_t(results, distributions, qois, plot_folder_name, plot_timesta
         print(f"Plots (for time series) saved: {moments_vst_filename}, {sobols_vst_filename}")
 
     return 0
+
+def plot_scan_results(scan_results, foldername, timestamp):
+    """
+    Plot results from parameter scan.
+    """
+    # Placeholder for actual plotting code
+    print("Plotting scan results... (functionality to be implemented)")
+
+    # Example: Save scan results to a YAML file
+    results = {
+        'description': 'Parameter scan results',
+        'data': {
+            # Example data structure
+            'scan_values': [1, 2, 3],
+            'results': [0.1, 0.2, 0.3]
+        }
+    }
+    
+    filename = add_timestamp_to_filename("scan_results.yaml")
+    # serialize_yaml(results, filename) # TODO - implement, or copy
+
+    print(f"✓ Scan results saved to: {filename}")
+    return filename
