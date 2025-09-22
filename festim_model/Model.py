@@ -825,6 +825,7 @@ class Model(BaseModel):
                     final_time=self.total_time, # difference here (and time step size) for transient problems #TODO could be done by in-line comprehension, e.g. ternary operator
                     atol=absolute_tolerance,
                     rtol=relative_tolerance,
+                    #linear_solver="mumps",
                 )
             else:
                 problem_instance['festim_problem'].settings = F.Settings(
