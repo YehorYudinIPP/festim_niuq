@@ -111,9 +111,9 @@ def parameter_scan(config, param_name='length', level_variation=3, target_dir=".
     }
 
     param_units = {
-        'length': r"$m$",
-        'G': r"$m^{-3} s^{-1}$",
-        'T_in': r"$K$",
+        'length': f"$ m $",
+        'G': f"$ m^{{-3}} s^{{-1}}$",
+        'T_in': f"$ K $",
     }
 
     if param_name == 'length':
@@ -131,7 +131,7 @@ def parameter_scan(config, param_name='length', level_variation=3, target_dir=".
         print(f"Warning: Default value for {param_name} not found in configuration, using 1.0")
         param_def_val = 1.0 
     
-    print(f"Using default {param_name} value: {param_def_val} [{param_units[param_name]}]")
+    print(f"Using default {param_name} value: {param_def_val:.3E} [{param_units[param_name]}]")
     # print(f"> Default value of {param_name} = {param_def_val}") ###DEBUG
 
     # Specify the list of parameter values to scan
@@ -147,7 +147,7 @@ def parameter_scan(config, param_name='length', level_variation=3, target_dir=".
     results = []
 
     for value in param_values:
-        print(f"\nRunning simulation with {param_name} = {value}")
+        print(f"\nRunning simulation with {param_name} = {value:.3E}")
 
         # Update the configuration with the specific results folder name
         config['simulation']['output_directory'] = f"{target_dir}/results_{param_name}_{value:.2e}"
@@ -157,21 +157,36 @@ def parameter_scan(config, param_name='length', level_variation=3, target_dir=".
         
         # Specifically, for the length parameter
         if param_name == 'length':
+            old_value = config['geometry']['domains'][0]['length']
             config['geometry']['domains'][0]['length'] = value
         elif param_name == 'G':
+            old_value = config['source_terms']['concentration']['value']['mean']
             config['source_terms']['concentration']['value']['mean'] = value
         elif param_name == 'T_in':
+            old_value = config['boundary_conditions']['temperature']['left']['value']['mean']
             config['boundary_conditions']['temperature']['left']['value']['mean'] = value
         else:
             raise NotImplementedError(f"Parameter {param_name} cannot be located in the config")
+
+        # Change the solver tolarence according to the passes parameter values
+        def_tt_atol = config['simulation']['tolerances']['absolute_tolerance']['tritium_transport']
+        old_params = {param_name: old_value}
+        new_params = {param_name: value}
+        new_tt_atol = compute_absolute_tolerance(def_tt_atol, old_params, new_params)
         
+        config['simulation']['tolerances']['absolute_tolerance']['tritium_transport'] = new_tt_atol
+        print(f" > Changing tritium transport solver absolute tolerance from {def_tt_atol:.2E} to {new_tt_atol:.2E}") ###DEBUG
+
+        # ATTENTION: overlaoding atol to 1.e0 for a test
+        config['simulation']['tolerances']['absolute_tolerance']['tritium_transport'] = 1.0e+0
+
         # Create a model instance with the updated configuration
         model = Model(config=config)
         
         # Run the model and collect results
         result = model.run()
 
-        print(f"Run for {param_name}={value} completed!")
+        print(f"Run for {param_name}={value:.3E} completed!")
         print(f"Result:\n{result}") ###DEBUG
 
         results.append(result)
@@ -180,7 +195,7 @@ def parameter_scan(config, param_name='length', level_variation=3, target_dir=".
         diagnostics = Diagnostics(model, results=result, result_folder=model.result_folder)
         diagnostics.visualise()
 
-        print(f"Simulation with {param_name} = {value} completed.")
+        print(f"Simulation with {param_name} = {value:.3E} completed.")
 
     print("Parameter scan completed!")
 
@@ -197,6 +212,7 @@ def parameter_scan(config, param_name='length', level_variation=3, target_dir=".
     # Compute the log-log slope of the scale
     if scale == 'log':
         r_scale_slope = (np.log10(results_toplot[-1]) - np.log10(results_toplot[0])) / (np.log10(param_values[-1]) - np.log10(param_values[0]))
+    # Compute the lin-log slope of the scale    
     elif scale == 'linear':
         r_scale_slope = (np.log10(results_toplot[-1]) - np.log10(results_toplot[0])) / (param_values[-1] - param_values[0])
     else:
@@ -208,7 +224,7 @@ def parameter_scan(config, param_name='length', level_variation=3, target_dir=".
     plt.xscale(scale)  # Use logarithmic scale for x-axis
     plt.yscale('log')  # Use logarithmic scale for y-axis
 
-    plt.xlabel(r"${param_name} [{param_units[param_name]}]$")
+    plt.xlabel(f"${param_name}$ [{param_units[param_name]}]")
     plt.ylabel(f"Value of QoI")
     plt.title(f"Parameter Scan: {param_name} - {param_explanation[param_name]}")
 
@@ -222,7 +238,7 @@ def parameter_scan(config, param_name='length', level_variation=3, target_dir=".
     print(f"Finished plotting results!")
     return results
 
-def param_scan_sensitivity_analysis(config, param_name='length', level_variation=3):
+def param_scan_sensitivity_analysis(config, param_name='length', level_variation=3, scale='log'):
     """
     Perform sensitivity analysis for the FESTIM model with a given parameter being scanned.
     This function is a placeholder for actual sensitivity analysis logic.
@@ -235,12 +251,12 @@ def param_scan_sensitivity_analysis(config, param_name='length', level_variation
         print("No configuration provided for sensitivity analysis.")
         return
 
-    # Get the default value of the parameter from the configuration
-    param_def_val = config.get(param_name, 1.0)
+    # # Get the default value of the parameter from the configuration
+    # param_def_val = config.get(param_name, 1.0)
 
-    if param_def_val is None:
-        print(f"> Warning: Default value for {param_name} not found in configuration, using 1.0")
-        param_def_val = 1.0 
+    # if param_def_val is None:
+    #     print(f"> Warning: Default value for {param_name} not found in configuration, using 1.0")
+    #     param_def_val = 1.0 
     
     # Specifically, for the length parameter
     if param_name == 'length':
@@ -251,7 +267,7 @@ def param_scan_sensitivity_analysis(config, param_name='length', level_variation
     # Specify the list of parameter values to scan
 
     # 1) use logarithmic scale, specify range of magnitudes
-    param_values = make_parameter_values_list(param_def_val, level_variation, scale='log')
+    param_values = make_parameter_values_list(param_def_val, level_variation, scale=scale)
 
     # Convert to list of floats
     param_values = [float(value) for value in param_values]
@@ -271,21 +287,25 @@ def param_scan_sensitivity_analysis(config, param_name='length', level_variation
         print(f"\n Iteration {i} of sensitivity analysis scan for {param_name} = {param_value} ...")
         # For now, just print the parameters
 
-        # Compute appropriate absolute tolerance for the tritium transport problem
-        default_tt_atol = config.get("simulation", {}).get('tolerances', {}).get('absolute_tolerance', {}).get('tritium_transport', 1.0)
-        orig_params = {param_name: param_def_val}
+        # Change the solver tolarence according to the passes parameter values
+        def_tt_atol = config['simulation']['tolerances']['absolute_tolerance']['tritium_transport']
+        old_params = {param_name: param_def_val}
         new_params = {param_name: param_value}
-        tt_atol = compute_absolute_tolerance(default_tt_atol, orig_params, new_params)
+        new_tt_atol = compute_absolute_tolerance(def_tt_atol, old_params, new_params)
+        config['simulation']['tolerances']['absolute_tolerance']['tritium_transport'] = new_tt_atol
+        # print(f" > Changing tritium transport solver absolute tolerance from {def_tt_atol:.2E} to {new_tt_atol:.2E}") ###DEBUG
+        print(f"\n Computing new solver tolerances:..\n  Old parameter values: {param_name}={old_params[param_name]:.2E}\n  New parameter values: {param_name}={new_params[param_name]:.2E}\n    (Log difference: {np.log10(new_params[param_name] / old_params[param_name]):.2E})\n  Old tolerance value: {def_tt_atol:.2E}\n Computed tritium transport absolute tolerance: {new_tt_atol:.2E}\n")
 
-        print(f"\n Computing new solver tolerances:..\n  Old parameter values: {param_name}={orig_params[param_name]:.2E}\n  New parameter values: {param_name}={new_params[param_name]:.2E}\n    (Log difference: {np.log10(new_params[param_name] / orig_params[param_name]):.2E})\n  Old tolerance value: {default_tt_atol:.2E}\n Computed tritium transport absolute tolerance: {tt_atol:.2E}\n")
+        #ATTENTION
 
         #TODO make sure type conversion during iteration over numpy array is correct
         print(f" > Next: calling a UQ campaign")
         try:
             perform_uq_festim(
+                config=config,
                 fixed_params={
                     param_name: param_value,
-                    "tritium_transport_absolute_tolerance": tt_atol, # to avoid solver issues during the scan
+                    "tritium_transport_absolute_tolerance": new_tt_atol, # to avoid solver issues during the scan
                 }
             )
         except Exception as e:
@@ -304,7 +324,7 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser(description='Run FESTIM model SCAN with a default YAML configuration')
 
     parser.add_argument('--config', '-c',
-                       default='config.uq.yaml',
+                       default='config/config.uq.yaml',
                        help='Path to YAML configuration file (default: config.uq.yaml)'
                        )
 
@@ -328,6 +348,11 @@ if __name__ == "__main__":
                        help='Scale to apply to the varying parameter'
                        )
     
+    parser.add_argument('--steps', '-l',
+                       default=1,
+                       help='Steps to make in each direction of the scale, in basic untis of the scale(log: x10, linear: +/-10%)'
+                       )
+    
     args = parser.parse_args()
 
     # Load the configuration from the specified file
@@ -345,15 +370,18 @@ if __name__ == "__main__":
     # Get the scale for the varying parameter
     scale = args.scale
 
+    # Get the steps to make in scale, ot level of variation
+    level_variation = int(args.steps)
+
     if config:
 
         if scan_type == "single":
             # Perform parameter scan
-            parameter_scan(config, param_name=param_name, level_variation=3, target_dir=target_dir, scale=scale)
+            parameter_scan(config, param_name=param_name, level_variation=level_variation, target_dir=target_dir, scale=scale)
 
         elif scan_type == "uq":
             # Perform UQ campaign scan
-            param_scan_sensitivity_analysis(config, param_name='length', level_variation=3)
+            param_scan_sensitivity_analysis(config, param_name=param_name, level_variation=level_variation)
         else:
             print(f"Unknown scan type: {scan_type}. Please use 'single' or 'uq'.")
 
