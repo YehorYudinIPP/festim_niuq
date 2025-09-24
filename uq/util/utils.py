@@ -186,27 +186,58 @@ def compute_absolute_tolerance(default_atol, orig_params, new_params):
     """
     The sensitivities are derived from physical considerations and dimensional analysis of the tritium transport problem.
     The sensitivity A_i for parameter x_i (out of N input parameters) indicates how much the absolute tolerance should change in response to a change in that parameter.
-    The change by the following rule: atol_new = atol_orig * 10**( SUM_{i=1}^{N} (A_i * log10(x_i_new/x_i_orig)) ))
+    The change is by the following (log) rule: atol_new = atol_orig * 10**( SUM_{i=1}^{N} (A_i * log10(x_i_new/x_i_orig)) ))
+    Temparature and other parameters (...) enter the model exponentailly.
+    The cahnge is by the following (exp) rule: atol_new = atol_orig * 10**( SUM_{i=1}^{N} (A_i * x_i_new/x_i_orig) ))
     """
     log_sensitivities = {
-        "length": 2.0,
+        "length": 1.0, #2.0,
         "G": 1.0,
         "right_bc_concentration_value": 0.5,
-        "T": 6.0, # special rule has to be applied, i.e. 10**(6.0 * T_new/T_orig)
+    }
+
+    exp_sensitivities = {
+        "T": -6.0, # special rule has to be applied, i.e. 10**(6.0 * T_new/T_orig)
+        "T_in": 0.0, #-1.5,
     }
 
     # Compute the exponential factor based on parameter changes
     multiplier = 1.0
-    exp_factor = 1.0
+    # exp_factor = 1.0
 
     for key in new_params:
         if key in orig_params:
-            log_ratio = np.log10(abs(new_params[key] / orig_params[key])) if orig_params[key] != 0 else 0
-            sensitivity = log_sensitivities.get(key, 1.0)  # Default sensitivity is 1.0 if not specified
-            exp_factor += sensitivity * log_ratio
+            if key in log_sensitivities:
+                log_ratio = np.log10(abs(new_params[key] / orig_params[key])) if orig_params[key] != 0 else 0
+                print(f" >>>> Computing tolerance for {key}: log_ratio={log_ratio}")
+                
+                log_sensitivity = log_sensitivities.get(key, 1.0)  # Default sensitivity is 1.0 if not specified
+                print(f" >>>> Computing tolerance for {key}: log_sensitivity={log_sensitivity}")
+                
+                exp_factor = log_sensitivity * log_ratio
+                print(f" >>>> Computing tolerance for {key}: exp_factor={exp_factor}")
+
+            elif key in exp_sensitivities:
+                frac_ratio = abs(new_params[key] / orig_params[key])
+                print(f" >>>> Computing tolerance for {key}: frac_ratio={frac_ratio}")
+
+                exp_sensitivity = exp_sensitivities.get(key, 1.0)  # Default sensitivity is 1.0 if not specified
+                print(f" >>>> Computing tolerance for {key}: exp_sensitivity={exp_sensitivity}")
+                
+                exp_factor = exp_sensitivity * frac_ratio
+                print(f" >>>> Computing tolerance for {key}: exp_factor={exp_factor:.3E}")
+            
+            else:
+                raise NotImplemented(f"The tolerance sensitivity rule for {key} is not implemented!")
+
             # This is done not as a sum first because different rules can be applied to different parameters
             multiplier *= 10 ** exp_factor
+            print(f" >>>> Computing tolerance for {key}: new multiplier={multiplier}")
         else:
             print(f"Warning: Parameter {key} not found in original parameters, skipping.")
 
-    return float(default_atol * multiplier)
+    new_atol = float(default_atol * multiplier)
+    print(f" >>>> Computing tolerance: multiplier={multiplier:.3E}")
+    print(f" >>>  Computing tolerance: new_atol={new_atol:.3E}")
+
+    return new_atol
