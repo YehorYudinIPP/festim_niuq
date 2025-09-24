@@ -221,7 +221,11 @@ class Diagnostics:
         fig, ax = plt.subplots(figsize=(10, 6))
 
         # Plot the quantity of interest over time
-        ax.plot(times, qoi_values, label=qoi_name)
+        ax.plot(
+                times, 
+                qoi_values, 
+                label=qoi_name,
+                )
 
         # Set plot labels and title
         ax.set_xlabel('Time [s]')
@@ -232,7 +236,8 @@ class Diagnostics:
         ax.legend(loc='best')
 
         # Save the plot to the result folder
-        fig.savefig(f"{self.result_folder}/results_{qoi_name}.png")
+        file_format = 'pdf'
+        fig.savefig(f"{self.result_folder}/results_{qoi_name}.{file_format}")
         plt.close('all')
 
     def _visualise_transient_1d_quantity(self, qoi_name, qoi_values):
@@ -283,7 +288,8 @@ class Diagnostics:
                     self.model.vertices[:], 
                     qoi_values[:, i], 
                     label=f"t={time} s", 
-                    #marker='o',
+                    marker='.',
+                    markersize=1.0,
                 )
 
             # n_el_print = 3
@@ -307,7 +313,8 @@ class Diagnostics:
             #plt.legend([f"t={time}" for time in self.milestone_times])
 
         #plt.show()
-        fig.savefig(f"{self.result_folder}/results_{qoi_name}.png")
+        file_format = "pdf"
+        fig.savefig(f"{self.result_folder}/results_{qoi_name}.{file_format}")
         plt.close('all')  # Close all figures after plotting
             
     def _visualise_steady_1d_quantity(self, qoi_name, qoi_values):
@@ -330,7 +337,7 @@ class Diagnostics:
             self.model.vertices[:], 
             qoi_values,
             label=f"{self.quantities_of_interest_descriptor[qoi_name]['name']} in Steady State", 
-            #marker='o'
+            marker='.',
             )
 
         # Set plot labels and title
@@ -346,7 +353,8 @@ class Diagnostics:
         ax.legend(loc='best')
 
         #plt.show()
-        fig.savefig(f"{self.result_folder}/results_{qoi_name}_steady.png")
+        file_format = 'pdf'
+        fig.savefig(f"{self.result_folder}/results_{qoi_name}_steady.{file_format}")
         plt.close('all')
 
     def visualise(self):
