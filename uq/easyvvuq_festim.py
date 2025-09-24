@@ -544,7 +544,7 @@ def analyse_uq_results(campaign, qois, sampler, uq_params=None):
 
     return results
 
-def perform_uq_festim(fixed_params=None):
+def perform_uq_festim(config=None, fixed_params=None):
     """
     Main function to perform the UQ campaign for FESTIM.
     This function orchestrates the preparation, execution, and analysis of the UQ campaign.
@@ -556,23 +556,29 @@ def perform_uq_festim(fixed_params=None):
     # Prepare the UQ campaign
     # This includes defining parameters, encoders, decoders, and actions
 
-    parser = argparse.ArgumentParser(description='Run FESTIM model with YAML configuration')
-    
-    parser.add_argument('--config', '-c', 
-                       default='config.yaml',
-                       help='Path to YAML configuration file (default: config.yaml)')
-    
-    args = parser.parse_args()
-    print(f"> Using arguments file: {args.config}")
+    # Check if config exsists
+    if config is None:
 
-    # Load configuration from YAML file
-    config = load_config(args.config)
+        print("No config file provided, reading from arguments")
+              
+        # Read the configuration file from the command line argument or use a default one
+        parser = argparse.ArgumentParser(description='Run FESTIM model with YAML configuration')
+        
+        parser.add_argument('--config', '-c', 
+                        default='config.yaml',
+                        help='Path to YAML configuration file (default: config.yaml)')
+        
+        args = parser.parse_args()
+        print(f"> Using arguments file: {args.config}")
+
+        # Load configuration from YAML file
+        config = load_config(args.config)
+
+        print(f" > Loaded configuration from: {args.config}")
+
     if config is None:
         print("No config file provided, quitting...")
         return
-    print(f" > Loaded configuration from: {args.config}")
-
-    # Read the configuration file from the command line argument or use a default one
     
     print(f" >> Passing parameters fixed to the campaign: {fixed_params}") ###DEBUG
 
