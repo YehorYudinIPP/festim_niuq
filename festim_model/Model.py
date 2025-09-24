@@ -1069,26 +1069,26 @@ class Model(BaseModel):
 
                         print(f" >>> Using quadratic refinement")  ###DEBUG
 
-                        if config_mesh.get("refinement", "").get("location", "") == "right":
+                        refined_location = config_mesh.get("refinement", "").get("location", "")
+                        print(f" >>> Refining mesh towards the {refined_location} end(s)")  ###DEBUG
 
-                            print(f" >>> Refining mesh towards the right end")  ###DEBUG
+                        if refined_location == "right":
 
                             x = np.linspace(0., 1., self.n_elements + 1)
                             vertices = self.domain_sizes[id] * (1 - (1 - x)**2 / (1 - x[0])**2)  # Quadratic refinement
 
-                        elif config_mesh.get("refinement", "").get("location", "") == "left":
-
-                            print(f" >>> Refining mesh towards the left end")  ###DEBUG
+                        elif refined_location== "left":
 
                             x = np.linspace(0., 1., self.n_elements + 1)
                             vertices = self.domain_sizes[id] * (x**2) / (x[-1]**2)  # Quadratic refinement
-                        elif config_mesh.get("refinement", "").get("location", "") == "both":
 
-                            print(f" >>> Refining mesh towards both ends")  ###DEBUG
+                        elif refined_location == "both":
+
 
                             x = np.linspace(0., 1., self.n_elements + 1)
                             vertices = self.domain_sizes[id] * (1 - (1 - x)**2 / (1 - x[0])**2)  # Quadratic refinement towards right
                             vertices = np.minimum(vertices, self.domain_sizes[id] * (x**2) / (x[-1]**2))  # Combine with refinement towards left 
+
                         else:
                             raise ValueError(f"Unknown refinement location: {config_mesh.get('locations', '')}")
 
@@ -1096,28 +1096,44 @@ class Model(BaseModel):
 
                         print(f" >>> Using local linear refinement for a particular region") ###DEBUG
 
+                        refined_location = config_mesh.get("refinement", "").get("location", "")
+
                         refined_fraction_domain = config_mesh.get("refinement", "").get("fraction_domain", 0.)
                         refined_fraction_elements = config_mesh.get("refinement", "").get("fraction_elements", 0.)
-                        refined_elements_count = int(self.n_elements * refined_fraction_elements)
+                        refined_elements_count = int(self.n_elements * float(refined_fraction_elements))
+                        
+                        print(f" > Putting {refined_elements_count} out of {self.n_elements} at {refined_fraction_domain*100}[%] of the mesh at {refined_location}.")
 
-                        if config_mesh.get("refinement", "").get("location", "") == "right":
+                        if  refined_location == "right":
                             
                             vertices = np.concatenate((
-                                np.linspace(0., self.domain_sizes[id] * (1. - refined_fraction_domain), self.n_elements - refined_elements_count + 1), # unrefined (larger inner) part of the mesh
+                                np.linspace(0., self.domain_sizes[id] * (1. - float(refined_fraction_domain)), self.n_elements - refined_elements_count + 1), # unrefined (larger inner) part of the mesh
                                 np.linspace(self.domain_sizes[id] * (1. - refined_fraction_domain), self.domain_sizes[id], refined_elements_count + 1)[1:] # refined (smaller outer) part of the mesh
                             ))
                             
-                        elif config_mesh.get("refinement", "").get("location", "") == "left":
+                        elif refined_location == "left":
                                                        
                             vertices = np.concatenate((
-                                np.linspace(0., self.domain_sizes[id] * refined_fraction_domain, refined_elements_count + 1), # refined (smaller inner) part of the mesh
+                                np.linspace(0., self.domain_sizes[id] * float(refined_fraction_domain), refined_elements_count + 1), # refined (smaller inner) part of the mesh
                                 np.linspace(self.domain_sizes[id] * refined_fraction_domain, self.domain_sizes[id], self.n_elements - refined_elements_count)[1:] # unrefined (larger outer) part of the mesh
                             ))
                                                        
                         else:
                             raise ValueError(f"Unknown refinement location: {config_mesh.get('locations', '')}")
+                    
+                        print(f" > Finishing linar mesh refinement at {refined_location} boundary")
+
                     else:
                         raise ValueError(f"Unknown refinement rule: {config_mesh.get('refinement', '').get('rule', '')}")
+                
+                    # Check the minimal and maximal element size h
+                    h_array = vertices[1:] - vertices[:-1]
+                    h_min = h_array.min()
+                    ind_h_min = h_array.argmin()
+                    h_max = h_array.max()
+                    ind_h_max = h_array.argmax()
+                    print(f" > For the refined mesh, the smallest h_min={h_min} at ind_h_min={ind_h_min}, and the largest h_max={h_max} at ind_h_max={ind_h_max}")
+
                 else:
                     raise ValueError(f"Unknown mesh type: {self.mesh_type}")
 
