@@ -15,6 +15,8 @@ import matplotlib.pyplot as plt
 
 import festim as F
 
+from dolfinx import io
+
 class Diagnostics:
 
     def __init__(self, model, results=None, result_folder=None, derived_quantities_flag=True):
@@ -147,6 +149,31 @@ class Diagnostics:
         }
 
         #TODO: put all the descriptors like naming mapping here
+
+    def read_vtx():
+        """
+        Read FESTIM simulation results from VTX files
+        TODO: Make output in format : {qoi_name: dataframe(times x coordinates)}
+        
+        Returns:
+            dictionary with the array results
+        """
+
+
+        results = {}
+
+        with io.VTXReader() as f:
+            data = f.read()
+
+        qoi_names = []
+
+        for qoi_name in qoi_names:
+
+            data = pd.DataFrame()
+
+            results[qoi_name] = data
+
+        return results
 
     def compute_qoi(self, qoi_name):
         """
