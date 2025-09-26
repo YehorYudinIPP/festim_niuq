@@ -90,6 +90,7 @@ def main():
 
     # n_elem_print = 3
     # print(f">>> festim_model_run: Printing last {n_elem_print} elements of the results for last time of {model.milestone_times[-1]}: {results[-n_elem_print:, -1]}")  # Print last n elements of the results for the last time step ###DEBUG
+    print(f" >> Model run completed, resutls:\n{results}") ###DEBUG
 
     # Save results to a file (for EasyVVUQ integration)
     save_results_for_uq(results, model)

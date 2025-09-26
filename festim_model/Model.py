@@ -16,8 +16,12 @@ import dolfinx
 ##### Class definitions #####
 
 class ProfileExport(F.VolumeQuantity):
+    """
+    A class for (bespoke) export of profiles of quantities in the material
+    """
 
     def compute(self):
+        "Extract the last sapshot of the concentration (solution) of Hydrogen (Tritium) profile computed by the model"
         profile = self.field.solution.x.array[:].copy()
 
         self.data.append(profile)
