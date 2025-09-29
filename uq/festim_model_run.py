@@ -99,7 +99,14 @@ def main():
     # Visualise results
     # TODO make into a separate script such that if this fails, the model results are saved and run passes
     # TODO single out run and post-process scripts and run a single BASH script 
-    diagnostics = Diagnostics(model, results=results, result_folder=model.result_folder, derived_quantities_flag=False)
+
+    # Option 1 - pass data from model to the diagnostics
+    # diagnostics = Diagnostics(model=model, results=results, result_folder=model.result_folder, derived_quantities_flag=False)
+
+    # Option 2 - read all the required information from results files
+    qoi_names = ['tritium_concentration']
+    diagnostics = Diagnostics(result_folder=config['simulation']['output_directory'], qoi_names=qoi_names, derived_quantities_flag=False, result_format='bp')
+
     diagnostics.visualise()
     
     print("FESTIM simulation completed successfully!")
