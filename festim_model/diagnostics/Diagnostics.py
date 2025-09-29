@@ -16,10 +16,11 @@ import matplotlib.pyplot as plt
 import festim as F
 
 from dolfinx import io
+from adios2 import Stream
 
 class Diagnostics:
 
-    def __init__(self, model, results=None, result_folder=None, derived_quantities_flag=True):
+    def __init__(self, model=None, results=None, qoi_names=None, result_folder=None, derived_quantities_flag=True, result_format='txt'):
         """
         Initialize Diagnostics with FESTIM results.
         
@@ -38,22 +39,49 @@ class Diagnostics:
 
             #print(f">>> Diagnostics.model.quantities_of_interest: {self.model.quantities_of_interest}")  ###DEBUG print available quantities of interest
 
+            if model is not None:
+                qoi_dict = self.model.quantities_of_interest
+            else:
+                # raise NotImplemented("Diagnostics: reading results without (1) passed result obejct and (2) passed model object is not implemented!")
+                qoi_dict = {qoi_name:None for qoi_name in qoi_names}
+
             # Read results for each quantity of interest
-            for qoi,_ in self.model.quantities_of_interest.items():
+            for qoi,_ in qoi_dict.items():
                 # Read results from the file if available
                 print(f"Reading results for {qoi} from {self.result_folder}")
 
                 # This path assumes you results folder should have a "results_[qoi_name].txt" file for every QoI of the output
-                result_file = os.path.join(self.result_folder, f'results_{qoi}.txt')
+
+                if result_format == 'txt':
+                    result_file = os.path.join(self.result_folder, f'results_{qoi}.{result_format}')
+                elif result_format == 'bp':
+                    result_file = os.path.join(self.result_folder, f'{qoi}.{result_format}')
+                else:
+                    raise NotImplemented(f"Reading {result_format} file is not supported!")
 
                 # Check if the result file exists
                 if os.path.exists(result_file):
-                    self.results[qoi] = np.genfromtxt(result_file, skip_header=True, delimiter=',')
+                    print(f" > Result file {result_file} fround!")
+
+                    if result_format == 'txt':
+                        print(f" >> Reading a {result_format} file")
+                        # Read result from a TXT file (CSV format)
+                        self.results[qoi] = np.genfromtxt(result_file, skip_header=True, delimiter=',')
+                        # Separately, get a mesh/vertice data 
+                        self.mesh[qoi] = self.results[qoi][:, 0]  # Assuming the first column is the mesh coordinates
+                        # Leave everything else as the qoi data
+                        self.results[qoi] = self.results[qoi][:, 1:]  # Keep only the results data (excluding mesh coordinates)
+                    elif result_format == 'bp':
+                        print(f" >> Reading a {result_format} file")
+                        # Read resuls from BP files (VTX format from ADIOS)
+                        self.results[qoi], self.mesh[qoi] = self.read_vtx(result_file)
+                    else:
+                        raise NotImplemented(f"Diagnostics: reading results - {result_format} is not supported!")
+
                     print(f"Results for {qoi} loaded from {result_file}")
 
                     # TODO (1) read using pandas (2) keep only the last column of the results, which is the time series
-                    self.mesh[qoi] = self.results[qoi][:, 0]  # Assuming the first column is the mesh coordinates
-                    self.results[qoi] = self.results[qoi][:, 1:]  # Keep only the results data (excluding mesh coordinates)
+
         else:
             #print(f"Warning: No results for {qoi} file found in {self.result_folder}. Please run the simulation first.")
             #self.results[qoi] = None
@@ -110,14 +138,18 @@ class Diagnostics:
         # else:
         #     self.result_flag = False
 
+        # Make a list of milestone/checkpoint times
+        self.milestone_times = []
         # Read the milestone times from the configuration
-        self.milestone_times = self.model.config.get('simulation', {}).get('milestone_times', [])
+        if model is not None:
+            self.milestone_times = self.model.config.get('simulation', {}).get('milestone_times', [])
         if not self.milestone_times:
             print("Warning: No milestone times found in configuration. Using default values.")
             self.milestone_times = [1., 2., 3., 4., 5.]  # Default values for milestone times
+            # TODO read milestones from input files
         # Option 2) for milestone times: read from result file if available
         if self.milestone_times is None and self.results is not None and self.results.shape[1] > 1:
-            # they are in the header of the results file 
+            # They are in the header of the results file 
             self.milestone_times = np.genfromtxt(result_file, max_rows=1, delimiter=',')[1:].tolist()
 
         # n_elem_print = 3
@@ -125,6 +157,23 @@ class Diagnostics:
 
         # ATTENTION: this is a workaround; TODO: make work for both reading from file and from object
         self.milestone_times = ['final']
+
+        # # Make an object for mesh for the diagnostics
+        # # 1D case
+        # self.mesh = None
+        # if model is not None:
+        #     # Read the mesh from the model object
+        #     self.mesh = self.model.vertices[:]
+        # else:
+        #     # TODO Read the mesh from the result obejct
+        #     pass
+
+        # Define transient simulation
+        if model is not None:
+            self.transeint_flag = self.model.transient
+        else:   
+            # TODO make a better mechanist to define type of simulation from result files
+            self.transeint_flag = False
 
         # Define data structure (dict) to keep naming, units etc. for quantities of interest
         self.quantities_of_interest_descriptor = {
@@ -150,7 +199,7 @@ class Diagnostics:
 
         #TODO: put all the descriptors like naming mapping here
 
-    def read_vtx():
+    def read_vtx(filename, qoi_name="T_values"):
         """
         Read FESTIM simulation results from VTX files
         TODO: Make output in format : {qoi_name: dataframe(times x coordinates)}
@@ -159,21 +208,53 @@ class Diagnostics:
             dictionary with the array results
         """
 
+        # results = {}
 
-        results = {}
+        print(f" > Reading FESTIM results from a VTX file: {filename}")
 
-        with io.VTXReader() as f:
-            data = f.read()
+        with Stream(filename, 'r') as f:
+            # Steps comes from the stream
+            for i_step, step in enumerate(f.steps()):
 
-        qoi_names = []
+                # Read general data and create data structures on the zero-th step
+                if f.current_step() == 0:
+                    # Read the mesh data
+                    mesh = f.read('Points')
 
-        for qoi_name in qoi_names:
+                    print(f" >> Read VTX mesh points: {mesh}") ###DEBUG
 
-            data = pd.DataFrame()
+                # Read general data and create data structures on the first step
+                if f.current_step() == 1:
+                    # read the time points data
+                    time_first = f.read('T_time')
+                    n_timesteps = len(time_first)    
 
-            results[qoi_name] = data
+                    print(f" >> Read VTX timesteps Nu: {n_timesteps}") ###DEBUG
 
-        return results
+                    # read the qoi data
+                    data_first = f.read(qoi_name)
+                    n_points = len(data_first)
+
+                    print(f" >> Read VTX vertex Nu: {n_points}") ###DEBUG
+
+                    data_total = np.zeros((n_points, n_timesteps))
+
+                # Read the data on QoI from this step
+                data = f.read(qoi_name)
+                data_total[:, i_step] = data
+
+        # qoi_names = [qoi_name]
+
+        # TODO probably read all qoi-s in the file within a single function call
+        # for qoi_name in qoi_names:
+
+        results = pd.DataFrame(data_total)
+
+        # results[qoi_name] = data
+
+        print(f" > Finished readin VTX results: {results}")
+
+        return results, mesh
 
     def compute_qoi(self, qoi_name):
         """
@@ -312,7 +393,8 @@ class Diagnostics:
                     raise ValueError(f"Plot function '{plot_func_name}' is not supported. Use 'plot' or 'semilogy'.")
 
                 plot_func(
-                    self.model.vertices[:], 
+                    #self.model.vertices[:], 
+                    self.mesh[qoi_name],
                     qoi_values[:, i], 
                     label=f"t={time} s", 
                     marker='.',
@@ -361,7 +443,8 @@ class Diagnostics:
 
         # Plot the steady-state results
         ax.plot(
-            self.model.vertices[:], 
+            # self.model.vertices[:], 
+            self.mesh[qoi_name],
             qoi_values,
             label=f"{self.quantities_of_interest_descriptor[qoi_name]['name']} in Steady State", 
             marker='.',
@@ -408,7 +491,7 @@ class Diagnostics:
             # from fenics import plot
             # plot(model.T.T, title="Temperature Distribution", mode='color', interactive=True)
 
-            if self.model.transient:
+            if self.transeint_flag:
                 print("Transient simulation detected, plotting results over time.")
 
                 # Iterate over each quantity of interest in the results dictionary and plot
