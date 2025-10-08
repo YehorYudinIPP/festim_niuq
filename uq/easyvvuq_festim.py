@@ -1,7 +1,7 @@
 import argparse
 import os
 import sys
-import subprocess
+# import subprocess
 from datetime import datetime
 import numpy as np
 
@@ -27,16 +27,17 @@ from easyvvuq.actions import QCGPJPool, EasyVVUQBasicTemplate, EasyVVUQParallelT
 
 # local imports
 from util.utils import load_config, add_timestamp_to_filename, get_festim_python, validate_execution_setup
-from util.plotting import plot_unc_vs_r, plot_unc_qoi, plot_stats_vs_r, plot_unc_vs_t, plot_sobols_vs_t, plot_stats_vs_t
+from util.plotting import UQPlotter
+#from util.plotting import plot_unc_vs_r, plot_unc_qoi, plot_stats_vs_r, plot_unc_vs_t, plot_sobols_vs_t, plot_stats_vs_t
 
 
 def visualisation_of_results(results, distributions, qois, plot_folder_name, plot_timestamp, runs_info=None):
     """
-    Visualize the results of the EasyVVUQ campaign.
-    This function is a placeholder for future visualization methods.
+    Visualise the results of the EasyVVUQ campaign.
+    This function is a placeholder for future visualisation methods.
     """
 
-    print("Visualizing results...")
+    print("Visualising results...")
     # Plot the results: error bar for each QoI + other plots
 
     # Create a common timestamp for all plots from this run, if none
@@ -60,10 +61,19 @@ def visualisation_of_results(results, distributions, qois, plot_folder_name, plo
     # TODO mesh can be individual for each QoI, potentially each simulation, so read it from the results
 
     # Read runs from database to a list
-    runs_info = list(runs_info) if runs_info is not None else None
+    if runs_info is not None:
+        print(f"Type of runs_info: {type(runs_info)}")
+        if isinstance(runs_info, str):
+            print(f"Loading runs info from an EasyVVUQ campaign under path: {runs_info}")
+            campaign = uq.Campaign(dp_path=runs_info)
+            runs_info = list(campaign.campaign_db.runs())
+        else:
+            print(f"Using provided runs info: {runs_info}")
+            runs_info = list(runs_info)
 
     # Plotting statistics of the results as a function of radius (spatial coordinates)
-    plot_stats_vs_r(results, qois[1:], plot_folder_name, plot_timestamp, rs=rs, runs_info=runs_info)
+    uqplotter = UQPlotter()
+    uqplotter.plot_stats_vs_r(results, qois[1:], plot_folder_name, plot_timestamp, rs=rs, runs_info=runs_info)
 
     # # Bespoke plotting of uncertainty and Sobol indices in QoI as a function of TIME - not for steady state simulations
     # plot_stats_vs_t(results, distributions, qois[1:], plot_folder_name, plot_timestamp, rs=rs)
@@ -273,7 +283,7 @@ def prepare_execution_command():
     
     return execute
 
-def prepare_uq_campaign(config, fixed_params=None, uq_params=None):
+def prepare_uq_campaign(config, config_file, fixed_params=None, uq_params=None):
     """
     Prepare the uncertainty quantification (UQ) campaign by creating necessary steps: set-up, parameter definitions, encoders, decoders, and actions.
     """
@@ -303,7 +313,7 @@ def prepare_uq_campaign(config, fixed_params=None, uq_params=None):
 
     # Option 2): Advanced YAML Encoder
     encoder = AdvancedYAMLEncoder(
-        template_fname="festim_yaml.template",
+        template_fname=config_file,
         target_filename="config.yaml",
         parameter_map={ # TODO: store the YAML schema as a separate file; ideally, read from an existing YAML config file
             # ATTENTION: for lists, pattern will always choose the first element, e.g. for materials, domains
@@ -589,7 +599,7 @@ def perform_uq_festim(config=None, fixed_params=None):
         'n_samples': 8,   # for QMC
     }
 
-    campaign, qois, distributions, campaign_timestamp, sampler = prepare_uq_campaign(config, fixed_params=fixed_params, uq_params=uq_params)
+    campaign, qois, distributions, campaign_timestamp, sampler = prepare_uq_campaign(config, config_file=args.config, fixed_params=fixed_params, uq_params=uq_params)
 
     # TODO: add more parameter for Arrhenious law (+)
     # TODO: try higher BC concentration values - does it even make sense to have such low BC (+)
