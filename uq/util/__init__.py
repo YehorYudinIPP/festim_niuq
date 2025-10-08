@@ -12,6 +12,7 @@ from .utils import load_config, add_timestamp_to_filename, get_festim_python, va
 __all__ = [
     'YAMLEncoder', 
     'AdvancedYAMLEncoder',
+    'UQPlotter',
     'load_config',
     'add_timestamp_to_filename',
     'get_festim_python', 
