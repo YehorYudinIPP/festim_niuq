@@ -135,20 +135,23 @@ class AdvancedYAMLEncoder(YAMLEncoder):
         
         # Update configuration with parameters
         for param_name, param_value in params.items():
+            print(f" >> Encoding parameter '{param_name}' with value '{param_value}'") ###DEBUG
             # Apply type conversion if specified
             if param_name in self.type_conversions:
                 param_value = self.type_conversions[param_name](param_value)
             
             # Use parameter mapping if available
             if param_name in self.parameter_map:
+                print(f" >> Using parameter map for '{param_name}'") ###DEBUG
                 yaml_path = self.parameter_map[param_name]
                 self._set_nested_value(config, yaml_path, param_value)
             else:
+                print(f" >> No parameter map for '{param_name}', searching recursively") ###DEBUG
                 # Try to find the parameter in the config structure
                 self._update_config_recursive(config, param_name, param_value)
         
         # Update fixed parameters for every run
-        # print(f" >> Updating fixed parameters in the configuration: {self.fixed_parameters}") ###DEUBUG
+        # print(f" >> Updating fixed parameters in the configuration: {self.fixed_parameters}") ###DEBUG
         if self.fixed_parameters:
             self._update_fixed_parameters(config)
 
