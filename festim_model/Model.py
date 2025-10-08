@@ -1614,13 +1614,15 @@ class Model(BaseModel):
                     if not hasattr(problem['festim_problem'], 'exports') or problem['festim_problem'].exports is None:
                         problem['festim_problem'].exports = []
 
-                    problem['festim_problem'].exports.append(
-                        F.VTXTemperatureExport(
-                            filename=f"{self.result_folder}/temperature.vtx",
-                            #times=self.milestone_times,
-                            #checkpoint=self.transient,
-                        )
-                    )
+                    # ATTENTION: disabled, as it takes too much disk space and time in a UQ run
+                    # Export the temperature field in VTX format
+                    # problem['festim_problem'].exports.append(
+                    #     F.VTXTemperatureExport(
+                    #         filename=f"{self.result_folder}/temperature.vtx",
+                    #         #times=self.milestone_times,
+                    #         #checkpoint=self.transient,
+                    #     )
+                    # )
 
                     # # Specify bespoke export for 1D profiles, for temperature
                     # problem['festim_problem'].exports.append(

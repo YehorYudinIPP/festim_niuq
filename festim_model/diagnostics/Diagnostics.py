@@ -153,8 +153,8 @@ class Diagnostics:
             # self.milestone_times = self.times
 
             # Option C - every N-th of the read output times
-            n_plot_frequency = 5
-            self.milestone_times = self.times[::n_plot_frequency]
+            n_plot_frequency = 20
+            self.milestone_times = self.times[0:-1:n_plot_frequency]
             
             # TODO read milestones from input files
 
@@ -446,7 +446,7 @@ class Diagnostics:
             #plt.legend([f"t={time}" for time in self.milestone_times])
 
         #plt.show()
-        file_format = "pdf"
+        file_format = 'png'
         fig.savefig(f"{self.result_folder}/results_{qoi_name}.{file_format}")
         plt.close('all')  # Close all figures after plotting
             
@@ -487,7 +487,7 @@ class Diagnostics:
         ax.legend(loc='best')
 
         #plt.show()
-        file_format = 'pdf'
+        file_format = 'png'
         fig.savefig(f"{self.result_folder}/results_{qoi_name}_steady.{file_format}")
         plt.close('all')
 
