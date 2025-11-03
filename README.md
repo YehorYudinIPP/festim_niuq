@@ -15,12 +15,19 @@ The usage requires the following non-standard packages:
 
 To run the scripts you will need to create the respective virtual enviroments.
 
-... a single one with all the dependencies and run all the script in it.
+It is recommended to create a single one with all the dependencies and run all the script in it.
 
-The easiset way is to create a conda environment with all the FESTIM depemdencies via:
+The easiset way is to create a conda environment:
 
 ```
 conda create -n festim-env
+```
+
+### Set-up
+
+To install FESTIM activate the environement and get the desired version of the code with all the dependencies:
+
+```
 conda activate festim-env
 conda install -c conda-forge festim=2.0.a8
 ```
@@ -29,16 +36,6 @@ After that one should install EasyVVUQ via pip:
 
 ```
 pip3 install easyvvuq
-```
-
-### Set-up
-
-To install the prerequisites run:
-
-```
-pip3 install FESTIM==2.0.a8
-pip3 install easyvvuq
-
 ```
 
 Alternatively, you can install all dependencies in batch:
@@ -57,3 +54,9 @@ python3 easyvvuq_festim.py
 ```
 
 This should show moments of a selected QoI (tritium inventory) in the CLI output and generate plot for Sobol indices for the respective model parameters (diffusion coefficient $$D$$, generation rate $$G$$, concentration at boundary $$C(r=a)$$)
+
+For an arbitrary case, one should provide an input configuration file in the YAML format via '''--config''' flag:
+
+```
+python3 easyvvuq_festim.py --config congig.uq.yaml
+```
