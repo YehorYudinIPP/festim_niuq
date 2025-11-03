@@ -15,18 +15,20 @@ The usage requires the following non-standard packages:
 
 To run the scripts you will need to create the respective virtual enviroments.
 
-The easiest way is to create a single one with all the dependencies and run all the script in it.
+... a single one with all the dependencies and run all the script in it.
 
-To make one, run:
-
-```
-python3 -m venv festim_niuq
-```
-
-And to activate it, run:
+The easiset way is to create a conda environment with all the FESTIM depemdencies via:
 
 ```
-source festim_niuq/bin/activate
+conda create -n festim-env
+conda activate festim-env
+conda install -c conda-forge festim=2.0.a8
+```
+
+After that one should install EasyVVUQ via pip:
+
+```
+pip3 install easyvvuq
 ```
 
 ### Set-up
@@ -34,7 +36,7 @@ source festim_niuq/bin/activate
 To install the prerequisites run:
 
 ```
-pip3 install FESTIM==1.4
+pip3 install FESTIM==2.0.a8
 pip3 install easyvvuq
 
 ```
