@@ -12,7 +12,7 @@ setup(
         "matplotlib", 
         "pyyaml",
         "easyvvuq",
-        "chaospy",
+        "chaospy>=4.3.13",
         "joblib"
     ],
     python_requires=">=3.7",

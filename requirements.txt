@@ -3,3 +3,4 @@ festim
 numpy
 matplotlib
 easyvvuq
+chaospy>=4.3.13
