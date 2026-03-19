@@ -11,7 +11,7 @@ setup(
         "numpy",
         "matplotlib", 
         "pyyaml",
-        "easyvvuq",
+        "easyvvuq>=1.3",
         "chaospy>=4.3.13",
         "joblib"
     ],
