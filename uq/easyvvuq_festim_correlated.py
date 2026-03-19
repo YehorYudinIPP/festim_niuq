@@ -26,7 +26,7 @@ from easyvvuq.actions import QCGPJPool
 
 # local imports
 from util.utils import add_timestamp_to_filename, get_festim_python, validate_execution_setup
-from util.plotting import plot_unc_vs_r, plot_unc_qoi, plot_stats_vs_r, plot_unc_vs_t, plot_sobols_vs_t, plot_stats_vs_t
+from util.plotting import UQPlotter
 
 
 def define_phys_conv_rate(results):
@@ -39,37 +39,60 @@ def define_phys_conv_rate(results):
 
 def visualisation_of_results(results, distributions, qois, plot_folder_name, plot_timestamp):
     """
-    Visualize the results of the EasyVVUQ campaign.
-    This function is a placeholder for future visualization methods.
+    Visualize the results of the correlated EasyVVUQ campaign.
+
+    Uses bespoke plotting functions tailored for FDAnalysis results,
+    which provide mean/std statistics and derivative-based sensitivity
+    indices rather than quantiles or Sobol indices.
+
+    Note on alternative correlated uncertainty propagation methods:
+        - Monte Carlo with Cholesky decomposition: Generate correlated samples
+          directly from the joint distribution and run full MC propagation.
+          Provides exact quantiles but is computationally expensive.
+        - Polynomial Chaos with Rosenblatt transform: Use cp.MvNormal with
+          PCESampler to get spectral convergence while handling correlations.
+          EasyVVUQ supports this via the Rosenblatt transform internally.
+        - Latin Hypercube Sampling (LHS) with Iman-Conover method: Efficient
+          stratified sampling that preserves rank correlations. Good for
+          moderate numbers of samples.
+        - Nataf transform: Maps correlated non-Gaussian inputs to independent
+          standard normal space. Useful when marginals are non-Gaussian.
+        - Copula-based methods: Model dependency structure separately from
+          marginal distributions. Flexible for complex dependencies.
+
+    Suggested future visualisation improvements:
+        - Scatter plots of correlated input samples to verify correlation structure.
+        - Correlation contribution decomposition: show independent vs correlated
+          variance contributions to each QoI.
+        - Tornado/waterfall charts for derivative-based sensitivity ranking.
+        - 2D contour plots of QoI response surfaces over correlated parameter pairs.
     """
 
     print("Visualizing results...")
-    # Plot the results: error bar for each QoI + other plots
 
     # Create a common timestamp for all plots from this run, if none
     if not plot_timestamp:
         plot_timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
 
     # Create a folder to save plots
-    # Assumes that by default there is no folder with plots, and creates a new one
     if not os.path.exists("plots_festim_uq_corr_" + plot_timestamp):
         plot_folder_name = "plots_festim_uq_corr_" + plot_timestamp
         os.makedirs(plot_folder_name)
-        # Save plots in this folder
 
     # Read the vertices from the results
     vertices = results.describe('x', 'mean')  # Assuming 'x' is the vertex coordinate in results
     if vertices is None:
         print("No vertices found in the results. Using a simple range for plotting.")
-        rs = np.linspace(0., 1., len(qois))  # Assuming a simple range for x-axis - false, qois is number of checkpoints + 1
+        if len(qois) > 1:
+            rs = np.linspace(0., 1., len(results.describe(qois[1], 'mean')))
+        else:
+            rs = np.linspace(0., 1., 10)
     else:
         rs = vertices
 
-    # Plotting statistics of the results as a function of radius (spatial coordinates)
-    plot_stats_vs_r(results, qois[1:], plot_folder_name, plot_timestamp, rs=rs)
-
-    # Bespoke plotting of uncertainty and Sobol indices in QoI as a function of TIME
-    plot_stats_vs_t(results, distributions, qois[1:], plot_folder_name, plot_timestamp, rs=rs)
+    # Use bespoke correlated plotting method that handles FDAnalysis results properly
+    uqplotter = UQPlotter()
+    uqplotter.plot_stats_correlated(results, distributions, qois[1:], plot_folder_name, plot_timestamp, rs=rs)
 
     print(f"Plots saved in folder: {plot_folder_name}")
     return 0
@@ -386,7 +409,10 @@ def run_uq_campaign(campaign, resource_pool=None):
 def analyse_uq_results(campaign, params, qois, sampler):
     """
     Perform analysis on the UQ results.
-    This function is a placeholder for future analysis methods.
+
+    Note: FDAnalysis computes mean, variance, std and derivative-based sensitivity
+    indices. Sobol indices and percentiles are NOT computed by FDAnalysis and will
+    be zero — use derivatives_first for sensitivity information instead.
     """
     # Perform FD analysis on the campaign results
     analysis = uq.analysis.FDAnalysis(sampler=sampler, qoi_cols=qois)
@@ -403,19 +429,19 @@ def analyse_uq_results(campaign, params, qois, sampler):
 
         print(f"Mean:", results.describe(qoi, 'mean'))
         print(f"Standard Deviation:", results.describe(qoi, 'std'))
-        print(f"10% quantile:", results.describe(qoi, '10%'))
-        print(f"90% quantile:", results.describe(qoi, '90%'))
-        #print(f"Covariance:", results.describe(qoi, 'covariance'))
-        #print(f"Correlation:", results.describe(qoi, 'correlation'))
+
+        # Note: FDAnalysis does not compute percentiles — they remain as zero arrays.
+        # Use mean +/- k*std for approximate confidence intervals instead.
 
         for param in params.keys():
             print(f"Parameter: {param}")
 
-            print(f"Sobol first indices: {results._get_sobols_first(qoi, param)}")
-            print(f"Sobol total indices: {results._get_sobols_total(qoi, param)}")
+            # Derivative-based sensitivity (the primary FD measure)
             print(f"Derivative first indices: {results._get_derivatives_first(qoi, param)}")
 
-        print(results.describe(qoi))
+            # Note: Sobol indices from FDAnalysis are zero — they are not computed
+            # by the finite-difference method. Use derivatives_first instead.
+
         print("\n")
 
     # Save the analysis results

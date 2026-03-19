@@ -550,6 +550,286 @@ class UQPlotter:
 
         return 0
 
+    def plot_derivatives_vs_r(self, r, derivatives_first, qoi_name_s, param_names, foldername="", filename_base=""):
+        """
+        Plot first-order derivative-based sensitivity indices as a function of radius.
+        This is the primary sensitivity measure from FDAnalysis (finite-difference approach).
+
+        Parameters:
+        - r: array of radius / 1D coordinate values
+        - derivatives_first: dictionary of derivative-based indices from FDAnalysis,
+          structured as {qoi: {param: array_of_values}}
+        - qoi_name_s: list of QoI names to plot
+        - param_names: list of uncertain parameter names
+        - foldername: folder to save the plot
+        - filename_base: base name of the file to save the plot
+        """
+
+        for qoi_name in qoi_name_s:
+
+            deriv_qoi = derivatives_first.get(qoi_name, None) if derivatives_first else None
+
+            if deriv_qoi is None:
+                print(f"Warning: No derivative data found for QoI '{qoi_name}'")
+                continue
+
+            fig, ax = plt.subplots(figsize=(8, 6))
+
+            for param_name in param_names:
+                deriv_values = deriv_qoi.get(param_name, None)
+                if deriv_values is not None:
+                    label = self.parameters_descriptor.get(param_name, {}).get('name', param_name)
+                    unit = self.parameters_descriptor.get(param_name, {}).get('unit', '')
+                    ax.plot(r, deriv_values, label=f"{label} [{unit}]")
+
+            ax.set_xlabel("Radius [m]")
+            ax.set_ylabel("Derivative-based sensitivity index")
+            qty_name = self.quantities_descriptor.get(self.quantity, {}).get('name', self.quantity)
+            ax.set_title(f"Derivative-based sensitivity vs Radius\n{qty_name} at {qoi_name}")
+            ax.legend(loc='best')
+            ax.grid(True)
+
+            fig.savefig(f"{foldername}/{filename_base}_{qoi_name}_derivatives.pdf")
+            plt.close()
+
+        return 0
+
+    def plot_derivatives_vs_t(self, r_value, t_s, deriv_s, param_names, foldername="", filename="", r_ind=0):
+        """
+        Plot derivative-based sensitivity indices as a function of time at a fixed radius.
+
+        Parameters:
+        - r_value: radius value for labeling
+        - t_s: list of time values
+        - deriv_s: list of lists, shape [n_params][n_timesteps], each entry is an array over r
+        - param_names: list of uncertain parameter names
+        - foldername: folder to save the plot
+        - filename: name of the file to save the plot
+        - r_ind: index of the radius to extract
+        """
+        fig, ax = plt.subplots(figsize=(8, 6))
+
+        for i, param_name in enumerate(param_names):
+            deriv_at_r = [d_timestep[r_ind] for d_timestep in deriv_s[i]]
+            label = self.parameters_descriptor.get(param_name, {}).get('name', param_name)
+            ax.plot(t_s, deriv_at_r, label=f"{label}")
+
+        ax.set_title(f"Derivative-based sensitivity vs time at r={r_value}")
+        ax.set_xlabel("Time [s]")
+        ax.set_ylabel("Derivative-based sensitivity index")
+        ax.legend(loc='best')
+        ax.grid(True)
+
+        fig.savefig(f"{foldername}/{filename}")
+        plt.close()
+
+        return 0
+
+    def plot_unc_correlated_vs_r(self, r, y, sy, qoi_name, foldername="", filename=""):
+        """
+        Plot uncertainty for correlated FD analysis results as a function of radius.
+        Uses mean +/- k*std Gaussian confidence intervals instead of quantiles,
+        since FDAnalysis does not compute sample-based percentiles.
+
+        Parameters:
+        - r: array of radius / 1D coordinate values
+        - y: array of mean values
+        - sy: array of standard deviation values
+        - qoi_name: name of the quantity of interest (QoI) for labeling
+        - foldername: folder to save the plot
+        - filename: name of the file to save the plot
+        """
+
+        plot_types = ['plot', 'semilogy']
+        n_plots = len(plot_types)
+
+        fig, axs = plt.subplots(1, n_plots, figsize=(n_plots * 8, 6))
+
+        for i, plot_func_name in enumerate(plot_types):
+
+            plot_func = getattr(axs[i], plot_func_name, None)
+            if plot_func is None:
+                raise ValueError(f"Plot function '{plot_func_name}' is not supported.")
+
+            # Plot mean
+            plot_func(r, y, label=f"Mean at {qoi_name}")
+
+            # Plot +/- 1 std as shaded area (approx. 68% CI for Gaussian)
+            axs[i].fill_between(r, y - sy, y + sy, alpha=0.3, label=r'$\pm 1\sigma$ (68% CI)')
+
+            # Plot +/- 2 std as lighter shaded area (approx. 95% CI for Gaussian)
+            axs[i].fill_between(r, y - 2 * sy, y + 2 * sy, alpha=0.1, label=r'$\pm 2\sigma$ (95% CI)')
+
+            qty_name = self.quantities_descriptor.get(self.quantity, {}).get('name', self.quantity)
+            qty_unit = self.quantities_descriptor.get(self.quantity, {}).get('unit', '')
+            axs[i].set_title(f"Uncertainty (correlated FD) at {qoi_name}\n'{plot_func_name}' scale")
+            axs[i].set_xlabel("Radius [m]")
+            ylabel = f"{qty_name} [${qty_unit}$]" if qty_unit else f"{qty_name}"
+            axs[i].set_ylabel(ylabel)
+            axs[i].legend(loc='best')
+            axs[i].grid(True)
+
+        fig.tight_layout()
+        fig.savefig(f"{foldername}/correlated_{filename}")
+        plt.close()
+
+        return 0
+
+    def plot_unc_correlated_vs_t(self, r_value, t_s, y_at_r, sy_at_r, foldername="", filename=""):
+        """
+        Plot uncertainty for correlated FD analysis results as a function of time at fixed radius.
+        Uses mean +/- k*std Gaussian confidence intervals.
+
+        Parameters:
+        - r_value: radius value for labeling
+        - t_s: list of time values
+        - y_at_r: list of mean values at fixed radius
+        - sy_at_r: list of std values at fixed radius
+        - foldername: folder to save the plot
+        - filename: name of the file to save the plot
+        """
+        fig, ax = plt.subplots(figsize=(8, 6))
+
+        y_arr = np.array(y_at_r)
+        sy_arr = np.array(sy_at_r)
+
+        ax.plot(t_s, y_arr, label=f'Mean at r={r_value}')
+        ax.fill_between(t_s, y_arr - sy_arr, y_arr + sy_arr, alpha=0.3, label=r'$\pm 1\sigma$ (68% CI)')
+        ax.fill_between(t_s, y_arr - 2 * sy_arr, y_arr + 2 * sy_arr, alpha=0.1, label=r'$\pm 2\sigma$ (95% CI)')
+
+        ax.set_title(f"Uncertainty (correlated FD) vs time at r={r_value}")
+        ax.set_xlabel("Time [s]")
+        qty_name = self.quantities_descriptor.get(self.quantity, {}).get('name', self.quantity)
+        qty_unit = self.quantities_descriptor.get(self.quantity, {}).get('unit', '')
+        ylabel = f"{qty_name} [${qty_unit}$]" if qty_unit else f"{qty_name}"
+        ax.set_ylabel(ylabel)
+        ax.legend(loc='best')
+        ax.grid(True)
+
+        fig.savefig(f"{foldername}/{filename}")
+        plt.close()
+
+        return 0
+
+    def plot_stats_correlated(self, results, distributions, qois, plot_folder_name, plot_timestamp, rs=None):
+        """
+        Plot statistics from a correlated FD (finite-difference) UQ analysis.
+
+        This is a bespoke plotting function for FDAnalysis results, which differ from
+        PCEAnalysis results in that:
+        - Percentiles (10%, 90%, etc.) are NOT computed by FDAnalysis — they are
+          left as zero arrays and should not be used for plotting.
+        - Sobol indices are NOT computed — they are zero arrays.
+        - The primary sensitivity measure is `derivatives_first`.
+        - Mean, variance, and std are properly computed from the simulation outputs.
+
+        This function plots:
+        1. Uncertainty bands (mean +/- k*std) vs radius for each QoI (spatial)
+        2. Uncertainty bands vs time at selected radii (temporal)
+        3. Derivative-based sensitivity indices vs radius (spatial sensitivity)
+        4. Derivative-based sensitivity indices vs time (temporal sensitivity)
+
+        Parameters:
+        - results: FDAnalysis results object from EasyVVUQ
+        - distributions: dictionary of uncertain parameter distributions
+        - qois: list of QoI names (time-step labels), excluding 'x'
+        - plot_folder_name: folder to save the plots
+        - plot_timestamp: timestamp to append to filenames
+        - rs: array of radius values (optional)
+
+        Note:
+            For future improvements, consider:
+            - Using Monte Carlo sampling from the joint distribution (cp.MvNormal)
+              to obtain proper quantiles via EasyVVUQ's QMCSampler.
+            - Implementing Latin Hypercube Sampling (LHS) with correlation via
+              Iman-Conover method for non-Gaussian marginals.
+            - Using Nataf transform for correlated non-Gaussian inputs.
+            - Applying Polynomial Chaos Expansion with Rosenblatt/Nataf transforms
+              to handle correlated inputs while preserving spectral convergence.
+            - Visualising correlation contribution using decomposed variance
+              (independent vs correlated contributions).
+        """
+
+        param_names = list(distributions.keys())
+        file_type = "pdf"
+
+        # ---- Part 1: Spatial plots (vs radius) for each QoI ----
+
+        for qoi in qois:
+            # Read properly computed statistics
+            y = results.describe(qoi, 'mean')
+            sy = results.describe(qoi, 'std')
+
+            # Generate filename
+            moments_filename = add_timestamp_to_filename(f"{qoi}_moments_vs_r.{file_type}", plot_timestamp)
+
+            # Bespoke uncertainty plot (mean +/- std bands)
+            self.plot_unc_correlated_vs_r(rs, y, sy, qoi_name=qoi,
+                                          foldername=plot_folder_name,
+                                          filename=moments_filename)
+
+            # EasyVVUQ built-in moments plot (uses mean and std only, safe for FDAnalysis)
+            results.plot_moments(
+                qoi=qoi,
+                ylabel=f"{self.quantities_descriptor.get(self.quantity, {}).get('name', self.quantity)} at {qoi}",
+                xlabel="Radius, #vertices",
+                xvalues=rs,
+                filename=f"{plot_folder_name}/{moments_filename}",
+            )
+
+            print(f" >>> Spatial plots saved for QoI: {qoi}")
+
+        # ---- Part 2: Derivative-based sensitivity (vs radius) ----
+
+        derivatives_first = results.derivatives_first()
+        self.plot_derivatives_vs_r(rs, derivatives_first, qois, param_names,
+                                   foldername=plot_folder_name,
+                                   filename_base=add_timestamp_to_filename("bespoke_sensitivity", plot_timestamp))
+
+        # ---- Part 3: Temporal plots (vs time) at selected radii ----
+
+        r_ind_selected = [0, -1]
+
+        # Collect time-resolved statistics
+        y_s = []
+        sy_s = []
+        r_s = []
+        t_s = []
+        deriv_s = [[] for _ in range(len(param_names))]
+
+        for qoi in qois:
+            t_s.append(float(qoi.split('=')[1].strip()[:-1]))
+            y_s.append(results.describe(qoi, 'mean'))
+            sy_s.append(results.describe(qoi, 'std'))
+            r_s.append(rs)
+
+            # Read derivative-based sensitivity for each parameter at this time step
+            for i, param_name in enumerate(param_names):
+                deriv_s[i].append(results.derivatives_first(qoi, param_name))
+
+        for r_ind in r_ind_selected:
+            moments_vst_filename = add_timestamp_to_filename(f"corr_moments_vs_t_at_{r_ind}.{file_type}", plot_timestamp)
+            derivs_vst_filename = add_timestamp_to_filename(f"corr_derivs_vs_t_at_{r_ind}.{file_type}", plot_timestamp)
+
+            y_at_r = [y_timestep[r_ind] for y_timestep in y_s]
+            sy_at_r = [sy_timestep[r_ind] for sy_timestep in sy_s]
+            r_at_r = [r_timestep[r_ind] for r_timestep in r_s]
+
+            # Uncertainty vs time
+            self.plot_unc_correlated_vs_t(r_at_r[0], t_s, y_at_r, sy_at_r,
+                                          foldername=plot_folder_name,
+                                          filename=moments_vst_filename)
+
+            # Derivative-based sensitivity vs time
+            self.plot_derivatives_vs_t(r_at_r[0], t_s, deriv_s, param_names,
+                                       foldername=plot_folder_name,
+                                       filename=derivs_vst_filename,
+                                       r_ind=r_ind)
+
+            print(f" >>> Temporal plots saved at r_ind={r_ind}")
+
+        return 0
+
     def plot_scan_results(self, scan_results, foldername, timestamp):
         """
         Plot results from parameter scan.
