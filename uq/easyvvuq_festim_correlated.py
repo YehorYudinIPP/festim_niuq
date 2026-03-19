@@ -1,7 +1,9 @@
+import argparse
 import os
 import sys
 
 import numpy as np
+import pickle
 
 from itertools import product
 
@@ -25,7 +27,7 @@ from easyvvuq.actions import Encode, Decode, ExecuteLocal, Actions, CreateRunDir
 from easyvvuq.actions import QCGPJPool
 
 # local imports
-from util.utils import add_timestamp_to_filename, get_festim_python, validate_execution_setup
+from util.utils import load_config, add_timestamp_to_filename, get_festim_python, validate_execution_setup
 from util.plotting import UQPlotter
 
 
@@ -97,7 +99,7 @@ def visualisation_of_results(results, distributions, qois, plot_folder_name, plo
     print(f"Plots saved in folder: {plot_folder_name}")
     return 0
 
-def define_parameter_uncertainty(sigma_norm=0.25, corr=0.1):
+def define_parameter_uncertainty(config, sigma_norm=0.25, corr=0.1):
     """Define uncertain parameters and their distributions for FESTIM model UQ.
 
     This function creates probability distributions for uncertain model parameters
@@ -105,6 +107,7 @@ def define_parameter_uncertainty(sigma_norm=0.25, corr=0.1):
     campaigns with EasyVVUQ.
 
     Args:
+        config (dict): Configuration dictionary loaded from YAML config file.
         sigma_norm (float, optional): Normalized standard deviation for normal 
             distributions. Must be in range [0, 1]. Defaults to 0.1. Can be reused for Uniform distributions.
             For Uniform distributions, the expansion factor is sqrt(3) to maintain the specified CoV.
@@ -120,7 +123,7 @@ def define_parameter_uncertainty(sigma_norm=0.25, corr=0.1):
         ValueError: If sigma_norm is outside the valid range [0, 1].
 
     Example:
-        >>> distributions = define_parameter_uncertainty(sigma_norm=0.2)
+        >>> distributions = define_parameter_uncertainty(config, sigma_norm=0.2)
         >>> print(len(distributions))
         2
 
@@ -140,19 +143,14 @@ def define_parameter_uncertainty(sigma_norm=0.25, corr=0.1):
     
     print(f"Defining uncertain parameters with CoV={sigma_norm}")
 
-    # Define default mean values for parameters
+    # Define default mean values for parameters from the YAML configuration file
+    material_num = config.get('geometry', None).get('domains', None)[0].get('material', None)
 
-    # Option 1) Use a parameters function and use default values as means
-    parameters = define_festim_model_parameters()  # Get the default parameters from the model definition
-    means = {key: value['default'] for key, value in parameters[0].items()}
-
-    # # Option 2) Manual specification inside function
-    # means = {
-    #     "T": 300.0,  # Mean temperature
-    #     "source_concentration_value": 1.0e18, #1.0e19, #,1.0e20,  # Mean source value
-    #     "left_bc_concentration_value": 1.0e15,  # Mean boundary condition value: better to keep right side as the domain boundary and left as centre
-    #     "right_bc_concentration_value": 1.0e17, #1.0e16, #1.0e15,  # Mean boundary condition value
-    # }
+    means = {
+        "D_0": config.get('materials', None)[material_num-1].get('D_0', None).get('mean', None),
+        "thermal_conductivity": config.get('materials', None)[material_num-1].get('thermal_conductivity', None).get('mean', None),
+    }
+    print(f" >>> Mean values for uncertain parameters: {means}") ###DEBUG
 
     # Define the distributions for uncertain parameters
 
@@ -292,7 +290,7 @@ def prepare_execution_command():
     
     return execute
 
-def prepare_uq_campaign(fixed_params=None):
+def prepare_uq_campaign(config, config_file, fixed_params=None):
     """
     Prepare the uncertainty quantification (UQ) campaign by creating necessary steps: set-up, parameter definitions, encoders, decoders, and actions.
     """
@@ -306,19 +304,24 @@ def prepare_uq_campaign(fixed_params=None):
     
     # Create an Encoder object - Advanced YAML Encoder
     encoder = AdvancedYAMLEncoder(
-        template_fname="festim_yaml.template",
+        template_fname=config_file,
         target_filename="config.yaml",
         parameter_map={
-            "D_0": "materials.D_0",
-            "E_D": "materials.E_D",
-            "T": "model_parameters.T_0",
-            "source_concentration_value": "source_terms.source_concentration_value",
-            "left_bc_value": "boundary_conditions.left_bc_value",
-            "right_bc_concentration_value": "boundary_conditions.right_bc_concentration_value",
-            "length": "geometry.length", 
+            "D_0": "materials.D_0.mean",
+            "thermal_conductivity": "materials.thermal_conductivity.mean",
+
+            # "E_D": "materials.E_D.mean",
+            # "T": "initial_conditions.temperature.value.mean",
+
+            # "source_concentration_value": "source_terms.concentration.source_value",
+            # "left_bc_concentration_value": "boundary_conditions.concentration.left.value",
+            # "right_bc_concentration_value": "boundary_conditions.concentration.right.value",
+
+            "length": "geometry.domains.length", 
         },
         type_conversions={
             "D_0": float,
+            "thermal_conductivity": float,
             "E_D": float,
             "T": float,
             "source_concentration_value": float,
@@ -368,7 +371,7 @@ def prepare_uq_campaign(fixed_params=None):
     )
 
     # Define uncertain parameters distributions
-    distributions, distributions_joint = define_parameter_uncertainty()
+    distributions, distributions_joint = define_parameter_uncertainty(config)
     print(f"Uncertain parameters distributions defined: {distributions}")
 
     # Define sampling method and create a sampler for the campaign - this sampler will generate samples based on the defined distributions
@@ -454,19 +457,45 @@ def analyse_uq_results(campaign, params, qois, sampler):
 
     return results
 
-def perform_uq_festim_correlated_params(fixed_params=None):
+def perform_uq_festim_correlated_params(config=None, fixed_params=None):
     """
-    Main function to perform the UQ campaign for FESTIM.
+    Main function to perform the UQ campaign for FESTIM with correlated parameters.
     This function orchestrates the preparation, execution, and analysis of the UQ campaign.
     """
     # EasyVVUQ script to be executed as a function
-    print("Starting FESTIM UQ campaign...")
+    print(" \n ! Starting FESTIM UQ campaign (correlated) !.. \n")
+    print(f" time: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}")
 
     # Prepare the UQ campaign
     # This includes defining parameters, encoders, decoders, and actions
-    
-    #print(f" >> Passing parameters to the campaign: {fixed_params}") ###DEBUG
-    campaign, qois, distributions, campaign_timestamp, sampler = prepare_uq_campaign(fixed_params=fixed_params)
+
+    # Check if config exists
+    if config is None:
+
+        print("No config file provided, reading from arguments")
+              
+        # Read the configuration file from the command line argument or use a default one
+        parser = argparse.ArgumentParser(description='Run FESTIM model with correlated UQ using YAML configuration')
+        
+        parser.add_argument('--config', '-c', 
+                        default='config.yaml',
+                        help='Path to YAML configuration file (default: config.yaml)')
+        
+        args = parser.parse_args()
+        print(f"> Using arguments file: {args.config}")
+
+        # Load configuration from YAML file
+        config = load_config(args.config)
+
+        print(f" > Loaded configuration from: {args.config}")
+
+    if config is None:
+        print("No config file provided, quitting...")
+        return
+
+    print(f" >> Passing parameters fixed to the campaign: {fixed_params}") ###DEBUG
+
+    campaign, qois, distributions, campaign_timestamp, sampler = prepare_uq_campaign(config, config_file=args.config, fixed_params=fixed_params)
 
     # TODO: add more parameter for Arrhenious law
     # TODO: try higher BC concentration values - does it even make sense to have such low BC (+)
@@ -480,6 +509,11 @@ def perform_uq_festim_correlated_params(fixed_params=None):
     results_filename = add_timestamp_to_filename("results.hdf5")
     campaign.campaign_db.dump()
 
+    # Save campaign configuration and parameters distributions to a Pickle file
+    config_filename = add_timestamp_to_filename("uq_campaign_config_corr.pickle")
+    pickle.dump(config, open(config_filename, "wb"))
+    print(f" >> Campaign configuration saved to: {config_filename}")
+
     # Perform the analysis
     results = analyse_uq_results(campaign, distributions, qois, sampler)
 
@@ -487,6 +521,7 @@ def perform_uq_festim_correlated_params(fixed_params=None):
     visualisation_of_results(results, distributions, qois, "plots_festim_uq_corr_" + campaign_timestamp, plot_timestamp=campaign_timestamp)
 
     print("FESTIM UQ campaign completed successfully!")
+    return 0
 
 
 if __name__ == "__main__":
@@ -495,7 +530,15 @@ if __name__ == "__main__":
     This will execute the UQ campaign when the script is run directly.
     """
     try:
-        perform_uq_festim_correlated_params()
+        # Simple case: run with default parameters
+        # perform_uq_festim_correlated_params()
+
+        # More complex case: run with fixed parameters
+        fixed_params = {
+            "length": 5.e-4,  # Length of the sample in meters
+        }
+        perform_uq_festim_correlated_params(fixed_params=fixed_params)
+
     except Exception as e:
         print(f"An error occurred during the UQ campaign: {e}")
         sys.exit(1)
