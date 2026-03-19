@@ -83,7 +83,10 @@ def visualisation_of_results(results, distributions, qois, plot_folder_name, plo
     vertices = results.describe('x', 'mean')  # Assuming 'x' is the vertex coordinate in results
     if vertices is None:
         print("No vertices found in the results. Using a simple range for plotting.")
-        rs = np.linspace(0., 1., len(results.describe(qois[1], 'mean')))
+        if len(qois) > 1:
+            rs = np.linspace(0., 1., len(results.describe(qois[1], 'mean')))
+        else:
+            rs = np.linspace(0., 1., 10)
     else:
         rs = vertices
 

@@ -699,7 +699,10 @@ class UQPlotter:
 
         ax.set_title(f"Uncertainty (correlated FD) vs time at r={r_value}")
         ax.set_xlabel("Time [s]")
-        ax.set_ylabel("Concentration [m$^{-3}$]")
+        qty_name = self.quantities_descriptor.get(self.quantity, {}).get('name', self.quantity)
+        qty_unit = self.quantities_descriptor.get(self.quantity, {}).get('unit', '')
+        ylabel = f"{qty_name} [${qty_unit}$]" if qty_unit else f"{qty_name}"
+        ax.set_ylabel(ylabel)
         ax.legend(loc='best')
         ax.grid(True)
 
