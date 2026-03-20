@@ -348,10 +348,27 @@ def prepare_execution_command():
     
     return execute
 
-def prepare_uq_campaign(config, config_file, fixed_params=None):
+def prepare_uq_campaign(config, config_file, fixed_params=None, uq_params=None):
     """
     Prepare the uncertainty quantification (UQ) campaign by creating necessary steps: set-up, parameter definitions, encoders, decoders, and actions.
+
+    Args:
+        config (dict): Configuration dictionary loaded from YAML config file.
+        config_file (str): Path to the YAML configuration file.
+        fixed_params (dict, optional): Dictionary of fixed parameters.
+        uq_params (dict, optional): UQ scheme parameters. Keys:
+            - 'uq_scheme' (str): 'fd' (finite difference) or 'pce' (polynomial chaos). Default: 'fd'.
+            - 'n_samples' (int): Number of samples. For 'pce', this is used as polynomial_order
+              if 'p_order' is not specified. For 'fd', sample count is fixed at 2*n_params+1.
+            - 'p_order' (int): Polynomial order for PCE (default: 2).
     """
+
+    if uq_params is None:
+        uq_params = {
+            'uq_scheme': 'fd',
+            'p_order': 2,
+            'n_samples': None,
+        }
 
     # Define the model input and output parameters
     parameters, qois = define_festim_model_parameters(config)
@@ -432,16 +449,36 @@ def prepare_uq_campaign(config, config_file, fixed_params=None):
     distributions, distributions_joint = define_parameter_uncertainty(config)
     print(f"Uncertain parameters distributions defined: {distributions}")
 
-    # Define sampling method and create a sampler for the campaign - this sampler will generate samples based on the defined distributions
+    # Define sampling method and create a sampler for the campaign
+    uq_scheme = uq_params.get('uq_scheme', 'fd')
 
-    # Here we use a Finite Difference (FD) surrogate sampler using the covariance matrix
-    #p_order = 2  # Polynomial order for the expansion
+    if uq_scheme == 'pce':
+        # PCE supports correlated distributions and computes proper Sobol indices
+        p_order = uq_params.get('p_order', 2)
+        # Allow n_samples to override p_order for convenience
+        if uq_params.get('n_samples') is not None and 'p_order' not in uq_params:
+            p_order = uq_params['n_samples']
 
-    sampler = uq.sampling.FDSampler(
-        vary=distributions,
-        distribution=distributions_joint,  # Use the joint distribution for sampling
-        relative_analysis=True,  # Use relative analysis for the sampler
-    )
+        print(f"Using PCE sampler with polynomial order {p_order}")
+        sampler = uq.sampling.PCESampler(
+            vary=distributions,
+            distribution=distributions_joint,
+            polynomial_order=p_order,
+        )
+    else:
+        # Default: Finite Difference sampler (fixed sample count = 2*n_params+1)
+        n_params = len(distributions)
+        fd_n_samples = 2 * n_params + 1
+        if uq_params.get('n_samples') is not None and uq_params['n_samples'] != fd_n_samples:
+            print(f"Note: FD scheme uses a fixed number of samples ({fd_n_samples}). "
+                  f"The --n-samples value ({uq_params['n_samples']}) is ignored. "
+                  f"Use --uq-scheme pce to control sample count via polynomial order.")
+
+        sampler = uq.sampling.FDSampler(
+            vary=distributions,
+            distribution=distributions_joint,
+            relative_analysis=True,
+        )
 
     campaign.set_sampler(sampler)
     print(f"Sampler prepared and set for the campaign: {sampler}")
@@ -467,18 +504,34 @@ def run_uq_campaign(campaign, resource_pool=None):
 
     return campaign, campaign_results
 
-def analyse_uq_results(campaign, params, qois, sampler):
+def analyse_uq_results(campaign, params, qois, sampler, uq_params=None):
     """
     Perform analysis on the UQ results.
+
+    Args:
+        campaign: EasyVVUQ campaign object.
+        params (dict): Dictionary of uncertain parameter distributions.
+        qois (list[str]): List of QoI column names.
+        sampler: The sampler used for the campaign.
+        uq_params (dict, optional): UQ scheme parameters. Keys:
+            - 'uq_scheme' (str): 'fd' or 'pce'. Default: 'fd'.
 
     Note: FDAnalysis computes mean, variance, std and derivative-based sensitivity
     indices. Sobol indices and percentiles are NOT computed by FDAnalysis and will
     be zero — use derivatives_first for sensitivity information instead.
+    PCEAnalysis computes proper Sobol indices (first-order and total), percentiles,
+    and full statistical moments.
     """
-    # Perform FD analysis on the campaign results
-    analysis = uq.analysis.FDAnalysis(sampler=sampler, qoi_cols=qois)
+    if uq_params is None:
+        uq_params = {'uq_scheme': 'fd'}
 
-    #TODO Better - get last analysis results from the campaign
+    uq_scheme = uq_params.get('uq_scheme', 'fd')
+
+    if uq_scheme == 'pce':
+        analysis = uq.analysis.PCEAnalysis(sampler=sampler, qoi_cols=qois)
+    else:
+        analysis = uq.analysis.FDAnalysis(sampler=sampler, qoi_cols=qois)
+
     campaign.apply_analysis(analysis)
 
     # Get the last analysis results
@@ -491,34 +544,37 @@ def analyse_uq_results(campaign, params, qois, sampler):
         print(f"Mean:", results.describe(qoi, 'mean'))
         print(f"Standard Deviation:", results.describe(qoi, 'std'))
 
-        # Note: FDAnalysis does not compute percentiles — they remain as zero arrays.
-        # Use mean +/- k*std for approximate confidence intervals instead.
-
-        for param in params.keys():
-            print(f"Parameter: {param}")
-
-            # Derivative-based sensitivity (the primary FD measure)
-            print(f"Derivative first indices: {results._get_derivatives_first(qoi, param)}")
-
-            # Note: Sobol indices from FDAnalysis are zero — they are not computed
-            # by the finite-difference method. Use derivatives_first instead.
+        if uq_scheme == 'pce':
+            # PCEAnalysis computes proper Sobol indices
+            for param in params.keys():
+                print(f"Parameter: {param}")
+                print(f"  Sobol first-order: {results._get_sobols_first(qoi, param)}")
+                print(f"  Sobol total: {results._get_sobols_total(qoi, param)}")
+        else:
+            # FDAnalysis: Sobol indices are zero; use derivatives_first instead
+            for param in params.keys():
+                print(f"Parameter: {param}")
+                print(f"  Derivative first indices: {results._get_derivatives_first(qoi, param)}")
 
         print("\n")
 
     # Save the analysis results
     analysis_filename = add_timestamp_to_filename("analysis_results.hdf5")
 
-    #print(f"Results saved to: {results_filename}")
-    # TODO: specify the results filename in the campaign or save it in a specific folder
-    # TODO: save the results of a campaign
-    # TODO: add config files and parameters distriubtions to the saved results
-
     return results
 
-def perform_uq_festim_correlated_params(config=None, fixed_params=None):
+def perform_uq_festim_correlated_params(config=None, fixed_params=None, uq_params=None):
     """
     Main function to perform the UQ campaign for FESTIM with correlated parameters.
     This function orchestrates the preparation, execution, and analysis of the UQ campaign.
+
+    Args:
+        config (dict, optional): Configuration dictionary. If None, reads from CLI args.
+        fixed_params (dict, optional): Dictionary of fixed parameters.
+        uq_params (dict, optional): UQ scheme parameters with keys:
+            - 'uq_scheme' (str): 'fd' or 'pce'. Default: 'fd'.
+            - 'n_samples' (int): Number of samples (for PCE, used as polynomial order).
+            - 'p_order' (int): Polynomial order for PCE (default: 2).
     """
     # EasyVVUQ script to be executed as a function
     print(" \n ! Starting FESTIM UQ campaign (correlated) !.. \n")
@@ -541,9 +597,38 @@ def perform_uq_festim_correlated_params(config=None, fixed_params=None):
                         default='config.yaml',
                         help='Path to YAML configuration file (default: config.yaml)')
 
+        parser.add_argument('--uq-scheme', '-s',
+                        default='fd',
+                        choices=['fd', 'pce'],
+                        help='UQ sampling scheme: fd (finite difference, fixed sample count) '
+                             'or pce (polynomial chaos expansion, configurable accuracy). '
+                             'Default: fd')
+
+        parser.add_argument('--n-samples', '-n',
+                        type=int, default=None,
+                        help='Number of samples. For PCE scheme, this overrides --p-order '
+                             'if --p-order is not explicitly set. For FD scheme, sample '
+                             'count is fixed at 2*n_params+1 and this value is ignored.')
+
+        parser.add_argument('--p-order', '-p',
+                        type=int, default=None,
+                        help='Polynomial order for PCE scheme (default: 2). '
+                             'Higher values increase accuracy but require more samples.')
+
         args = parser.parse_args()
         config_file_path = args.config
         print(f"> Using arguments file: {config_file_path}")
+
+        # Build uq_params from CLI arguments if not provided
+        if uq_params is None:
+            uq_params = {
+                'uq_scheme': args.uq_scheme,
+                'n_samples': args.n_samples,
+            }
+            if args.p_order is not None:
+                uq_params['p_order'] = args.p_order
+            elif args.uq_scheme == 'pce':
+                uq_params['p_order'] = 2  # default PCE polynomial order
 
         # Load configuration from YAML file
         config = load_config(config_file_path)
@@ -554,14 +639,19 @@ def perform_uq_festim_correlated_params(config=None, fixed_params=None):
         print("No config file provided, quitting...")
         return
 
+    # Set default uq_params if still None
+    if uq_params is None:
+        uq_params = {
+            'uq_scheme': 'fd',
+            'n_samples': None,
+            'p_order': 2,
+        }
+
+    print(f" >> UQ parameters: {uq_params}")
     print(f" >> Passing parameters fixed to the campaign: {fixed_params}") ###DEBUG
 
-    campaign, qois, distributions, campaign_timestamp, sampler = prepare_uq_campaign(config, config_file=config_file_path, fixed_params=fixed_params)
-
-    # TODO: add more parameter for Arrhenious law
-    # TODO: try higher BC concentration values - does it even make sense to have such low BC (+)
-    # TODO: run with higher polynomial degree (+: now 2)
-    # TODO: check if there are actually negative concentrations, if yes - check model and specify correct params ranges - work out expressions for quantiles for unfiorm distribution based on PCE(p=2)
+    campaign, qois, distributions, campaign_timestamp, sampler = prepare_uq_campaign(
+        config, config_file=config_file_path, fixed_params=fixed_params, uq_params=uq_params)
 
     # Run the campaign
     campaign, campaign_results = run_uq_campaign(campaign)
@@ -576,7 +666,7 @@ def perform_uq_festim_correlated_params(config=None, fixed_params=None):
     print(f" >> Campaign configuration saved to: {config_filename}")
 
     # Perform the analysis
-    results = analyse_uq_results(campaign, distributions, qois, sampler)
+    results = analyse_uq_results(campaign, distributions, qois, sampler, uq_params=uq_params)
 
     # Visualize the results
     visualisation_of_results(results, distributions, qois, "plots_festim_uq_corr_" + campaign_timestamp, plot_timestamp=campaign_timestamp)
