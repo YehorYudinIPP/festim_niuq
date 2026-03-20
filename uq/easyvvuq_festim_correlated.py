@@ -1,6 +1,7 @@
 import argparse
 import os
 import sys
+import logging
 
 import numpy as np
 import pickle
@@ -10,6 +11,8 @@ from itertools import product
 from datetime import datetime
 
 # consider import visualisation libraries optional
+import matplotlib
+matplotlib.use('Agg')  # Use non-interactive backend to avoid display connection issues
 import matplotlib.pyplot as plt
 
 # Add parent directory to path for custom encoder
@@ -38,6 +41,66 @@ def define_phys_conv_rate(results):
     """
     print(f"Convergence rate esttimate: not implemented yet!")
     return 0
+
+def save_statistics_log(results, qois, plot_folder_name, plot_timestamp):
+    """
+    Save a log file with all computed UQ statistics.
+
+    Args:
+        results: EasyVVUQ analysis results object.
+        qois (list[str]): List of QoI names (excluding 'x').
+        plot_folder_name (str): Folder to save the log file.
+        plot_timestamp (str): Timestamp for the log file name.
+    """
+    log_filename = os.path.join(plot_folder_name, f"uq_statistics_log_{plot_timestamp}.txt")
+
+    logger = logging.getLogger(f"uq_stats_corr_{plot_timestamp}")
+    logger.setLevel(logging.DEBUG)
+
+    fh = logging.FileHandler(log_filename)
+    fh.setLevel(logging.DEBUG)
+    fh.setFormatter(logging.Formatter("%(asctime)s [%(levelname)s] %(message)s"))
+    logger.addHandler(fh)
+
+    logger.info("=" * 70)
+    logger.info("UQ STATISTICS LOG (correlated)")
+    logger.info(f"Timestamp: {plot_timestamp}")
+    logger.info("=" * 70)
+
+    for qoi in qois:
+        logger.info(f"\n--- Statistics for QoI: {qoi} ---")
+        for stat_name in ['mean', 'std']:
+            try:
+                values = results.describe(qoi, stat_name)
+                if values is not None:
+                    if hasattr(values, '__len__') and len(values) > 0:
+                        logger.info(f"  {stat_name}: min={np.min(values):.6e}, max={np.max(values):.6e}, avg={np.mean(values):.6e}")
+                        logger.debug(f"  {stat_name} (full): {values}")
+                    else:
+                        logger.info(f"  {stat_name}: {values}")
+            except Exception as e:
+                logger.debug(f"  {stat_name}: not available ({e})")
+
+        try:
+            derivs = results._get_derivatives_first(qoi)
+            if derivs:
+                logger.info(f"  Derivative-based sensitivity indices:")
+                for param, vals in derivs.items():
+                    if vals is not None:
+                        vals_arr = np.array(vals)
+                        logger.info(f"    {param}: min={np.min(vals_arr):.6e}, max={np.max(vals_arr):.6e}, avg={np.mean(vals_arr):.6e}")
+        except Exception:
+            pass
+
+    logger.info("=" * 70)
+    logger.info("END OF STATISTICS LOG")
+    logger.info("=" * 70)
+
+    logger.removeHandler(fh)
+    fh.close()
+
+    print(f"Statistics log saved to: {log_filename}")
+
 
 def visualisation_of_results(results, distributions, qois, plot_folder_name, plot_timestamp):
     """
@@ -95,6 +158,9 @@ def visualisation_of_results(results, distributions, qois, plot_folder_name, plo
     # Use bespoke correlated plotting method that handles FDAnalysis results properly
     uqplotter = UQPlotter()
     uqplotter.plot_stats_correlated(results, distributions, qois[1:], plot_folder_name, plot_timestamp, rs=rs)
+
+    # Save statistics log file
+    save_statistics_log(results, qois[1:], plot_folder_name, plot_timestamp)
 
     print(f"Plots saved in folder: {plot_folder_name}")
     return 0

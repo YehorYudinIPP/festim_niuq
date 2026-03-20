@@ -8,6 +8,8 @@ Created by: Yehor Yudin
 Date: July 2025
 """
 
+import matplotlib
+matplotlib.use('Agg')  # Use non-interactive backend to avoid display connection issues
 import matplotlib.pyplot as plt
 import numpy as np
 
