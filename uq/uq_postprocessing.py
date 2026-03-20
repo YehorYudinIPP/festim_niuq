@@ -352,6 +352,7 @@ def postprocess_from_runs_dir(runs_dir, config_path, timestamp):
         int: 0 on success.
     """
     import csv
+    import re
 
     # Create output folder
     output_folder, timestamp = create_output_folder(
@@ -368,12 +369,17 @@ def postprocess_from_runs_dir(runs_dir, config_path, timestamp):
         logger.error(f"Failed to load config file: {config_path}")
         return 1
 
-    # Find run subdirectories
-    run_dirs = sorted([
-        os.path.join(runs_dir, d) for d in os.listdir(runs_dir)
-        if os.path.isdir(os.path.join(runs_dir, d))
-    ])
-    logger.info(f"Found {len(run_dirs)} run directories.")
+    # Find run subdirectories recursively because EasyVVUQ can nest runs as:
+    # campaign/runs/runs_*/runs_*/.../run_<id>
+    run_dir_pattern = re.compile(r"run_\d+")
+    run_dirs = []
+    for root, dirs, _ in os.walk(runs_dir):
+        for d in dirs:
+            if run_dir_pattern.fullmatch(d):
+                run_dirs.append(os.path.join(root, d))
+
+    run_dirs = sorted(set(run_dirs))
+    logger.info(f"Found {len(run_dirs)} run directories (recursive search).")
 
     if not run_dirs:
         logger.error("No run directories found.")
