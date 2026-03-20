@@ -39,7 +39,7 @@ def define_phys_conv_rate(results):
     Define the physical convergence rate based on the results of an UQ campaign.
     The rate is considered as a function of varied (uncertain) parameters.
     """
-    print(f"Convergence rate esttimate: not implemented yet!")
+    print(f"Convergence rate estimate: not implemented yet!")
     return 0
 
 def save_statistics_log(results, qois, plot_folder_name, plot_timestamp):

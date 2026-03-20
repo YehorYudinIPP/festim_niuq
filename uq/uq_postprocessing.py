@@ -29,6 +29,7 @@ import numpy as np
 
 import matplotlib
 matplotlib.use('Agg')  # Use non-interactive backend to avoid display connection issues
+import matplotlib.pyplot as plt
 
 # Add parent directory to path for custom imports
 parent_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
@@ -401,8 +402,9 @@ def postprocess_from_runs_dir(runs_dir, config_path, timestamp):
 
             try:
                 data = np.loadtxt(result_file, delimiter=None, comments='#')
-                # Try comma delimiter if whitespace fails
-                if data.ndim < 2:
+                # If whitespace parsing produced a 1D array, the file may
+                # use comma delimiters instead. Retry with comma delimiter.
+                if data.ndim == 1:
                     data = np.loadtxt(result_file, delimiter=',', comments='#')
                 all_data[basename].append(data)
                 logger.debug(f"  Loaded {result_file} shape={data.shape}")
@@ -461,10 +463,10 @@ def postprocess_from_runs_dir(runs_dir, config_path, timestamp):
             logger.info(f"  Column {col_idx}:")
             logger.info(f"    Mean:   min={np.min(col_mean):.6e}, max={np.max(col_mean):.6e}, avg={np.mean(col_mean):.6e}")
             logger.info(f"    Std:    min={np.min(col_std):.6e}, max={np.max(col_std):.6e}, avg={np.mean(col_std):.6e}")
-            logger.info(f"    CoV:    avg={np.mean(col_std / (np.abs(col_mean) + 1e-30)):.6e}")
+            eps = np.finfo(float).tiny  # smallest positive float, avoids division by zero
+            logger.info(f"    CoV:    avg={np.mean(col_std / (np.abs(col_mean) + eps)):.6e}")
 
         # Generate plots for this result file
-        import matplotlib.pyplot as plt
 
         name_stem = os.path.splitext(filename)[0]
         for col_idx in range(1, n_cols):  # Skip first column (typically x/coordinates)
