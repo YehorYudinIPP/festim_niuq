@@ -358,9 +358,11 @@ def prepare_uq_campaign(config, config_file, fixed_params=None, uq_params=None):
         fixed_params (dict, optional): Dictionary of fixed parameters.
         uq_params (dict, optional): UQ scheme parameters. Keys:
             - 'uq_scheme' (str): 'fd' (finite difference) or 'pce' (polynomial chaos). Default: 'fd'.
-            - 'n_samples' (int): Number of samples. For 'pce', this is used as polynomial_order
-              if 'p_order' is not specified. For 'fd', sample count is fixed at 2*n_params+1.
-            - 'p_order' (int): Polynomial order for PCE (default: 2).
+            - 'n_samples' (int): Desired number of samples. For 'fd', sample count is fixed
+              at 2*n_params+1 and this value is ignored with a note. For 'pce', the number of
+              samples is determined by the polynomial order (p_order), not directly by n_samples.
+            - 'p_order' (int): Polynomial order for PCE (default: 2). Higher orders increase
+              accuracy but require more samples (number of quadrature points grows with order).
     """
 
     if uq_params is None:
@@ -455,11 +457,11 @@ def prepare_uq_campaign(config, config_file, fixed_params=None, uq_params=None):
     if uq_scheme == 'pce':
         # PCE supports correlated distributions and computes proper Sobol indices
         p_order = uq_params.get('p_order', 2)
-        # Allow n_samples to override p_order for convenience
-        if uq_params.get('n_samples') is not None and 'p_order' not in uq_params:
-            p_order = uq_params['n_samples']
 
         print(f"Using PCE sampler with polynomial order {p_order}")
+        if uq_params.get('n_samples') is not None:
+            print(f"  Note: PCE sample count is determined by polynomial order ({p_order}), "
+                  f"not by --n-samples directly. Use --p-order to control accuracy.")
         sampler = uq.sampling.PCESampler(
             vary=distributions,
             distribution=distributions_joint,

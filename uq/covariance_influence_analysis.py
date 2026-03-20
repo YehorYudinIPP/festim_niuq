@@ -446,9 +446,9 @@ def run_covariance_scan(config_file, scale='log', n_points=5, min_cov=0.01,
 
         except Exception as e:
             print(f"  ERROR at corr={cov_val:.6f}: {e}")
-            # Append empty data to keep alignment
+            # Append placeholder data to keep alignment with cov_values
             if qois and param_names:
-                empty = {qoi: {p: {'first': float('nan'), 'total': float('nan')}
+                empty = {qoi: {p: {'first': 0.0, 'total': 0.0}
                                for p in param_names} for qoi in qois[1:]}
                 all_sobol_data.append(empty)
             else:
@@ -458,11 +458,11 @@ def run_covariance_scan(config_file, scale='log', n_points=5, min_cov=0.01,
         print("\nError: No successful campaigns completed. Cannot save results.")
         return results_folder
 
-    # Filter to only successfully scanned covariance values
-    valid_mask = [i for i, d in enumerate(all_sobol_data) if len(d) > 0]
-    if len(valid_mask) < len(cov_values):
-        print(f"\nNote: {len(cov_values) - len(valid_mask)} out of {len(cov_values)} "
-              f"campaigns failed.")
+    # Check for failed campaigns
+    n_failed = sum(1 for d in all_sobol_data if len(d) == 0)
+    if n_failed > 0:
+        print(f"\nNote: {n_failed} out of {len(cov_values)} campaigns failed. "
+              f"Failed entries use zero Sobol indices.")
 
     # Save results
     print(f"\nSaving results to: {results_folder}")
