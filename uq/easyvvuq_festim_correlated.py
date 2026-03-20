@@ -329,9 +329,9 @@ def prepare_uq_campaign(config, config_file, fixed_params=None):
     # Create a decoder object
     # The decoder will read the results from the output file and extract the quantities of interest (QoIs)
     # TODO change the output and decoder to YAML (for UQ derived quantities) or other format
+    output_dir = config.get('simulation', {}).get('output_directory', 'results')
     decoder = uq.decoders.SimpleCSV(
-        #target_filename="output.csv", # option for synthetic diagnostics specifically chosen for UQ
-        target_filename="results/results_tritium_concentration.txt",  # Results from the base data of a simulation
+        target_filename=f"{output_dir}/results_tritium_concentration.txt",
         output_columns=qois
         )
     

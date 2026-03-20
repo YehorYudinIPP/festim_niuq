@@ -100,14 +100,15 @@ def main():
     # TODO make into a separate script such that if this fails, the model results are saved and run passes
     # TODO single out run and post-process scripts and run a single BASH script 
 
-    # Option 1 - pass data from model to the diagnostics
-    # diagnostics = Diagnostics(model=model, results=results, result_folder=model.result_folder, derived_quantities_flag=False)
+    try:
+        # Option 2 - read all the required information from results files
+        qoi_names = ['tritium_concentration']
+        diagnostics = Diagnostics(result_folder=config['simulation']['output_directory'], qoi_names=qoi_names, derived_quantities_flag=False, result_format='bp')
 
-    # Option 2 - read all the required information from results files
-    qoi_names = ['tritium_concentration']
-    diagnostics = Diagnostics(result_folder=config['simulation']['output_directory'], qoi_names=qoi_names, derived_quantities_flag=False, result_format='bp')
-
-    diagnostics.visualise()
+        diagnostics.visualise()
+    except Exception as e:
+        print(f"Warning: Diagnostics visualisation failed: {e}")
+        print("Results are saved; UQ pipeline can continue.")
     
     print("FESTIM simulation completed successfully!")
     return results
@@ -116,26 +117,25 @@ def save_results_for_uq(results, model):
     """Save scalar QoIs and preserve transient profile exports for EasyVVUQ."""
     import csv
 
-    # Extract quantities of interest (QoIs)
-    # TODO: double-check the implementation; think of a good integration scheme
-    # tritium_inventory = extract_tritium_inventory(results, model)
-    tritium_inventory = 0.0  # ATTENTION: workaround for heat DEBUG
+    # ---- scalar QoIs in output.csv ----
+    total_release = results.get('total_tritium_release', None)
+    final_release = float(total_release[-1]) if total_release is not None else 0.0
 
-    # Save as CSV (with 0d scalar properties; here: tritium inventory) for EasyVVUQ decoder
     output_file = "output.csv"
     with open(output_file, 'w', newline='') as csvfile:
         writer = csv.writer(csvfile)
-        writer.writerow(['tritium_inventory'])  # Header
-        writer.writerow([tritium_inventory])    # Data
+        writer.writerow(['tritium_inventory', 'total_tritium_release'])
+        writer.writerow([0.0, final_release])
 
     print(f"Results saved to {output_file}")
-    print(f"Tritium inventory: {tritium_inventory:.2e}")
+    print(f"Total tritium release (final): {final_release:.2e}")
 
-    # FESTIM exports transient TXT profiles itself. Do not overwrite those files.
-    # Only create fallback files if they do not already exist.
+    # ---- profile CSV (should already exist from Model._export_results) ----
     milestone_times = getattr(model, 'milestone_times', []) or []
 
     for qoi_name, qoi_values in results.items():
+        if qoi_name == 'total_tritium_release':
+            continue
 
         profile_folder_name = model.result_folder
         profile_file_name = f"results_{qoi_name}.txt"
@@ -145,6 +145,7 @@ def save_results_for_uq(results, model):
             print(f" > Keeping existing profile export: {profile_file_path}")
             continue
 
+        # Fallback: create profile file from in-memory results
         grid_values = np.asarray(model.vertices)
         qoi_array = np.asarray(qoi_values)
 
@@ -164,101 +165,136 @@ def save_results_for_uq(results, model):
                 time_headers = [f"t_idx_{i}" for i in range(qoi_array.shape[1])]
             header = "x," + ",".join(time_headers)
 
+        os.makedirs(profile_folder_name, exist_ok=True)
         np.savetxt(profile_file_path, data, header=header, delimiter=',', comments='')
 
         print(f" > Fallback profile {qoi_name} saved to {profile_file_path}")
 
+    # ---- plot concentration vs time for this individual run ----
+    plot_concentration_vs_time(results, model)
+
+def plot_concentration_vs_time(results, model):
+    """Plot concentration at selected spatial positions as a function of time.
+
+    Creates one plot with concentration vs time at the sample centre, middle,
+    and right boundary.  If total tritium release data is available it is
+    plotted on a second figure.
+    """
+    import matplotlib
+    matplotlib.use('Agg')
+    import matplotlib.pyplot as plt
+
+    milestone_times = getattr(model, 'milestone_times', []) or []
+    if not milestone_times:
+        print("No milestone times defined, skipping concentration vs time plots.")
+        return
+
+    tritium_conc = results.get('tritium_concentration', None)
+    if tritium_conc is None:
+        print("No tritium concentration data in results, skipping plots.")
+        return
+
+    conc_array = np.asarray(tritium_conc)
+    if conc_array.ndim == 1:
+        print("Only steady-state data available, skipping concentration vs time plots.")
+        return
+
+    vertices = np.asarray(model.vertices)
+
+    # Positions of interest along the sample axis
+    r_indices = {
+        'center (r=0)': 0,
+        'middle': len(vertices) // 2,
+        'right boundary': -1,
+    }
+
+    fig, ax = plt.subplots(figsize=(10, 6))
+    for label, r_idx in r_indices.items():
+        c_vs_t = conc_array[r_idx, :]
+        r_val = vertices[r_idx]
+        ax.plot(milestone_times, c_vs_t, 'o-', label=f'{label} (r={r_val:.4e} m)')
+
+    ax.set_xlabel('Time [s]')
+    ax.set_ylabel('Tritium Concentration [m$^{-3}$]')
+    ax.set_title('Tritium Concentration at Sample Axis vs Time')
+    ax.legend(loc='best')
+    ax.grid(True)
+    if min(milestone_times) > 0:
+        ax.set_xscale('log')
+
+    plot_folder = model.result_folder
+    os.makedirs(plot_folder, exist_ok=True)
+    plot_path = os.path.join(plot_folder, 'concentration_vs_time.png')
+    fig.savefig(plot_path, dpi=150, bbox_inches='tight')
+    plt.close(fig)
+    print(f" > Concentration vs time plot saved to {plot_path}")
+
+    # Total tritium release vs time
+    total_release = results.get('total_tritium_release', None)
+    if total_release is not None:
+        fig2, ax2 = plt.subplots(figsize=(10, 6))
+        ax2.plot(milestone_times, total_release, 'o-', color='red',
+                 label='Total Tritium Release')
+        ax2.set_xlabel('Time [s]')
+        ax2.set_ylabel('Total Tritium Release')
+        ax2.set_title('Total Tritium Release vs Time')
+        ax2.legend(loc='best')
+        ax2.grid(True)
+        if min(milestone_times) > 0:
+            ax2.set_xscale('log')
+        release_plot = os.path.join(plot_folder, 'total_tritium_release_vs_time.png')
+        fig2.savefig(release_plot, dpi=150, bbox_inches='tight')
+        plt.close(fig2)
+        print(f" > Total tritium release vs time plot saved to {release_plot}")
+
+
 def extract_tritium_inventory(results, model):
     """Extract tritium inventory from FESTIM results."""
-    # This is a most primitive version - implement based on your specific FESTIM model
-    # You might need to:
-    # 1. Read the output files generated by FESTIM
-    # 2. Integrate concentration over the domain
-    # 3. Calculate total inventory
-    
+
     if results is not None and model is not None:
-        # Implement extraction logic using results and model
-        print("Extracting tritium inventory from results in the model ...")
         data = results.get('tritium_concentration', None)
-    elif results is None or model is None:
+    else:
         try:
-            # Example: Read from the results file
-            print(f" Reading tritium concentration from: {result_file} ...")
             result_folder = model.result_folder
             result_file_name = "results_tritium_concentration.txt"
             result_file = os.path.join(result_folder, result_file_name)
+            print(f" Reading tritium concentration from: {result_file} ...")
 
             if os.path.exists(result_file):
-                # Read and process the results file
                 data = np.genfromtxt(result_file, skip_header=1, delimiter=',')
-
             else:
                 print(f"Warning: Results file not found: {result_file}")
-                inventory = 1.0e20  # Default value
-                return inventory
-            
+                return 1.0e20
         except Exception as e:
             print(f"Error extracting tritium inventory: {e}")
-            inventory = 1.0e20  # Default value
+            return 1.0e20
 
-    # Option 1) simple example: sum of final concentrations
-    #TODO: Replace with a better inventory calculation
+    if data is None:
+        print("No concentration data available, returning default inventory.")
+        return 1.0e20
 
-    ds = 1.0e-12 # a test area of a squared micron [m^2]
-    length_elem_s = model.vertices[1:] - model.vertices[:-1]  # length of each (1D) element [m]
+    # Integrate concentration over the domain
+    vertices = np.asarray(model.vertices)
+    conc = np.asarray(data)
 
-    # # Option 1.1) assume flat geometry and uniform (1D) mesh (~hexahedral in 3D)
-    # length_elem = model.config['geometry']['length'] / model.config['simulation']['n_elements']  # Example length element [m]
-    # volume_elem = ds * length_elem  # Volume of an element [m^3]
-    # if len(data.shape) > 1 and data.shape[0] > 0:
-    #     final_concentrations = data[:, -1]  # Last time step
-    #     inventory = np.sum(final_concentrations) * volume_elem  
-    # else:
-    #     inventory = 1.0e20  # Default value
+    # Use the last time-step if data is 2-D
+    if conc.ndim > 1:
+        conc = conc[:, -1]
 
-    # # Option 1.2) assume flat geometry and non-uniform mesh
-    # # Calculate volume of an actual local element - important for a) sph. geometry and b) non-uniform mesh
-    # #TODO test this
-    # volume_elem_s = ds * length_elem_s  # Volume of each element [m^3]
-    
-    # #TODO figure out correct dimensionality of the output data
-    # if len(data.shape) > 1 and data.shape[0] > 0:
-    #     final_concentrations = data[:-1, -1]  # Last time step
-    #     #TODO find correct resolution beteen vertices and elements
-    #     inventory = np.sum(final_concentrations * volume_elem_s)
-    # else:
-    #     inventory = 1.0e20  # Default value
-
-    # Option 1.3) assume spherical geometry and uniform mesh
-    #TODO: test this
-
-    radius_loc_s = model.vertices[:-1]  # Local radius of each spherical element [m]
-
-    volume_elem_s =  4. * np.pi * length_elem_s * (radius_loc_s)**2  # Volume of a spherical layer element [m^3]
-
-    if len(data.shape) > 0 and data.shape[0] > 0:
-
-        #final_concentrations = data[:-1, -1]  # Last time step
-
-        if len(data.shape) == 1:
-            final_concentrations = data[-1]
-        elif len(data.shape) > 1:
-            final_concentrations = data[:, -1]
-        else:
-            # fall back option
-            print("Warning: Unexpected data shape, using default tritium inventory value.")
-            unit_concentration = 1.0e10  # Default value
-            final_concentrations = unit_concentration * np.ones(data.shape[0])  # Default to ones if data is empty
-
-        inventory = np.trapz(final_concentrations * volume_elem_s)
+    coordinate_system = getattr(model, 'coordinate_system_type', 'cartesian')
+    if coordinate_system == "spherical":
+        weight = 4.0 * np.pi * vertices ** 2
+    elif coordinate_system == "cylindrical":
+        weight = 2.0 * np.pi * vertices
     else:
-        print("Using default value for tritium inventory")
-        inventory = 1.0e20  # Default value
+        weight = np.ones_like(vertices)
 
-    # TODO: figure out how to use FESTIM's DerivedQuantities to compute inventory
-    #diagnostics = Diagnostics(model, results=results, result_folder=model.result_folder)
-    #tritium_inventory_obj = diagnostics.compute_total_tritium_inventory()
-    
+    if len(conc) == len(vertices):
+        inventory = float(np.trapz(conc * weight, x=vertices))
+    else:
+        print("Warning: size mismatch between concentration and vertices, using default.")
+        inventory = 1.0e20
+
     return inventory
 
 
