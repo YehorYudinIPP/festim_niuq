@@ -2,6 +2,7 @@
 import warnings
 warnings.filterwarnings("ignore", message="pkg_resources is deprecated as an API")
 
+import os
 import numpy as np
 
 # Import FESTIM library
@@ -1008,10 +1009,13 @@ class Model(BaseModel):
         self.coordinate_system_type = str(config.get("geometry", {}).get("coordinate_system", "cartesian"))
 
         # Specifying type of mesh
-        self.mesh_type = str(config.get("simulation", {}).get("meshes", [{}])[0].get("mesh_type", "regular"))
+        sim_cfg = config.get("simulation", {})
+        meshes_cfg = sim_cfg.get("meshes", [{}])
+        mesh_cfg_0 = meshes_cfg[0] if meshes_cfg else {}
+        self.mesh_type = str(mesh_cfg_0.get("mesh_type", sim_cfg.get("mesh_type", "regular")))
 
         # Specifying size of the mesh
-        self.n_elements = int(config.get("simulation", {}).get("meshes", [{}])[0].get("n_elements", 128))  # Default to 128 elements if not specified
+        self.n_elements = int(mesh_cfg_0.get("n_elements", sim_cfg.get("n_elements", 128)))
 
         # Create datastructures for some of the main geometry elements
         self.subdomains = []
@@ -1649,17 +1653,141 @@ class Model(BaseModel):
     def _export_results(self, config=None):
         """
         Export the results of the simulation.
+
+        For transient simulations, extracts concentration profiles at milestone
+        times from the ``ProfileExport`` object that accumulates data at every
+        time-step.  The profiles are saved to a CSV file readable by the
+        EasyVVUQ ``SimpleCSV`` decoder.
+
+        Total tritium release is computed at each milestone time and stored in
+        ``self.results['total_tritium_release']``.
         """
         print("Exporting results...")
         for problem_name, problem in self.problems.items():
-            if 'festim_problem' in problem:
-                print(f" >> Exporting results for problem: {problem_name}") 
-                #self.results[problem['qoi_name']] = {}
+            if 'festim_problem' not in problem:
+                continue
 
-                # Export the final state fo the fileds into results
-                self.results[problem['qoi_name']] = problem['festim_problem'].u.x.array[:].copy()
+            qoi_name = problem['qoi_name']
+            print(f" >> Exporting results for problem: {problem_name}")
 
-                # print(f" >> Results for {problem['qoi_name']}: \n{problem['festim_problem'].u.x.array}") ###DEBUG
+            # Always capture the final state
+            final_state = problem['festim_problem'].u.x.array[:].copy()
+
+            if self.transient and hasattr(self, 'milestone_times') and self.milestone_times:
+                # --- transient: extract profiles at milestone times ---
+                profile_export = None
+                for export in problem['festim_problem'].exports:
+                    if isinstance(export, ProfileExport):
+                        profile_export = export
+                        break
+
+                if profile_export is not None and len(profile_export.data) > 0:
+                    all_profiles = np.array(profile_export.data)   # (n_steps, n_vertices)
+                    n_profiles = len(all_profiles)
+
+                    # Estimate the time of each stored profile.
+                    # ProfileExport.compute() is called after each solve step,
+                    # so the first entry corresponds to t = dt, not t = 0.
+                    dt_cfg = float(
+                        self.config.get("simulation", {})
+                            .get("time_step", {})
+                            .get("default_value", 0.01)
+                    )
+                    profile_times = np.arange(1, n_profiles + 1) * dt_cfg
+
+                    # Fall back to linspace when the estimate overshoots
+                    if n_profiles > 0 and abs(profile_times[-1] - self.total_time) > dt_cfg:
+                        profile_times = np.linspace(dt_cfg, self.total_time, n_profiles)
+
+                    # Map milestone times to the closest stored profile
+                    n_verts = len(self.vertices)
+                    milestone_profiles = np.zeros((n_verts, len(self.milestone_times)))
+                    for i, t_m in enumerate(self.milestone_times):
+                        idx = int(np.argmin(np.abs(profile_times - t_m)))
+                        prof = all_profiles[idx]
+                        if len(prof) == n_verts:
+                            milestone_profiles[:, i] = prof
+                        else:
+                            milestone_profiles[:, i] = np.interp(
+                                self.vertices,
+                                np.linspace(0, self.vertices[-1], len(prof)),
+                                prof,
+                            )
+
+                    self.results[qoi_name] = milestone_profiles
+
+                    # Persist profile CSV for the UQ decoder
+                    self._save_profile_file(qoi_name, milestone_profiles)
+
+                    # Compute total tritium release
+                    self._compute_total_tritium_release(qoi_name, milestone_profiles)
+                else:
+                    # ProfileExport had no data – fall back to final state
+                    self.results[qoi_name] = final_state
+            else:
+                # Steady-state or no milestone times
+                self.results[qoi_name] = final_state
+
+    def _save_profile_file(self, qoi_name, milestone_profiles):
+        """Save milestone-time profiles to a CSV understood by the UQ decoder."""
+        os.makedirs(self.result_folder, exist_ok=True)
+
+        data = np.column_stack((self.vertices, milestone_profiles))
+        time_headers = [f"t={float(t):.2e}s" for t in self.milestone_times]
+        header = "x," + ",".join(time_headers)
+
+        profile_path = os.path.join(self.result_folder, f"results_{qoi_name}.txt")
+        np.savetxt(profile_path, data, header=header, delimiter=',', comments='')
+        print(f" >> Profile file saved to {profile_path}")
+
+    def _compute_total_tritium_release(self, qoi_name, milestone_profiles):
+        """Compute total tritium release at each milestone time.
+
+        Release is obtained from a simple mass balance:
+            release(t) = inventory(0) + ∫₀ᵗ source dt' − inventory(t)
+        """
+        r = self.vertices
+
+        # Volume weighting for integration
+        if self.coordinate_system_type == "spherical":
+            weight = 4.0 * np.pi * r ** 2
+        elif self.coordinate_system_type == "cylindrical":
+            weight = 2.0 * np.pi * r
+        else:
+            weight = np.ones_like(r)
+
+        # Initial inventory from config
+        ic_cfg = self.config.get("initial_conditions", {}).get("concentration", {})
+        ic_val_raw = ic_cfg.get("value", {})
+        ic_value = float(ic_val_raw.get("mean", 0.0)) if isinstance(ic_val_raw, dict) else float(ic_val_raw)
+        initial_inventory = np.trapz(ic_value * weight, x=r)
+
+        # Volumetric source rate
+        src_cfg = self.config.get("source_terms", {}).get("concentration", {})
+        src_val_raw = src_cfg.get("value", {})
+        src_value = float(src_val_raw.get("mean", 0.0)) if isinstance(src_val_raw, dict) else float(src_val_raw)
+        source_rate = np.trapz(src_value * weight, x=r)
+
+        releases = []
+        for i, t_m in enumerate(self.milestone_times):
+            current_inventory = np.trapz(milestone_profiles[:, i] * weight, x=r)
+            release = initial_inventory + source_rate * float(t_m) - current_inventory
+            releases.append(release)
+
+        self.results['total_tritium_release'] = np.array(releases)
+
+        # Persist release time series
+        os.makedirs(self.result_folder, exist_ok=True)
+        release_path = os.path.join(self.result_folder, "total_tritium_release.txt")
+        np.savetxt(
+            release_path,
+            np.column_stack((self.milestone_times, releases)),
+            header="time,total_tritium_release",
+            delimiter=',',
+            comments='',
+        )
+        print(f" >> Total tritium release saved to {release_path}")
+        print(f" >> Total tritium release at final time: {releases[-1]:.4e}")
 
     def inspect_model_structure(self):
         """Print detailed structure of the FESTIM 2.0 model object."""
