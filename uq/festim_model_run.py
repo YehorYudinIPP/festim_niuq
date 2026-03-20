@@ -113,14 +113,13 @@ def main():
     return results
 
 def save_results_for_uq(results, model):
-    """Save results in format expected by EasyVVUQ."""
-    import json
+    """Save scalar QoIs and preserve transient profile exports for EasyVVUQ."""
     import csv
-    
+
     # Extract quantities of interest (QoIs)
     # TODO: double-check the implementation; think of a good integration scheme
-    #tritium_inventory = extract_tritium_inventory(results, model)
-    tritium_inventory = 0.0 #ATTENTION: workaround for heat DEBUG
+    # tritium_inventory = extract_tritium_inventory(results, model)
+    tritium_inventory = 0.0  # ATTENTION: workaround for heat DEBUG
 
     # Save as CSV (with 0d scalar properties; here: tritium inventory) for EasyVVUQ decoder
     output_file = "output.csv"
@@ -128,24 +127,46 @@ def save_results_for_uq(results, model):
         writer = csv.writer(csvfile)
         writer.writerow(['tritium_inventory'])  # Header
         writer.writerow([tritium_inventory])    # Data
-    
+
     print(f"Results saved to {output_file}")
     print(f"Tritium inventory: {tritium_inventory:.2e}")
 
-    # Save TXT files with 1D profiles (if available) from results
-    # ATTENTION: mimics TXTExport from FESTIM1.4
+    # FESTIM exports transient TXT profiles itself. Do not overwrite those files.
+    # Only create fallback files if they do not already exist.
+    milestone_times = getattr(model, 'milestone_times', []) or []
+
     for qoi_name, qoi_values in results.items():
 
         profile_folder_name = model.result_folder
         profile_file_name = f"results_{qoi_name}.txt"
         profile_file_path = os.path.join(profile_folder_name, profile_file_name)
 
-        grid_values = model.vertices  # Assuming model has an attribute 'vertices' for the spatial grid
-        data = np.column_stack((grid_values, qoi_values))
+        if os.path.exists(profile_file_path):
+            print(f" > Keeping existing profile export: {profile_file_path}")
+            continue
 
-        np.savetxt(profile_file_path, data, header=f"x,t=steady", delimiter=',', comments='')
+        grid_values = np.asarray(model.vertices)
+        qoi_array = np.asarray(qoi_values)
 
-        print(f" > Profile {qoi_name} saved to {profile_file_path}") ###DEBUG
+        if qoi_array.ndim == 1:
+            qoi_array = qoi_array.reshape(-1, 1)
+        elif qoi_array.ndim > 2:
+            qoi_array = qoi_array.reshape(qoi_array.shape[0], -1)
+
+        data = np.column_stack((grid_values, qoi_array))
+
+        if qoi_array.shape[1] == 1 and not milestone_times:
+            header = "x,t=steady"
+        else:
+            if len(milestone_times) == qoi_array.shape[1]:
+                time_headers = [f"t={float(t):.2e}s" for t in milestone_times]
+            else:
+                time_headers = [f"t_idx_{i}" for i in range(qoi_array.shape[1])]
+            header = "x," + ",".join(time_headers)
+
+        np.savetxt(profile_file_path, data, header=header, delimiter=',', comments='')
+
+        print(f" > Fallback profile {qoi_name} saved to {profile_file_path}")
 
 def extract_tritium_inventory(results, model):
     """Extract tritium inventory from FESTIM results."""

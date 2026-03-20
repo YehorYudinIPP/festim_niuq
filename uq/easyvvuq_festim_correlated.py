@@ -228,9 +228,9 @@ def define_parameter_uncertainty(config, sigma_norm=0.25, corr=0.1):
 
     return parameters_distributions, parameters_distributions_joint
 
-def define_festim_model_parameters():
+def define_festim_model_parameters(config):
     """
-    Define the FESTIM model parameters and their default values.
+    Define the FESTIM model parameters and the QoI columns for EasyVVUQ decoding.
     """
 
     # Define the model input parameters
@@ -254,22 +254,14 @@ def define_festim_model_parameters():
     "right_bc_concentration_value": {"type": "float", "default": 1.0e15},  # Boundary condition value at the right (outer) surface of the sample
     }
 
-    # Define  output parameters / the quantities of interest (QoIs)
-    # TODO: read an (example) output file to get the QoI names
-    qois = [
-        #"tritium_inventory",
-        "x", # Mainly for (a) reading the vertices for postprocessing, (b) checking that grid has not changed
-        "t=1.00e-01s",
-        "t=2.00e-01s",
-        "t=5.00e-01s",
-        "t=1.00e+00s",
-        "t=5.00e+00s",
-        "t=1.00e+01s",
-        "t=2.50e+01s",
-    ]
-    
-    #print(f"Model parameters defined: {parameters}") ####DEBUG
-    #print(f"QoIs defined: {qois}") ####DEBUG
+    milestone_times = config.get('simulation', {}).get('milestone_times', [])
+    qois = ["x"]
+    qois.extend([f"t={float(t):.2e}s" for t in milestone_times])
+
+    if len(qois) == 1:
+        # Fallback for steady-state-only configurations.
+        qois.append("t=steady")
+
     return parameters, qois
 
 def prepare_execution_command():
@@ -296,7 +288,7 @@ def prepare_uq_campaign(config, config_file, fixed_params=None):
     """
 
     # Define the model input and output parameters
-    parameters, qois = define_festim_model_parameters()
+    parameters, qois = define_festim_model_parameters(config)
 
     # Set up necessary elements for the EasyVVUQ campaign
 
@@ -469,25 +461,28 @@ def perform_uq_festim_correlated_params(config=None, fixed_params=None):
     # Prepare the UQ campaign
     # This includes defining parameters, encoders, decoders, and actions
 
+    config_file_path = "config.yaml"
+
     # Check if config exists
     if config is None:
 
         print("No config file provided, reading from arguments")
-              
+
         # Read the configuration file from the command line argument or use a default one
         parser = argparse.ArgumentParser(description='Run FESTIM model with correlated UQ using YAML configuration')
-        
-        parser.add_argument('--config', '-c', 
+
+        parser.add_argument('--config', '-c',
                         default='config.yaml',
                         help='Path to YAML configuration file (default: config.yaml)')
-        
+
         args = parser.parse_args()
-        print(f"> Using arguments file: {args.config}")
+        config_file_path = args.config
+        print(f"> Using arguments file: {config_file_path}")
 
         # Load configuration from YAML file
-        config = load_config(args.config)
+        config = load_config(config_file_path)
 
-        print(f" > Loaded configuration from: {args.config}")
+        print(f" > Loaded configuration from: {config_file_path}")
 
     if config is None:
         print("No config file provided, quitting...")
@@ -495,7 +490,7 @@ def perform_uq_festim_correlated_params(config=None, fixed_params=None):
 
     print(f" >> Passing parameters fixed to the campaign: {fixed_params}") ###DEBUG
 
-    campaign, qois, distributions, campaign_timestamp, sampler = prepare_uq_campaign(config, config_file=args.config, fixed_params=fixed_params)
+    campaign, qois, distributions, campaign_timestamp, sampler = prepare_uq_campaign(config, config_file=config_file_path, fixed_params=fixed_params)
 
     # TODO: add more parameter for Arrhenious law
     # TODO: try higher BC concentration values - does it even make sense to have such low BC (+)
