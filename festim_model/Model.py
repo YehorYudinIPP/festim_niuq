@@ -1685,7 +1685,9 @@ class Model(BaseModel):
                     all_profiles = np.array(profile_export.data)   # (n_steps, n_vertices)
                     n_profiles = len(all_profiles)
 
-                    # Estimate the time of each stored profile
+                    # Estimate the time of each stored profile.
+                    # ProfileExport.compute() is called after each solve step,
+                    # so the first entry corresponds to t = dt, not t = 0.
                     dt_cfg = float(
                         self.config.get("simulation", {})
                             .get("time_step", {})

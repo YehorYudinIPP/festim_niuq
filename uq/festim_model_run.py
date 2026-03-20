@@ -121,11 +121,13 @@ def save_results_for_uq(results, model):
     total_release = results.get('total_tritium_release', None)
     final_release = float(total_release[-1]) if total_release is not None else 0.0
 
+    tritium_inventory = extract_tritium_inventory(results, model)
+
     output_file = "output.csv"
     with open(output_file, 'w', newline='') as csvfile:
         writer = csv.writer(csvfile)
         writer.writerow(['tritium_inventory', 'total_tritium_release'])
-        writer.writerow([0.0, final_release])
+        writer.writerow([tritium_inventory, final_release])
 
     print(f"Results saved to {output_file}")
     print(f"Total tritium release (final): {final_release:.2e}")
@@ -219,7 +221,7 @@ def plot_concentration_vs_time(results, model):
     ax.set_title('Tritium Concentration at Sample Axis vs Time')
     ax.legend(loc='best')
     ax.grid(True)
-    if min(milestone_times) > 0:
+    if all(t > 0 for t in milestone_times):
         ax.set_xscale('log')
 
     plot_folder = model.result_folder
@@ -240,7 +242,7 @@ def plot_concentration_vs_time(results, model):
         ax2.set_title('Total Tritium Release vs Time')
         ax2.legend(loc='best')
         ax2.grid(True)
-        if min(milestone_times) > 0:
+        if all(t > 0 for t in milestone_times):
             ax2.set_xscale('log')
         release_plot = os.path.join(plot_folder, 'total_tritium_release_vs_time.png')
         fig2.savefig(release_plot, dpi=150, bbox_inches='tight')
