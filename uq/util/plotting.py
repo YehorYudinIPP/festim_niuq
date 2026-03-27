@@ -447,19 +447,21 @@ class UQPlotter:
         """
         Plot uncertainty in the results as a function of time.
         """
-        fig, ax = plt.subplots()
+        fig, ax = plt.subplots(figsize=(6.3, 4.5))
         # print(f"Shapes of the lists: y_s: {len(y_s)}, sy_s: {len(sy_s)}, y10_s: {len(y10_s)}, y90_s: {len(y90_s)}") ###DEBUG
 
-        ax.plot(t_s, y_at_r, label=f'<y> at r={r_at_r}')
-        ax.fill_between(t_s, np.array(y_at_r) - np.array(sy_at_r), np.array(y_at_r) + np.array(sy_at_r), alpha=0.3, label='+/- STD')
-        ax.fill_between(t_s, y10_at_r, y90_at_r, alpha=0.1, label='10% - 90%')
+        ax.plot(t_s, y_at_r, label=f'<y> at r={r_at_r}', linewidth=1.0, markersize=3)
+        ax.fill_between(t_s, np.array(y_at_r) - np.array(sy_at_r), np.array(y_at_r) + np.array(sy_at_r), alpha=0.3, label='+/- STD', linewidth=0.8)
+        ax.fill_between(t_s, y10_at_r, y90_at_r, alpha=0.1, label='10% - 90%', linewidth=0.8)
 
-        ax.set_title(f"Uncertainty as a function of time at r={r_at_r}")
-        ax.set_xlabel("Time [s]")
-        ax.set_ylabel(f"Concentration [m^-3] at {r_at_r}")
-        ax.legend(loc='best')
+        ax.set_title(f"Uncertainty as a function of time at r={r_at_r}", fontsize=13)
+        ax.set_xlabel("Time [s]", fontsize=12)
+        ax.set_ylabel(f"Concentration [m^-3] at {r_at_r}", fontsize=12)
+        ax.tick_params(labelsize=10)
+        ax.legend(loc='best', fontsize=10)
         ax.grid(True)
 
+        fig.tight_layout()
         fig.savefig(f"{foldername}/{filename}")
 
         plt.close()
@@ -470,19 +472,21 @@ class UQPlotter:
         """
         Plot Sobol indices as a function of time.
         """
-        fig, ax = plt.subplots()
+        fig, ax = plt.subplots(figsize=(6.3, 4.5))
         # print(s1_s[-1]) ### DEBUG
 
         for i, param_name in enumerate(distributions.keys()):
             # Extract r_ind-th element from each Sobol array to get time series at fixed radius
             s1_at_r = [s1_timestep[r_ind] for s1_timestep in s1_s[i]]
-            ax.plot(t_s, s1_at_r, label=f'Sobol Index (first) for {param_name}')
+            ax.plot(t_s, s1_at_r, label=f'Sobol Index (first) for {param_name}', linewidth=1.0, markersize=3)
 
-        ax.set_title(f"Sobol Indices as a function of time at r={r_s}")
-        ax.set_xlabel("Time [s]")
-        ax.set_ylabel(f"Sobol Index (first), fraction of unity")
-        ax.legend()
+        ax.set_title(f"Sobol Indices as a function of time at r={r_s}", fontsize=13)
+        ax.set_xlabel("Time [s]", fontsize=12)
+        ax.set_ylabel(f"Sobol Index (first), fraction of unity", fontsize=12)
+        ax.tick_params(labelsize=10)
+        ax.legend(fontsize=10)
 
+        fig.tight_layout()
         fig.savefig(f"{foldername}/{filename}")
 
         plt.close()
@@ -609,19 +613,21 @@ class UQPlotter:
         - filename: name of the file to save the plot
         - r_ind: index of the radius to extract
         """
-        fig, ax = plt.subplots(figsize=(8, 6))
+        fig, ax = plt.subplots(figsize=(6.3, 4.5))
 
         for i, param_name in enumerate(param_names):
             deriv_at_r = [d_timestep[r_ind] for d_timestep in deriv_s[i]]
             label = self.parameters_descriptor.get(param_name, {}).get('name', param_name)
-            ax.plot(t_s, deriv_at_r, label=f"{label}")
+            ax.plot(t_s, deriv_at_r, label=f"{label}", linewidth=1.0, markersize=3)
 
-        ax.set_title(f"Derivative-based sensitivity vs time at r={r_value}")
-        ax.set_xlabel("Time [s]")
-        ax.set_ylabel("Derivative-based sensitivity index")
-        ax.legend(loc='best')
+        ax.set_title(f"Derivative-based sensitivity vs time at r={r_value}", fontsize=13)
+        ax.set_xlabel("Time [s]", fontsize=12)
+        ax.set_ylabel("Derivative-based sensitivity index", fontsize=12)
+        ax.tick_params(labelsize=10)
+        ax.legend(loc='best', fontsize=10)
         ax.grid(True)
 
+        fig.tight_layout()
         fig.savefig(f"{foldername}/{filename}")
         plt.close()
 
@@ -690,24 +696,26 @@ class UQPlotter:
         - foldername: folder to save the plot
         - filename: name of the file to save the plot
         """
-        fig, ax = plt.subplots(figsize=(8, 6))
+        fig, ax = plt.subplots(figsize=(6.3, 4.5))
 
         y_arr = np.array(y_at_r)
         sy_arr = np.array(sy_at_r)
 
-        ax.plot(t_s, y_arr, label=f'Mean at r={r_value}')
-        ax.fill_between(t_s, y_arr - sy_arr, y_arr + sy_arr, alpha=0.3, label=r'$\pm 1\sigma$ (68% CI)')
-        ax.fill_between(t_s, y_arr - 2 * sy_arr, y_arr + 2 * sy_arr, alpha=0.1, label=r'$\pm 2\sigma$ (95% CI)')
+        ax.plot(t_s, y_arr, label=f'Mean at r={r_value}', linewidth=1.0, markersize=3)
+        ax.fill_between(t_s, y_arr - sy_arr, y_arr + sy_arr, alpha=0.3, label=r'$\pm 1\sigma$ (68% CI)', linewidth=0.8)
+        ax.fill_between(t_s, y_arr - 2 * sy_arr, y_arr + 2 * sy_arr, alpha=0.1, label=r'$\pm 2\sigma$ (95% CI)', linewidth=0.8)
 
-        ax.set_title(f"Uncertainty (correlated FD) vs time at r={r_value}")
-        ax.set_xlabel("Time [s]")
+        ax.set_title(f"Uncertainty (correlated FD) vs time at r={r_value}", fontsize=13)
+        ax.set_xlabel("Time [s]", fontsize=12)
         qty_name = self.quantities_descriptor.get(self.quantity, {}).get('name', self.quantity)
         qty_unit = self.quantities_descriptor.get(self.quantity, {}).get('unit', '')
         ylabel = f"{qty_name} [${qty_unit}$]" if qty_unit else f"{qty_name}"
-        ax.set_ylabel(ylabel)
-        ax.legend(loc='best')
+        ax.set_ylabel(ylabel, fontsize=12)
+        ax.tick_params(labelsize=10)
+        ax.legend(loc='best', fontsize=10)
         ax.grid(True)
 
+        fig.tight_layout()
         fig.savefig(f"{foldername}/{filename}")
         plt.close()
 
