@@ -1821,7 +1821,7 @@ class Model(BaseModel):
         trapping energy ``E_k`` is defined in the material config, the trapped
         fraction is computed using Boltzmann weighting::
 
-            trapped_fraction = 1 − exp(−E_k / (k_B * T))
+            trapped_fraction = 1 - exp(-E_k / (k_B * T))
 
         Otherwise the full inventory is reported as an upper bound.
 

@@ -93,6 +93,13 @@ def read_prior_bounds(config, delta=0.2):
         ``{param_name: (lower, upper)}``
     dict
         ``{param_name: mean_value}``
+
+    Raises
+    ------
+    ValueError
+        If any required parameter (E_D, E_k, E_kr) has mean value of 0.0 or
+        is missing from the configuration, which would indicate a
+        misconfigured YAML file.
     """
     # Material index
     mat_idx = 0
@@ -117,6 +124,14 @@ def read_prior_bounds(config, delta=0.2):
                   .get("E_kr", {})
         ),
     }
+
+    # Validate that all parameters are present and non-zero
+    for name, mu in means.items():
+        if mu == 0.0:
+            raise ValueError(
+                f"Parameter '{name}' has mean value 0.0 or is missing from "
+                f"the config. Check the YAML file for a valid '{name}' entry."
+            )
 
     bounds = {}
     for name, mu in means.items():
@@ -420,9 +435,9 @@ def run_mcmc(surrogate, bounds, d_obs, sigma_obs, means,
 
     # Initialise walkers in a small ball around the means
     rng = np.random.default_rng(seed)
-    p0_centre = np.array([means[n] for n in PARAM_NAMES])
-    spread = 0.01  # 1 % perturbation around centre
-    p0 = p0_centre * (1.0 + spread * rng.standard_normal((n_walkers, ndim)))
+    p0_center = np.array([means[n] for n in PARAM_NAMES])
+    spread = 0.01  # 1 % perturbation around center
+    p0 = p0_center * (1.0 + spread * rng.standard_normal((n_walkers, ndim)))
 
     # Clip to stay within bounds
     for i, name in enumerate(PARAM_NAMES):
@@ -559,7 +574,7 @@ def plot_marginals(flat_samples, true_params, bounds, output_dir):
         ax.axvline(true_params[i], color="red", linestyle="--",
                     linewidth=2, label=f"true = {true_params[i]:.4f}")
         lo, hi = bounds[name]
-        ax.axvspan(lo, lo, color="grey", alpha=0.2)
+        ax.axvspan(lo, hi, color="grey", alpha=0.1)
         ax.set_xlim(lo, hi)
         ax.set_xlabel(name)
         ax.set_ylabel("Density")
