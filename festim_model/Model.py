@@ -1190,6 +1190,10 @@ class Model(BaseModel):
         if not hasattr(self, 'materials') or self.materials is None:
             self.materials = {}
 
+        # Store trapping energies per material for later use
+        if not hasattr(self, 'trapping_energies') or self.trapping_energies is None:
+            self.trapping_energies = {}
+
         # Iterate over materials specified in the config
         for material_config in config.get("materials", []):
             # Create a FESTIM material object
@@ -1202,7 +1206,17 @@ class Model(BaseModel):
                 density=float(material_config.get("rho", {}).get("mean", 0.0)), # Density [kg/m^3]
                 heat_capacity=float(material_config.get("heat_capacity", {}).get("mean", 0.0)) # Heat capacity [J/(kg*K)]
             )
-            self.materials[int(material_config.get("material_id", 1))] = material
+            mat_id = int(material_config.get("material_id", 1))
+            self.materials[mat_id] = material
+
+            # Store trapping energy E_k if present in config
+            E_k_cfg = material_config.get("E_k", {})
+            if isinstance(E_k_cfg, dict):
+                E_k_val = E_k_cfg.get("mean", None)
+            else:
+                E_k_val = E_k_cfg
+            if E_k_val is not None:
+                self.trapping_energies[mat_id] = float(E_k_val)
 
         return self.materials
 
@@ -1721,12 +1735,22 @@ class Model(BaseModel):
 
                     # Compute total tritium release
                     self._compute_total_tritium_release(qoi_name, milestone_profiles)
+
+                    # Compute total tritium trapping from the final milestone profile
+                    self._compute_total_tritium_trapping(milestone_profiles[:, -1])
+                    self._save_summary_csv()
                 else:
                     # ProfileExport had no data – fall back to final state
                     self.results[qoi_name] = final_state
             else:
                 # Steady-state or no milestone times
                 self.results[qoi_name] = final_state
+
+                # Compute scalar QoIs for steady-state
+                if qoi_name == 'tritium_concentration':
+                    self._compute_steady_state_release(final_state)
+                    self._compute_total_tritium_trapping(final_state)
+                    self._save_summary_csv()
 
     def _save_profile_file(self, qoi_name, milestone_profiles):
         """Save milestone-time profiles to a CSV understood by the UQ decoder."""
@@ -1788,6 +1812,146 @@ class Model(BaseModel):
         )
         print(f" >> Total tritium release saved to {release_path}")
         print(f" >> Total tritium release at final time: {releases[-1]:.4e}")
+
+    def _compute_total_tritium_trapping(self, concentration_profile):
+        """Compute total tritium trapping at steady state.
+
+        For a steady-state problem the total trapping is estimated as the
+        spatially-integrated concentration (inventory) in the domain.  When a
+        trapping energy ``E_k`` is defined in the material config, the trapped
+        fraction is computed using Boltzmann weighting::
+
+            trapped_fraction = 1 − exp(−E_k / (k_B * T))
+
+        Otherwise the full inventory is reported as an upper bound.
+
+        Parameters
+        ----------
+        concentration_profile : numpy.ndarray
+            1-D concentration field at the mesh vertices.
+
+        Returns
+        -------
+        float
+            Total tritium trapping scalar.
+        """
+        r = self.vertices
+        conc = np.asarray(concentration_profile)
+
+        # Volume weighting for integration
+        if self.coordinate_system_type == "spherical":
+            weight = 4.0 * np.pi * r ** 2
+        elif self.coordinate_system_type == "cylindrical":
+            weight = 2.0 * np.pi * r
+        else:
+            weight = np.ones_like(r)
+
+        total_inventory = float(np.trapz(conc * weight, x=r))
+
+        # Estimate trapped fraction from E_k if available
+        E_k = None
+        if hasattr(self, 'trapping_energies') and self.trapping_energies:
+            E_k = next(iter(self.trapping_energies.values()))
+
+        if E_k is not None and E_k > 0.0:
+            k_B_eV = 8.617333262e-5  # Boltzmann constant in eV/K
+            T_cfg = self.config.get("initial_conditions", {}).get("temperature", {})
+            T_val = T_cfg.get("value", {})
+            T = float(T_val.get("mean", 300.0)) if isinstance(T_val, dict) else float(T_val)
+            trapped_fraction = 1.0 - np.exp(-E_k / (k_B_eV * T))
+            total_trapping = total_inventory * trapped_fraction
+        else:
+            total_trapping = total_inventory
+
+        self.results['total_tritium_trapping'] = total_trapping
+
+        # Persist scalar to file
+        os.makedirs(self.result_folder, exist_ok=True)
+        trapping_path = os.path.join(self.result_folder, "total_tritium_trapping.txt")
+        np.savetxt(
+            trapping_path,
+            np.array([[total_trapping]]),
+            header="total_tritium_trapping",
+            delimiter=',',
+            comments='',
+        )
+        print(f" >> Total tritium trapping saved to {trapping_path}")
+        print(f" >> Total tritium trapping: {total_trapping:.4e}")
+        return total_trapping
+
+    def _compute_steady_state_release(self, concentration_profile):
+        """Compute total tritium release at steady state.
+
+        For steady state, release is the difference between source input
+        (integrated over the domain) and the current inventory.
+
+        Parameters
+        ----------
+        concentration_profile : numpy.ndarray
+            1-D concentration field at the mesh vertices.
+
+        Returns
+        -------
+        float
+            Total tritium release scalar.
+        """
+        r = self.vertices
+
+        # Volume weighting for integration
+        if self.coordinate_system_type == "spherical":
+            weight = 4.0 * np.pi * r ** 2
+        elif self.coordinate_system_type == "cylindrical":
+            weight = 2.0 * np.pi * r
+        else:
+            weight = np.ones_like(r)
+
+        # Initial inventory from config
+        ic_cfg = self.config.get("initial_conditions", {}).get("concentration", {})
+        ic_val_raw = ic_cfg.get("value", {})
+        ic_value = float(ic_val_raw.get("mean", 0.0)) if isinstance(ic_val_raw, dict) else float(ic_val_raw)
+        initial_inventory = np.trapz(ic_value * weight, x=r)
+
+        current_inventory = float(np.trapz(np.asarray(concentration_profile) * weight, x=r))
+        release = initial_inventory - current_inventory
+
+        self.results['total_tritium_release'] = release
+
+        # Persist scalar to file
+        os.makedirs(self.result_folder, exist_ok=True)
+        release_path = os.path.join(self.result_folder, "total_tritium_release.txt")
+        np.savetxt(
+            release_path,
+            np.array([[release]]),
+            header="total_tritium_release",
+            delimiter=',',
+            comments='',
+        )
+        print(f" >> Steady-state total tritium release saved to {release_path}")
+        print(f" >> Steady-state total tritium release: {release:.4e}")
+        return release
+
+    def _save_summary_csv(self):
+        """Save scalar QoI summary for the UQ decoder."""
+        os.makedirs(self.result_folder, exist_ok=True)
+        summary_path = os.path.join(self.result_folder, "summary.csv")
+
+        release = self.results.get('total_tritium_release', 0.0)
+        trapping = self.results.get('total_tritium_trapping', 0.0)
+
+        # Handle both array and scalar values
+        if hasattr(release, '__len__'):
+            release = float(release[-1]) if len(release) > 0 else 0.0
+        if hasattr(trapping, '__len__'):
+            trapping = float(trapping[-1]) if len(trapping) > 0 else 0.0
+
+        np.savetxt(
+            summary_path,
+            np.array([[float(release), float(trapping)]]),
+            header="total_tritium_release,total_tritium_trapping",
+            delimiter=',',
+            comments='',
+        )
+        print(f" >> Summary CSV saved to {summary_path}")
 
     def inspect_model_structure(self):
         """Print detailed structure of the FESTIM 2.0 model object."""

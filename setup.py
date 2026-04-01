@@ -13,7 +13,10 @@ setup(
         "pyyaml",
         "easyvvuq>=1.3",
         "chaospy>=4.3.13",
-        "joblib"
+        "joblib",
+        "emcee>=3.0",
+        "arviz>=0.12",
+        "corner>=2.2",
     ],
     python_requires=">=3.7",
     entry_points={

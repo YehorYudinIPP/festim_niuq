@@ -119,18 +119,30 @@ def save_results_for_uq(results, model):
 
     # ---- scalar QoIs in output.csv ----
     total_release = results.get('total_tritium_release', None)
-    final_release = float(total_release[-1]) if total_release is not None else 0.0
+    if isinstance(total_release, np.ndarray):
+        final_release = float(total_release[-1]) if len(total_release) > 0 else 0.0
+    elif total_release is not None:
+        final_release = float(total_release)
+    else:
+        final_release = 0.0
 
-    tritium_inventory = extract_tritium_inventory(results, model)
+    total_trapping = results.get('total_tritium_trapping', None)
+    if isinstance(total_trapping, np.ndarray):
+        final_trapping = float(total_trapping[-1]) if len(total_trapping) > 0 else 0.0
+    elif total_trapping is not None:
+        final_trapping = float(total_trapping)
+    else:
+        final_trapping = extract_tritium_inventory(results, model)
 
     output_file = "output.csv"
     with open(output_file, 'w', newline='') as csvfile:
         writer = csv.writer(csvfile)
-        writer.writerow(['tritium_inventory', 'total_tritium_release'])
-        writer.writerow([tritium_inventory, final_release])
+        writer.writerow(['total_tritium_release', 'total_tritium_trapping'])
+        writer.writerow([final_release, final_trapping])
 
     print(f"Results saved to {output_file}")
     print(f"Total tritium release (final): {final_release:.2e}")
+    print(f"Total tritium trapping (final): {final_trapping:.2e}")
 
     # ---- profile CSV (should already exist from Model._export_results) ----
     milestone_times = getattr(model, 'milestone_times', []) or []
