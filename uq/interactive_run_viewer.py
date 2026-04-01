@@ -467,6 +467,14 @@ const X_REF = {x_ref_str};
 const PARAM_NAMES = {json.dumps(param_names)};
 const QOI_NAMES = {json.dumps(qoi_names)};
 
+// ===== Constants =====
+const MATCH_REL_TOL = 1e-9;   // Relative tolerance for parameter matching
+const MATCH_ABS_TOL = 1e-30;  // Absolute tolerance for parameter matching
+const HIGHLIGHT_COLORS = [
+  '#e74c3c', '#e67e22', '#27ae60', '#8e44ad',
+  '#f39c12', '#1abc9c', '#c0392b', '#2980b9',
+];
+
 // ===== State =====
 let selectedQoi = QOI_NAMES.length > 0 ? QOI_NAMES[0] : null;
 
@@ -486,8 +494,7 @@ function matchesSelection(run, selection) {{
   for (const [pname, pval] of Object.entries(selection)) {{
     const rv = run.params[pname];
     if (rv === undefined || rv === null) return false;
-    // Tolerance for floating point comparison
-    if (Math.abs(rv - pval) > Math.abs(pval) * 1e-9 + 1e-30) return false;
+    if (Math.abs(rv - pval) > Math.abs(pval) * MATCH_REL_TOL + MATCH_ABS_TOL) return false;
   }}
   return true;
 }}
@@ -597,16 +604,12 @@ function updatePlot() {{
   // ---- Highlighted matching runs ----
   const selKeys = Object.keys(sel);
   if (selKeys.length > 0) {{
-    const colors = [
-      '#e74c3c', '#e67e22', '#27ae60', '#8e44ad',
-      '#f39c12', '#1abc9c', '#c0392b', '#2980b9',
-    ];
     let colorIdx = 0;
     RUNS.forEach(run => {{
       if (matchesSelection(run, sel) && run.profiles[qoi]) {{
         matchingRuns.push(run);
         const xData = run.x.length > 0 ? run.x : X_REF;
-        const color = colors[colorIdx % colors.length];
+        const color = HIGHLIGHT_COLORS[colorIdx % HIGHLIGHT_COLORS.length];
         colorIdx++;
         // Build hover text with parameter values
         const hoverParts = [`Run ${{run.id}}`];
