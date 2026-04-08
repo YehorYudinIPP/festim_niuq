@@ -202,7 +202,7 @@ def parameter_scan(config, param_name='length', level_variation=3, target_dir=".
     # Plot the results as a dependency on the parameter value
     print("Plotting results...")
     import matplotlib.pyplot as plt
-    plt.figure(figsize=(10, 6))
+    plt.figure(figsize=(6.3, 4.5))
 
     # Select scalars to plot
     # Tritium concentration in centre
@@ -219,18 +219,20 @@ def parameter_scan(config, param_name='length', level_variation=3, target_dir=".
         raise NotImplementedError(f"Scale {scale} for scan no implemented")
     print(f"Slope of the log-log scale for {param_name}={r_scale_slope}")
 
-    plt.plot(param_values, results_toplot, marker='o', label=y_qoi_name)
+    plt.plot(param_values, results_toplot, marker='o', label=y_qoi_name, linewidth=1.0, markersize=3)
 
     plt.xscale(scale)  # Use logarithmic scale for x-axis
     plt.yscale('log')  # Use logarithmic scale for y-axis
 
-    plt.xlabel(f"${param_name}$ [{param_units[param_name]}]")
-    plt.ylabel(f"Value of QoI")
-    plt.title(f"Parameter Scan: {param_name} - {param_explanation[param_name]}")
+    plt.xlabel(f"${param_name}$ [{param_units[param_name]}]", fontsize=12)
+    plt.ylabel(f"Value of QoI", fontsize=12)
+    plt.title(f"Parameter Scan: {param_name} - {param_explanation[param_name]}", fontsize=13)
+    plt.tick_params(labelsize=10)
 
-    plt.legend(loc='best')
+    plt.legend(loc='best', fontsize=10)
     plt.grid(True)
 
+    plt.tight_layout()
     plt.savefig(f"{target_dir}/parameter_scan_{param_name}.png")
     plt.close()
     #TODO for the length scan specifically, map the results on the [0,1] normalised coordinate system, e.g. r = r/length
