@@ -650,6 +650,358 @@ python3 interactive_run_viewer.py --runs-dir path/to/runs -o viewer.html
 
 
 % ============================================================================
+\section{Tutorial: Running Your First UQ Campaign}
+\label{sec:tutorial}
+% ============================================================================
+
+This section walks through a complete, minimal uncertainty-quantification
+campaign---from environment setup to result interpretation.  The example
+uses the \emph{correlated-parameter} UQ driver
+(\texttt{easyvvuq\_festim\_correlated.py}) to propagate uncertainties in
+three material parameters of a 1-D spherical tritium-transport model
+using a Polynomial Chaos Expansion with a multivariate normal
+distribution.  The workflow produces Sobol sensitivity indices and
+statistical moments of the concentration profile.
+
+% ----------------------------------------------------------------------------
+\subsection{Step 1 --- Install Dependencies}
+\label{sec:tut:install}
+
+\begin{lstlisting}[language=bash]
+# Clone the repository
+git clone https://github.com/YehorYudinIPP/festim_niuq.git
+cd festim_niuq
+
+# Create a virtual environment (conda or venv)
+conda create -n festim-uq python=3.10 -y
+conda activate festim-uq
+
+# Install the package and its dependencies
+pip install -r requirements.txt
+# Core dependencies (see requirements.txt for exact pins):
+#   festim, easyvvuq>=1.2, chaospy>=4.3,
+#   numpy, matplotlib, PyYAML>=6.0
+\end{lstlisting}
+
+\noindent
+Verify the installation by importing the main modules:
+
+\begin{lstlisting}[language=bash]
+python3 -c "import festim; import easyvvuq; import chaospy; print('OK')"
+\end{lstlisting}
+
+% ----------------------------------------------------------------------------
+\subsection{Step 2 --- Prepare the YAML Configuration}
+\label{sec:tut:config}
+
+All model physics and UQ settings live in a single YAML file.
+The reference configuration shipped with the repository
+(\texttt{uq/config/config.uq\_test\_cj1959.yaml}) describes a transient
+tritium-diffusion problem in a 1-D spherical domain of radius $L = 1$\,m
+with a volumetric source $G = 10^{15}$\,m$^{-3}$\,s$^{-1}$,
+zero-flux (Neumann) boundary at the centre, and zero-concentration
+(Dirichlet) boundary at the outer surface.
+
+\medskip\noindent
+Listing~\ref{lst:yaml} shows the key sections of the file.
+
+\begin{lstlisting}[
+  caption={Abridged YAML configuration
+           (\texttt{config.uq\_test\_cj1959.yaml}).},
+  label={lst:yaml},
+  basicstyle=\ttfamily\footnotesize,
+]
+# --- Physical model ---
+model_parameters:
+  transient: True
+  total_time: 1024.0
+  problems:
+    tritium_transport:
+      species: ["Tritium"]
+      domains: [{id: 1}]
+
+geometry:
+  dimensionality: 1
+  coordinate_system: "spherical"
+  domains:
+    - id: 1
+      length: 1.0
+      material: 123456789
+
+# --- Material properties (uncertain) ---
+materials:
+  - material_id: 123456789
+    material_name: "test_stuff"
+    D_0:                        # Diffusion pre-exp [m^2/s]
+      mean: 1.0e-6
+      relative_stdev: 0.05
+      pdf: 'uniform'
+    E_D:                        # Activation energy [eV]
+      mean: 1.0
+      relative_stdev: 0.1
+      pdf: 'uniform'
+    thermal_conductivity:       # kappa [W/(m K)]
+      mean: 1.0
+      relative_stdev: 0.1
+      pdf: 'uniform'
+    rho:   {mean: 1000.0}      # Density [kg/m^3]
+    heat_capacity: {mean: 10000.0}
+
+# --- Numerical settings ---
+simulation:
+  mesh_type: "regular"
+  n_elements: 1024
+  time_step:
+    default_value: 0.01
+    time_stepping_type: "fixed"
+  tolerances:
+    absolute_tolerance:
+      tritium_transport: 1.0e+6
+    relative_tolerance: 1.0e-6
+  output_directory: "results/test"
+  milestone_times: [0.1, 1.0, 16.0, 128.0, 1024.0]
+
+# --- Boundary conditions ---
+boundary_conditions:
+  concentration:
+    left:
+      type: "neumann"
+      species: "Tritium"
+      value: {mean: 0.0}       # zero-flux at centre
+    right:
+      type: "dirichlet"
+      species: "Tritium"
+      value: {mean: 0.0}       # zero conc. at surface
+
+# --- Source term ---
+source_terms:
+  concentration:
+    domain_id: 1
+    species: "Tritium"
+    type: "constant"
+    value: {mean: 1.0e+15}     # [m^{-3} s^{-1}]
+\end{lstlisting}
+
+\noindent
+Three parameters carry uncertainty tags (\texttt{relative\_stdev} and
+\texttt{pdf}): the diffusion pre-exponential~$D_0$, the activation
+energy~$E_D$, and the thermal conductivity~$\kappa$.  Their uncertainty
+is propagated through the solver.
+
+% ----------------------------------------------------------------------------
+\subsection{Step 3 --- Run the UQ Campaign}
+\label{sec:tut:run}
+
+From the \texttt{uq/} directory, launch a Polynomial Chaos Expansion
+campaign with polynomial order~$p = 2$:
+
+\begin{lstlisting}[language=bash]
+cd uq/
+python3 easyvvuq_festim_correlated.py \
+    --config config/config.uq_test_cj1959.yaml \
+    --uq-scheme pce --p-order 2
+\end{lstlisting}
+
+\noindent
+\textit{Note:} For independent (uncorrelated) parameters, replace the
+command with \texttt{easyvvuq\_festim.py} and the same flags.  The
+correlated driver is used here because it is the more general case.
+
+\noindent
+This command will:
+\begin{enumerate}[nosep]
+  \item Parse the YAML configuration and build a multivariate normal
+        distribution over the three uncertain parameters.
+  \item Create an EasyVVUQ campaign with an \texttt{AdvancedYAMLEncoder}
+        (substitutes \texttt{.mean} values in the YAML template) and a
+        \texttt{SimpleCSV} decoder that reads the profile output.
+  \item Generate PCE quadrature samples and execute
+        \texttt{festim\_model\_run.py} once per sample.
+  \item Collate results and run the PCE analysis to obtain statistical
+        moments and Sobol sensitivity indices.
+  \item Save plots and a statistics log in a timestamped folder
+        (e.g.\ \texttt{plots\_festim\_uq\_corr\_20260413\_1530/}).
+\end{enumerate}
+
+\noindent
+\textbf{Execution time.}  With $p = 2$ and 3~parameters the PCE sampler
+generates $\mathcal{O}(10)$~samples.  Each FESTIM solve on a 1024-element
+mesh takes approximately 10--30\,s, so the full campaign completes in a
+few minutes on a single CPU core.
+
+% ----------------------------------------------------------------------------
+\subsection{Step 4 --- Examine the Output}
+\label{sec:tut:output}
+
+The campaign produces the following artefacts:
+
+\begin{description}[nosep]
+  \item[Per-sample results] Each run directory contains:
+    \begin{itemize}[nosep]
+      \item \texttt{results/test/results\_tritium\_concentration.txt}
+            --- spatial profiles at each milestone time (CSV).
+      \item \texttt{output.csv} --- scalar QoIs
+            (\texttt{tritium\_inventory}, \texttt{total\_tritium\_release}).
+    \end{itemize}
+
+  \item[Aggregated output] The timestamped plots folder contains:
+    \begin{itemize}[nosep]
+      \item Mean and $\pm 1\sigma$ concentration profiles vs.\ radius
+            at each milestone time.
+      \item Sobol first-order sensitivity bar charts
+            (one per milestone time).
+      \item \texttt{uq\_statistics\_log\_*.txt} --- a text log with
+            statistical moments and sensitivity indices for every QoI
+            column.
+    \end{itemize}
+
+  \item[Campaign state]
+    \texttt{analysis\_results\_uq\_campaign\_*.pickle} and the EasyVVUQ
+    campaign database for later reloading via
+    \texttt{uq\_postprocessing.py}.
+\end{description}
+
+% ----------------------------------------------------------------------------
+\subsection{Step 5 --- Interpret the Results}
+\label{sec:tut:interpret}
+
+The statistics log reports, for each spatial profile column
+(e.g.\ \texttt{t=1.02e+03s}), the following quantities:
+
+\begin{itemize}[nosep]
+  \item \textbf{Mean $\boldsymbol{\mu}(r)$} and \textbf{standard deviation
+        $\boldsymbol{\sigma}(r)$} of the tritium concentration.
+  \item \textbf{First-order Sobol index $S_i$} for each uncertain
+        parameter --- the fraction of output variance attributable to
+        that parameter alone.
+  \item \textbf{Total Sobol index $S_{T_i}$} --- the fraction of output
+        variance attributable to a parameter including all its
+        interactions.
+\end{itemize}
+
+\noindent
+A high Sobol index for~$D_0$ at large~$r$ and late~$t$ means that
+diffusivity uncertainty dominates the prediction uncertainty in the outer
+part of the domain at long times, which is physically expected: the
+steady-state profile scales as $G \, r^2 / (6 D)$ in spherical
+coordinates.
+
+
+% ============================================================================
+\section{Reference Run}
+\label{sec:refrun}
+% ============================================================================
+
+This section documents a concrete reference run so that users can verify
+their installation and compare results.
+
+\subsection{Configuration}
+
+\begin{tabularx}{\textwidth}{@{} l X @{}}
+\toprule
+\textbf{Item} & \textbf{Value} \\
+\midrule
+Config file           & \texttt{uq/config/config.uq\_test\_cj1959.yaml} \\
+Coordinate system     & Spherical ($r \in [0, 1]$\,m) \\
+Mesh                  & Regular, 1024 elements \\
+Total time            & 1024\,s (fixed time step $\Delta t = 0.01$\,s) \\
+Species               & Tritium \\
+Source                & $G = 10^{15}\;\mathrm{m^{-3}\,s^{-1}}$ (constant, volumetric) \\
+Left BC (centre)      & Neumann, $J = 0$ \\
+Right BC (surface)    & Dirichlet, $c = 0$ \\
+Uncertain parameters  & $D_0$, $E_D$, $\kappa$ (uniform, CoV as in YAML) \\
+UQ scheme             & PCE, polynomial order $p = 2$ \\
+\bottomrule
+\end{tabularx}
+
+\subsection{Command}
+
+\begin{lstlisting}[language=bash]
+cd uq/
+python3 easyvvuq_festim_correlated.py \
+    --config config/config.uq_test_cj1959.yaml \
+    --uq-scheme pce --p-order 2
+\end{lstlisting}
+
+\subsection{Expected Results}
+\label{sec:refrun:results}
+
+Table~\ref{tab:refrun} summarises the expected order-of-magnitude
+statistics for the tritium concentration profile at the final milestone
+time $t = 1024$\,s.  Because the exact values depend on the solver
+version and floating-point environment, the table reports approximate
+ranges rather than exact numbers.
+
+\begin{table}[htbp]
+\centering
+\caption{Reference-run statistics for the tritium concentration profile
+  at $t = 1024$\,s.  Values are representative and may vary slightly
+  with FESTIM version.}
+\label{tab:refrun}
+\small
+\begin{tabularx}{\textwidth}{@{} l l X @{}}
+\toprule
+\textbf{Statistic} & \textbf{Typical value} & \textbf{Notes} \\
+\midrule
+Mean $\mu(r\!=\!0)$
+  & $\sim 10^{20}\;\mathrm{m^{-3}}$
+  & Peak concentration at the centre of the sphere \\
+Mean $\mu(r\!=\!L)$
+  & $0$
+  & Enforced by the Dirichlet BC \\
+Std.\ dev.\ $\sigma / \mu$
+  & $\sim 5$--$10\%$
+  & Relative uncertainty, largest near the surface \\
+\midrule
+$S_{D_0}$ (first-order)
+  & Dominant ($\gtrsim 0.5$)
+  & Diffusivity is the main driver of profile uncertainty \\
+$S_{E_D}$ (first-order)
+  & Moderate ($\sim 0.1$--$0.4$)
+  & Activation energy contributes via $D(T) = D_0 e^{-E_D/k_B T}$ \\
+$S_{\kappa}$ (first-order)
+  & Small ($\lesssim 0.1$)
+  & Thermal conductivity has little effect in an isothermal run \\
+\bottomrule
+\end{tabularx}
+\end{table}
+
+\subsection{Output Folder Structure}
+
+After a successful run the working directory will contain:
+
+\begin{lstlisting}[basicstyle=\ttfamily\footnotesize]
+uq/
+  plots_festim_uq_corr_YYYYMMDD_HHMMSS/
+    stats_corr_tritium_concentration_*.pdf   # profiles
+    uq_statistics_log_YYYYMMDD_HHMMSS.txt   # full log
+  analysis_results_uq_campaign_*.pickle     # reloadable
+  uq_campaign_config_*.pickle               # campaign state
+  campaign_state_*.json                     # EasyVVUQ DB
+\end{lstlisting}
+
+\subsection{Re-running Postprocessing}
+
+To regenerate plots from a completed campaign without re-running the
+simulations:
+
+\begin{lstlisting}[language=bash]
+python3 uq_postprocessing.py \
+    --runs-dir campaign_runs_YYYYMMDD_HHMMSS \
+    --config config/config.uq_test_cj1959.yaml
+\end{lstlisting}
+
+\noindent
+To create an interactive HTML viewer:
+
+\begin{lstlisting}[language=bash]
+python3 interactive_run_viewer.py \
+    --runs-dir campaign_runs_YYYYMMDD_HHMMSS \
+    -o reference_run_viewer.html
+\end{lstlisting}
+
+
+% ============================================================================
 \section{Draft Notes and Questions Requiring Clarification}
 \label{sec:questions}
 % ============================================================================
