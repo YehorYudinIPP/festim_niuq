@@ -2,8 +2,30 @@
 % Appendix: FESTIM-NIUQ Package Documentation
 % =============================================================================
 % Draft version — see Section~\ref{sec:questions} for open questions.
-% Compile with: pdflatex appendix_festim_niuq.tex  (twice for references)
-% Requires: TeX Live 2020 or later (for modern TikZ libraries)
+%
+% --- Compilation instructions ------------------------------------------------
+% Option A: Overleaf (recommended for collaboration)
+%   1. Create a new project on https://overleaf.com
+%   2. Upload this file as the main document
+%   3. Set compiler to pdfLaTeX (Menu -> Compiler -> pdfLaTeX)
+%   4. Click "Recompile" (run twice for cross-references)
+%   No additional packages need to be installed — Overleaf ships a full
+%   TeX Live distribution that includes all packages used here.
+%
+% Option B: Standalone LaTeX on WSL / Linux
+%   # Install TeX Live (full or subset) — run once:
+%   sudo apt-get update
+%   sudo apt-get install -y texlive-latex-base texlive-latex-recommended \
+%        texlive-latex-extra texlive-pictures texlive-fonts-recommended
+%
+%   # Compile (run twice for cross-references and table of contents):
+%   cd docs/
+%   pdflatex appendix_festim_niuq.tex
+%   pdflatex appendix_festim_niuq.tex
+%
+%   # The output is appendix_festim_niuq.pdf in the same directory.
+%
+% Minimum requirement: TeX Live 2020 or later (for modern TikZ libraries).
 % =============================================================================
 \documentclass[11pt,a4paper]{article}
 
@@ -31,6 +53,7 @@
 }
 \usepackage{listings}
 \usepackage{caption}
+\usepackage{enumitem}  % better list control
 
 % ---------- custom colours --------------------------------------------------
 \definecolor{festimblue}{HTML}{2B6CB0}
@@ -102,24 +125,26 @@
 \label{sec:intro}
 % ============================================================================
 
-FESTIM-NIUQ is a Python package that performs \emph{non-intrusive uncertainty
-quantification} (NIUQ) for tritium transport simulations built with the
+FESTIM-NIUQ is a Python package for \emph{non-intrusive uncertainty
+quantification} (NIUQ) of tritium transport simulations performed with the
 \href{https://github.com/festim-dev/FESTIM}{FESTIM} finite-element code.
-The package relies on
+It relies on
 \href{https://github.com/UCL-CCS/EasyVVUQ}{EasyVVUQ} (part of the SEAVEA
 Toolkit) to orchestrate parametric sampling, surrogate construction, and
-sensitivity analysis, while the deterministic forward model is driven by
-FESTIM~v1.4 and v2.0.
+sensitivity analysis.  The deterministic forward model is treated as a
+black box and driven by either FESTIM~v1.4 or~v2.0.
 
-The principal capabilities are:
-\begin{itemize}
+The principal capabilities of the package are:
+\begin{itemize}[nosep]
   \item Forward uncertainty propagation via Polynomial Chaos Expansion (PCE)
         and quasi-Monte~Carlo (QMC) sampling.
-  \item Correlated parameter uncertainty propagation using multivariate
-        normal distributions and finite-difference (FD) or PCE samplers.
-  \item Covariance influence analysis — scanning correlation coefficients
-        and tracking Sobol indices.
-  \item Postprocessing, interactive visualisation, and statistics logging.
+  \item Correlated-parameter uncertainty propagation using multivariate
+        normal distributions with finite-difference (FD) or PCE samplers.
+  \item Covariance influence analysis---scanning correlation coefficients
+        and tracking Sobol indices as a function of inter-parameter correlation.
+  \item Parametric model scans over individual input parameters.
+  \item Postprocessing, interactive visualisation, and automated statistics
+        logging.
 \end{itemize}
 
 
@@ -128,21 +153,21 @@ The principal capabilities are:
 \label{sec:physics}
 % ============================================================================
 
-The underlying physics modelled by FESTIM describes the transport and
-retention of hydrogen isotopes (primarily \emph{tritium}) in solid
-materials exposed to a tritium source. The governing partial differential
-equations solved in the 1-D domain $\Omega = [0, L]$ are:
+FESTIM models the transport and retention of hydrogen isotopes
+(primarily \emph{tritium}) in solid materials exposed to a tritium source.
+The governing partial differential equations are solved on a 1-D
+domain~$\Omega = [0, L]$ and are summarised below.
 
 \subsection{Tritium Transport (Hydrogen Diffusion)}
 
-The tritium concentration $c(\mathbf{r}, t)$ obeys a diffusion--source
-equation:
+The mobile tritium concentration~$c(\mathbf{r}, t)$ satisfies a
+diffusion--source equation:
 \begin{equation}
   \frac{\partial c}{\partial t}
   = \nabla \cdot \bigl( D(T)\,\nabla c \bigr) + G,
   \label{eq:diffusion}
 \end{equation}
-where $G$ $\mathrm{[m^{-3}\,s^{-1}]}$ is the volumetric tritium generation
+where $G\;\mathrm{[m^{-3}\,s^{-1}]}$ is the volumetric tritium generation
 rate and the temperature-dependent diffusivity follows an Arrhenius law:
 \begin{equation}
   D(T) = D_0 \exp\!\Bigl(-\frac{E_D}{k_B T}\Bigr).
@@ -151,49 +176,49 @@ rate and the temperature-dependent diffusivity follows an Arrhenius law:
 
 \subsection{Heat Transfer}
 
-When coupled heat transfer is enabled, the temperature field $T(\mathbf{r},t)$
-satisfies:
+When coupled heat transfer is enabled, the temperature field
+$T(\mathbf{r},t)$ satisfies:
 \begin{equation}
   \rho \, c_p \frac{\partial T}{\partial t}
   = \nabla \cdot \bigl(\kappa \,\nabla T\bigr) + Q,
   \label{eq:heat}
 \end{equation}
 where $\rho$ is the material density, $c_p$ is the specific heat capacity,
-$\kappa$ is the thermal conductivity, and $Q$ $\mathrm{[W\,m^{-3}]}$ is a
-volumetric heat source.
+$\kappa$ is the thermal conductivity, and
+$Q\;\mathrm{[W\,m^{-3}]}$ is a volumetric heat source.
 
 \subsection{Boundary Conditions}
 
-The code supports:
-\begin{itemize}
+The following boundary-condition types are supported:
+\begin{itemize}[nosep]
   \item \textbf{Dirichlet:} $c\big|_{\partial\Omega} = c_0$ \; or \;
         $T\big|_{\partial\Omega} = T_0$.
   \item \textbf{Neumann (flux):} $-D\,\nabla c \cdot \hat{n} = J_0$ \; or \;
         $-\kappa\,\nabla T \cdot \hat{n} = q_0$.
   \item \textbf{Convective flux:}
         $-\kappa\,\nabla T \cdot \hat{n} = h_\mathrm{conv}(T - T_\mathrm{ext})$.
-  \item \textbf{Surface recombination:}
-        $J_\mathrm{rec} = k_{r0}\,\exp(-E_{k_r}/k_B T)\,c^2$ (where applicable).
+  \item \textbf{Surface recombination} (where applicable):
+        $J_\mathrm{rec} = k_{r0}\,\exp(-E_{k_r}/k_B T)\,c^2$.
 \end{itemize}
 
 \subsection{Coordinate Systems}
 
 The 1-D domain can be interpreted in Cartesian, cylindrical, or spherical
-coordinates.  In spherical symmetry the Laplacian takes the form
+coordinates.  For example, in spherical symmetry the Laplacian becomes
 \begin{equation}
   \nabla^2 c = \frac{1}{r^2}\frac{\partial}{\partial r}
                \Bigl(r^2 \frac{\partial c}{\partial r}\Bigr),
 \end{equation}
-which modifies the volume-integration weights used when computing integral
-quantities (e.g.\ tritium inventory).
+which changes the volume-integration weights used when computing integral
+quantities such as the tritium inventory.
 
-\subsection{Quantities of Interest}
+\subsection{Derived Quantities of Interest}
 
-From the solution fields, the package computes:
-\begin{itemize}
+From the solution fields the package computes several derived quantities:
+\begin{itemize}[nosep]
   \item \textbf{Tritium inventory:}
         $\displaystyle I(t) = \int_\Omega c(\mathbf{r},t)\,\mathrm{d}V$.
-  \item \textbf{Total tritium release} via mass balance:
+  \item \textbf{Total tritium release} (via mass balance):
         $R(t) = I(0) + \int_0^t G\,\mathrm{d}V\,\mathrm{d}t' - I(t)$.
 \end{itemize}
 
@@ -203,44 +228,50 @@ From the solution fields, the package computes:
 \label{sec:classes}
 % ============================================================================
 
+This section describes the principal software components, organised by
+architectural layer.
+
 \subsection{FESTIM Model Layer (\texttt{festim\_model/})}
 
-\begin{description}
-  \item[\texttt{BaseModel}] Abstract base class declaring the interface for
-    all FESTIM model wrappers.  Virtual methods include
+\begin{description}[style=nextline]
+  \item[\texttt{BaseModel}] Abstract base class that declares the interface
+    for all FESTIM model wrappers.  Key virtual methods:
     \texttt{\_specify\_geometry}, \texttt{\_specify\_materials},
     \texttt{\_specify\_boundary\_conditions}, \texttt{\_add\_source\_terms},
     \texttt{\_add\_heat\_conduction}, \texttt{\_specify\_time\_integration\_settings},
     \texttt{\_add\_derived\_quantities}, and \texttt{run}.
 
   \item[\texttt{Model\_legacy}] Concrete wrapper for FESTIM~v1.4.  Reads a
-    YAML configuration, builds a \texttt{festim.Simulation} object (geometry,
-    materials, BCs, sources, time stepping, exports), and runs it.
-    Outputs \texttt{TXTExport} profile data.
+    YAML configuration file, builds a \texttt{festim.Simulation} object
+    (geometry, materials, boundary conditions, sources, time stepping,
+    exports), and executes the simulation.  Outputs profile data via
+    \texttt{TXTExport}.
 
   \item[\texttt{Model}] Concrete wrapper for FESTIM~v2.0.  Supports
     multiple coupled problems (\texttt{HydrogenTransportProblem},
-    \texttt{HeatTransferProblem}), FESTIM~2.0 mesh types (\texttt{Mesh1D}),
-    species objects, and milestone-time profile exports via the custom
-    \texttt{ProfileExport} class.
-    Key methods:
-    \begin{itemize}
-      \item \texttt{\_specify\_geometry}: Creates 1-D meshes with optional
-            local refinement (linear or quadratic rules).
-      \item \texttt{\_specify\_materials}: Parses material list from YAML,
-            constructs \texttt{festim.Material} objects with $D_0$, $E_D$,
-            $\kappa$, $\rho$, $c_p$.
-      \item \texttt{\_specify\_boundary\_conditions}: Maps YAML BC specs to
-            FESTIM BC objects (Dirichlet, Neumann, convective, recombination).
-      \item \texttt{\_export\_results}: Extracts milestone profiles from
-            \texttt{ProfileExport.data}, saves CSV for the UQ decoder,
-            computes total tritium release via mass balance.
-      \item \texttt{run}: Initialises, solves, and exports.
+    \texttt{HeatTransferProblem}), FESTIM~2.0 mesh types
+    (\texttt{Mesh1D}), species objects, and milestone-time profile exports
+    via the custom \texttt{ProfileExport} class.
+    Key methods include:
+    \begin{itemize}[nosep]
+      \item \texttt{\_specify\_geometry} --- creates 1-D meshes with
+            optional local refinement (linear or quadratic rules).
+      \item \texttt{\_specify\_materials} --- parses the material list from
+            YAML and constructs \texttt{festim.Material} objects with
+            $D_0$, $E_D$, $\kappa$, $\rho$, $c_p$.
+      \item \texttt{\_specify\_boundary\_conditions} --- maps YAML BC
+            specifications to FESTIM BC objects (Dirichlet, Neumann,
+            convective, recombination).
+      \item \texttt{\_export\_results} --- extracts milestone profiles from
+            \texttt{ProfileExport.data}, saves CSV files readable by the
+            UQ decoder, and computes the total tritium release via mass
+            balance.
+      \item \texttt{run} --- initialises, solves, and exports results.
     \end{itemize}
 
-  \item[\texttt{ProfileExport}] Subclass of \texttt{festim.VolumeQuantity}
-    that appends the full concentration array after every solve step
-    for later milestone extraction.
+  \item[\texttt{ProfileExport}] A subclass of \texttt{festim.VolumeQuantity}
+    that records the full concentration array after every solve step,
+    enabling subsequent extraction at user-specified milestone times.
 
   \item[\texttt{Diagnostics}] Postprocessing class that reads simulation
     results (TXT or BP/VTX format), computes derived quantities
@@ -250,77 +281,85 @@ From the solution fields, the package computes:
 
 \subsection{UQ Orchestration Layer (\texttt{uq/})}
 
-\begin{description}
+\begin{description}[style=nextline]
   \item[\texttt{easyvvuq\_festim.py}]
-    Stand-alone forward-UQ driver for \emph{independent} parameters.
-    Provides:
-    \begin{itemize}
-      \item \texttt{define\_parameter\_uncertainty(config, CoV, distribution)}:
-            Builds \texttt{chaospy} distributions from YAML means and CoVs.
-      \item \texttt{define\_festim\_model\_parameters()}: Returns the
+    Forward-UQ driver for \emph{independent} parameters.  Principal
+    functions:
+    \begin{itemize}[nosep]
+      \item \texttt{define\_parameter\_uncertainty(config, CoV, distribution)}
+            --- builds \texttt{chaospy} distributions from YAML means and
+            coefficients of variation.
+      \item \texttt{define\_festim\_model\_parameters()} --- returns the
             parameter dictionary and QoI column list for EasyVVUQ.
-      \item \texttt{prepare\_uq\_campaign(config, \dots)}: Assembles encoder,
-            decoder, execution action, sampler (PCE or QMC), and campaign.
-      \item \texttt{run\_uq\_campaign(campaign, pool)}: Executes the
-            campaign with a QCG-PJ resource pool.
-      \item \texttt{analyse\_uq\_results}: Runs PCE or QMC analysis and
+      \item \texttt{prepare\_uq\_campaign(config, \dots)} --- assembles
+            encoder, decoder, execution action, sampler (PCE or QMC),
+            and campaign object.
+      \item \texttt{run\_uq\_campaign(campaign, pool)} --- executes the
+            campaign with a QCG-PilotJob resource pool.
+      \item \texttt{analyse\_uq\_results} --- runs PCE or QMC analysis and
             returns statistical results.
-      \item \texttt{visualisation\_of\_results}: Generates uncertainty and
-            Sobol-index plots.
+      \item \texttt{visualisation\_of\_results} --- generates uncertainty-band
+            and Sobol-index plots.
     \end{itemize}
 
   \item[\texttt{easyvvuq\_festim\_correlated.py}]
     Forward-UQ driver for \emph{correlated} parameters.  Constructs a
-    multivariate normal distribution
-    (\texttt{chaospy.MvNormal}) from per-parameter CoVs and an
-    inter-parameter correlation coefficient.
-    Supports FD and PCE samplers.
+    multivariate normal distribution (\texttt{chaospy.MvNormal}) from
+    per-parameter coefficients of variation and an inter-parameter
+    correlation coefficient.  Supports both FD and PCE samplers.
 
   \item[\texttt{covariance\_influence\_analysis.py}]
-    Scans a range of correlation coefficient values (log or linear scale),
-    runs a correlated PCE campaign at each, and collects first-order and
-    total Sobol indices.  Results are saved as CSV, JSON, and PDF plots.
+    Scans a range of correlation-coefficient values (logarithmic or linear
+    scale), runs a correlated PCE campaign at each value, and collects
+    first-order and total Sobol indices.  Results are saved as CSV, JSON,
+    and PDF plots in a timestamped folder.
 
   \item[\texttt{festim\_model\_run.py}]
-    Thin wrapper executed by EasyVVUQ for each sample.  Loads a YAML
-    config, instantiates \texttt{Model} or \texttt{Model\_legacy},
-    runs the simulation, and writes \texttt{output.csv} with scalar QoIs.
+    Thin wrapper executed by EasyVVUQ for each sample point.  It loads a
+    YAML configuration, instantiates \texttt{Model} or
+    \texttt{Model\_legacy}, runs the simulation, and writes
+    \texttt{output.csv} with scalar QoIs (tritium inventory, total tritium
+    release).
+
+  \item[\texttt{festim\_model\_scan.py}]
+    Parametric scan driver that varies a single input parameter across a
+    user-defined range (logarithmic or linear scale) and collects the
+    resulting QoI values.  Useful for one-at-a-time sensitivity studies
+    complementary to the global Sobol analysis.
 
   \item[\texttt{uq\_postprocessing.py}]
-    Standalone postprocessing that reloads a completed campaign (from
-    database, pickle, or run directory) and regenerates plots and
-    statistics logs.
+    Standalone postprocessing script that reloads a completed campaign
+    (from a database, pickle file, or run directory) and regenerates plots
+    and statistics logs.
 
   \item[\texttt{interactive\_run\_viewer.py}]
-    Generates a self-contained HTML+Plotly.js viewer from an EasyVVUQ
-    campaign's run directories, with dropdown selectors for each
-    uncertain parameter.
+    Generates a self-contained HTML file with interactive Plotly.js plots
+    from an EasyVVUQ campaign's run directories, with dropdown selectors
+    for each uncertain parameter.
 \end{description}
 
 
 \subsection{Utility Modules (\texttt{uq/util/})}
 
-\begin{description}
+\begin{description}[style=nextline]
   \item[\texttt{Encoder.py}]
-    \texttt{YAMLEncoder} — simple delimiter-based substitution;
-    \texttt{AdvancedYAMLEncoder} — dot-notation path-based YAML
-    manipulation that directly modifies nested YAML keys (e.g.\
+    Contains \texttt{YAMLEncoder} (simple delimiter-based substitution) and
+    \texttt{AdvancedYAMLEncoder} (dot-notation path-based YAML manipulation
+    that directly modifies nested keys, e.g.\
     \texttt{materials.D\_0.mean}).
 
-  \item[\texttt{Decoder.py}]
-    \texttt{ScalarCSVDecoder} — reads single-row CSV files containing
-    scalar QoIs (\texttt{output.csv}) for Bayesian inversion campaigns.
-
   \item[\texttt{plotting.py}]
-    \texttt{UQPlotter} class with methods such as
+    The \texttt{UQPlotter} class provides methods such as
     \texttt{plot\_unc\_vs\_r}, \texttt{plot\_stats\_vs\_r},
     \texttt{plot\_stats\_correlated}, and Sobol-index bar charts.
     Uses \texttt{matplotlib} with the \texttt{Agg} backend for headless
-    servers.
+    server environments.
 
   \item[\texttt{utils.py}]
-    Shared helpers: \texttt{load\_config}, \texttt{add\_timestamp\_to\_filename},
-    \texttt{get\_festim\_python}, \texttt{validate\_execution\_setup}.
+    Shared helper functions: \texttt{load\_config},
+    \texttt{add\_timestamp\_to\_filename},
+    \texttt{get\_festim\_python}, \texttt{validate\_execution\_setup},
+    and \texttt{compute\_absolute\_tolerance}.
 \end{description}
 
 
@@ -389,6 +428,9 @@ Table~\ref{tab:sim_params} lists the main simulation (numerical) settings.
 \label{sec:qois}
 % ============================================================================
 
+Table~\ref{tab:qois} lists the quantities of interest computed and
+analysed in FESTIM-NIUQ.
+
 \begin{table}[htbp]
 \centering
 \caption{Quantities of interest measured and analysed in FESTIM-NIUQ.}
@@ -400,22 +442,25 @@ Table~\ref{tab:sim_params} lists the main simulation (numerical) settings.
 \midrule
 Tritium concentration $c(r,t)$   & Profile (1-D)   & $\mathrm{m^{-3}}$   & Spatial profile of the mobile tritium concentration at each milestone time \\
 Temperature $T(r,t)$             & Profile (1-D)   & K                    & Temperature distribution (when heat transfer is coupled) \\
-Tritium inventory $I(t)$         & Scalar / series  & (see note$^\ast$) & Volume-integrated tritium content: $I = \int_\Omega c\,\mathrm{d}V$ \\
-Total tritium release $R(t)$     & Scalar / series  & ---                  & Cumulative release via mass balance: $R = I_0 + \int_0^t G\,\mathrm{d}V\,\mathrm{d}t' - I$ \\
-Total tritium trapping           & Scalar           & ---                  & Trapped fraction via Boltzmann weighting with $E_k$ \\
+Tritium inventory $I(t)$         & Scalar / series  & $^\ast$              & Volume-integrated tritium content: $I = \int_\Omega c\,\mathrm{d}V$ \\
+Total tritium release $R(t)$     & Scalar / series  & $^\ast$              & Cumulative release via mass balance: $R = I_0 + \int_0^t G\,\mathrm{d}V\,\mathrm{d}t' - I$ \\
 \bottomrule
 \end{tabularx}
 \end{table}
 
 \noindent
-$^\ast$\textit{Note:} The unit of tritium inventory depends on the
-concentration unit and domain volume.  If $c$ is in
-$\mathrm{m^{-3}}$ (number density), then
-$I = \int c\,\mathrm{d}V$ is a total count (dimensionless).
-This should be clarified for the specific application., the EasyVVUQ decoder reads columns named
+$^\ast$\textit{Note on units.}  The unit of the tritium inventory depends on
+the concentration unit and the domain geometry.  If $c$ is a number density
+in~$\mathrm{m^{-3}}$, then $I = \int c\,\mathrm{d}V$ has units of total
+count; the same applies to the release~$R$.  These units should be
+confirmed for each specific application.
+
+\medskip\noindent
+For profile QoIs the EasyVVUQ decoder reads columns named
 \texttt{t=\textit{time}s} from \texttt{results\_tritium\_concentration.txt}.
-For steady-state runs the column is \texttt{t=steady}.
-Scalar QoIs are written to \texttt{output.csv}.
+For steady-state simulations the column is labelled \texttt{t=steady}.
+Scalar QoIs are written to \texttt{output.csv} with columns
+\texttt{tritium\_inventory} and \texttt{total\_tritium\_release}.
 
 % ============================================================================
 \section{Code Architecture Diagram}
@@ -449,7 +494,7 @@ Figure~\ref{fig:architecture} shows the high-level module architecture.
 
 % --- Utilities ---
 \node[utilbox, below=1.6cm of qcgpj] (encoder) {AdvancedYAML\\Encoder};
-\node[utilbox, below=0.6cm of encoder] (decoder) {SimpleCSV /\\ScalarCSVDecoder};
+\node[utilbox, below=0.6cm of encoder] (decoder) {SimpleCSV\\Decoder};
 \node[utilbox, below=0.6cm of decoder] (plotter) {UQPlotter};
 
 % --- Post-processing ---
@@ -570,15 +615,18 @@ workflow from configuration to results.
 % ============================================================================
 
 All model and UQ settings are specified in a single YAML configuration
-file.  A minimal invocation for independent-parameter UQ is:
+file.  The examples below assume the working directory is \texttt{uq/}.
+
+\medskip\noindent
+\textbf{Independent-parameter UQ} (PCE with polynomial order~2):
 
 \begin{lstlisting}[language=bash]
-cd uq
 python3 easyvvuq_festim.py --config config/config.uq_test_cj1959.yaml \
         --uq-scheme pce --p-order 2
 \end{lstlisting}
 
-\noindent For correlated-parameter UQ with a covariance scan:
+\noindent
+\textbf{Correlated-parameter UQ} with a covariance scan:
 
 \begin{lstlisting}[language=bash]
 python3 covariance_influence_analysis.py \
@@ -586,13 +634,15 @@ python3 covariance_influence_analysis.py \
         --scale log --n-points 5 --p-order 3
 \end{lstlisting}
 
-\noindent Postprocessing a completed campaign:
+\noindent
+\textbf{Postprocessing} a completed campaign:
 
 \begin{lstlisting}[language=bash]
 python3 uq_postprocessing.py --runs-dir path/to/runs --config config.yaml
 \end{lstlisting}
 
-\noindent Interactive viewer:
+\noindent
+\textbf{Interactive viewer} (generates a self-contained HTML file):
 
 \begin{lstlisting}[language=bash]
 python3 interactive_run_viewer.py --runs-dir path/to/runs -o viewer.html
@@ -604,98 +654,209 @@ python3 interactive_run_viewer.py --runs-dir path/to/runs -o viewer.html
 \label{sec:questions}
 % ============================================================================
 
-This section collects open questions and items that require input from the
-authors or domain experts before finalising the appendix.
+This section collects open questions and items that require input from
+the authors or domain experts before the appendix is finalised.
 
 \begin{enumerate}
-  \item \textbf{Scope of the appendix:}  Should this appendix be
+  \item \textbf{Scope of the appendix.}  Should this appendix be
     self-contained (reproducible without reading other documents), or is
     it intended as a supplement to a specific paper or thesis?
 
-  \item \textbf{Physical model details:}
-    \begin{itemize}
-      \item What is the primary application/material system
+  \item \textbf{Physical model details.}
+    \begin{itemize}[nosep]
+      \item What is the primary application material system
             (e.g.\ Li$_2$TiO$_3$ breeding blanket, tungsten PFC, other)?
-            % Consider using the mhchem package (\ce{Li2TiO3}) for chemical formulas
-      \item Are surface recombination BCs ($k_{r0}$, $E_{k_r}$) actively
-            used in the current test cases, or are they placeholder
-            functionality?
-      \item Is trapping (energy $E_k$, Boltzmann weighting) currently used
-            in any published configuration?
+      \item Are surface recombination boundary conditions ($k_{r0}$,
+            $E_{k_r}$) actively used in the current test cases, or are
+            they placeholder functionality?
     \end{itemize}
 
-  \item \textbf{Parameter distributions:}
-    \begin{itemize}
-      \item Should the table list specific nominal values and CoVs from a
-            reference test case, or remain generic?
-      \item Are the uniform and normal distributions the only ones used in
-            practice?  The code includes placeholders for log-normal, beta,
-            gamma, and exponential.
+  \item \textbf{Parameter distributions.}
+    \begin{itemize}[nosep]
+      \item Should the parameter table list specific nominal values and
+            coefficients of variation from a reference test case, or
+            should it remain generic?
+      \item Are uniform and normal distributions the only ones used in
+            practice?  The code includes stubs for log-normal, beta,
+            gamma, and exponential distributions.
     \end{itemize}
 
-  \item \textbf{Correlated UQ:}
-    \begin{itemize}
+  \item \textbf{Correlated UQ.}
+    \begin{itemize}[nosep]
       \item What physical justification exists for the correlation between
-            $D_0$ and $\kappa$?  Should we cite a specific source?
-      \item The Bayesian inverse UQ module
-            (\texttt{bayesian\_inverse\_uq.py}) is referenced in the
-            memory bank but not found in the repository.  Should it be
-            documented or is it on a separate branch?
+            $D_0$ and $\kappa$?  Should a specific reference be cited?
+      \item A Bayesian inverse UQ module is mentioned in design notes but
+            is not present in the current repository.  Should it be
+            documented as planned functionality, or is it available on a
+            separate branch?
     \end{itemize}
 
-  \item \textbf{FESTIM version:}
-    \begin{itemize}
+  \item \textbf{FESTIM version.}
+    \begin{itemize}[nosep]
       \item The code supports both FESTIM~1.4 (\texttt{Model\_legacy}) and
-            2.0 (\texttt{Model}).  Should both be documented equally, or
-            is v1.4 deprecated?
-      \item The steady-state coupled model (tritium + heat) raises
-            \texttt{NotImplementedError}.  Should this limitation be noted?
+            v2.0 (\texttt{Model}).  Should both be documented equally, or
+            is v1.4 considered deprecated?
+      \item The steady-state coupled model (tritium~+ heat) currently raises
+            \texttt{NotImplementedError}.  Should this limitation be
+            explicitly noted?
     \end{itemize}
 
-  \item \textbf{QoI definitions:}
-    \begin{itemize}
-      \item The ``total tritium trapping'' QoI (Boltzmann weighting with
-            $E_k$) appears in the memory bank but the corresponding code
-            (\texttt{\_compute\_total\_tritium\_trapping}) was not located.
-            Please confirm if this is implemented.
-      \item What are the units of tritium inventory in a spherical domain?
-            Currently documented as $\mathrm{m^{-3}\!\cdot\!m^3}$
-            (dimensionless count), but this should be clarified.
+  \item \textbf{QoI definitions.}
+    \begin{itemize}[nosep]
+      \item What are the units of the tritium inventory in a spherical
+            domain?  The current text notes that
+            $I = \int c\,\mathrm{d}V$ may be dimensionless (a total count)
+            when $c$ is a number density.
+      \item Are there additional scalar QoIs (e.g.\ peak concentration,
+            permeation flux) that should be documented?
     \end{itemize}
 
-  \item \textbf{Diagrams:}
-    \begin{itemize}
-      \item Should the architecture diagram include the SLURM submission
+  \item \textbf{Diagrams.}
+    \begin{itemize}[nosep]
+      \item Should the architecture diagram include SLURM submission
             scripts (\texttt{uq/slurm\_scripts/})?
-      \item Is there a data-flow diagram or class-hierarchy (UML) diagram
-            that should be included?
+      \item Would a data-flow diagram or a UML class-hierarchy diagram add
+            value?
     \end{itemize}
 
-  \item \textbf{Notation and conventions:}
-    \begin{itemize}
-      \item Should $k_B$ denote Boltzmann's constant in
-            $\mathrm{J\,K^{-1}}$, or should $E_D$ be in
-            $\mathrm{J\,mol^{-1}}$ with $R$ (gas constant)?  The code
-            uses eV in some places and J/mol in others.
-      \item Should we include a nomenclature / list of symbols section?
+  \item \textbf{Notation and conventions.}
+    \begin{itemize}[nosep]
+      \item Should $k_B$ denote the Boltzmann constant in
+            $\mathrm{J\,K^{-1}}$, or should $E_D$ be expressed in
+            $\mathrm{J\,mol^{-1}}$ with the gas constant~$R$?  The code
+            uses eV in some places and SI units in others.
+      \item Should a nomenclature or list-of-symbols section be included?
     \end{itemize}
 
-  \item \textbf{References:}
-    \begin{itemize}
+  \item \textbf{References.}
+    \begin{itemize}[nosep]
       \item Which publications should be cited for the FESTIM code, the
             EasyVVUQ framework, and the specific test cases?
       \item Is there a DOI or repository reference for the FESTIM-NIUQ
             package itself?
     \end{itemize}
 
-  \item \textbf{Formatting preferences:}
-    \begin{itemize}
+  \item \textbf{Formatting preferences.}
+    \begin{itemize}[nosep]
       \item Should this be a stand-alone document or an
-            \texttt{\\appendix} section within a larger document?
-      \item Any journal or style-guide requirements (e.g.\ Elsevier,
+            \texttt{\textbackslash appendix} section within a larger
+            document?
+      \item Are there journal or style-guide requirements (e.g.\ Elsevier,
             Springer, IEEE)?
     \end{itemize}
 \end{enumerate}
+
+
+% ============================================================================
+\section{Reviewer Comments: Strengths and Weaknesses}
+\label{sec:review}
+% ============================================================================
+
+The following self-assessment is intended to guide further revision of this
+appendix, viewed through the lens of a publication on open-source
+computational software.
+
+\subsection{Strengths}
+
+\begin{itemize}[nosep]
+  \item \textbf{Clear physical motivation.}  The physical model section
+    presents the governing equations concisely and links them directly to
+    the code's boundary-condition and source-term implementations.
+  \item \textbf{Comprehensive parameter and QoI tables.}  The tables
+    provide a one-stop reference for the full set of uncertain inputs and
+    measured outputs, including YAML configuration keys that are
+    directly actionable by users.
+  \item \textbf{Architecture and workflow diagrams.}  The TikZ diagrams
+    give a visual overview that significantly aids comprehension of
+    the package's layered design and its execution pipeline.
+  \item \textbf{Reproducible usage examples.}  The command-line invocations
+    in Section~\ref{sec:usage} are copy-pasteable and cover the main use
+    cases (independent UQ, correlated UQ, postprocessing, viewer).
+  \item \textbf{Non-intrusive design.}  The document clearly communicates
+    the key architectural decision: FESTIM is treated as a black box,
+    making the UQ layer solver-agnostic in principle.
+\end{itemize}
+
+\subsection{Weaknesses and Suggested Improvements}
+
+\begin{itemize}[nosep]
+  \item \textbf{Lack of a worked example with results.}  The appendix
+    describes \emph{what} the package can do but does not show a complete
+    input-to-output example with sample plots.  Including a minimal
+    reproducible example (e.g.\ a 3-parameter PCE run with
+    Sobol-index bar chart) would substantially increase the document's
+    utility.
+  \item \textbf{No validation or verification section.}  For a
+    publication on computational software, demonstrating agreement with
+    analytical solutions or benchmark results is essential.  A brief V\&V
+    subsection (even citing external work) would strengthen credibility.
+  \item \textbf{Missing dependency and installation instructions.}
+    The document does not list Python package dependencies
+    (\texttt{requirements.txt}) or environment setup steps.  Readers
+    wanting to reproduce results need this information.
+  \item \textbf{Incomplete treatment of limitations.}
+    Known limitations (e.g.\ 1-D only, no steady-state coupled problems,
+    hardcoded environment paths in some scripts) should be collected in
+    a dedicated subsection for transparency.
+  \item \textbf{Absent bibliography.}  The document references FESTIM,
+    EasyVVUQ, and ChaosPy via hyperlinks but lacks formal
+    \texttt{\textbackslash cite} entries.  A proper bibliography is
+    expected for peer-reviewed publication.
+  \item \textbf{Parameter table lacks reference values.}
+    The parameter table lists symbols and YAML keys but not typical
+    numerical ranges or nominal values.  Adding a ``Typical range''
+    column would make the table more informative.
+  \item \textbf{Physical model section could be deeper.}  The equations
+    are correct but brief.  For instance, the coupling mechanism between
+    the tritium transport and heat transfer equations (via $D(T)$) is not
+    explicitly discussed, and the trapping model is mentioned in the
+    parameter table but not derived in the physics section.
+\end{itemize}
+
+
+% ============================================================================
+\section{Compilation Instructions}
+\label{sec:compilation}
+% ============================================================================
+
+\subsection{Overleaf}
+
+\begin{enumerate}[nosep]
+  \item Go to \url{https://www.overleaf.com} and create a new blank project.
+  \item Upload \texttt{appendix\_festim\_niuq.tex} as the main document
+        (or copy-paste its contents into \texttt{main.tex}).
+  \item In the top-left menu, set \textbf{Compiler} to \texttt{pdfLaTeX}.
+  \item Click \textbf{Recompile}.  Run twice to resolve cross-references
+        and the table of contents.
+\end{enumerate}
+
+\noindent
+Overleaf ships a full TeX~Live distribution; no additional package
+installation is required.
+
+\subsection{Standalone \LaTeX{} on WSL / Linux}
+
+\begin{lstlisting}[language=bash]
+# 1. Install TeX Live packages (run once)
+sudo apt-get update
+sudo apt-get install -y texlive-latex-base \
+     texlive-latex-recommended texlive-latex-extra \
+     texlive-pictures texlive-fonts-recommended
+
+# 2. Compile (from the repository root)
+cd docs/
+pdflatex appendix_festim_niuq.tex   # first pass
+pdflatex appendix_festim_niuq.tex   # second pass (cross-refs)
+
+# 3. The output is docs/appendix_festim_niuq.pdf
+\end{lstlisting}
+
+\noindent
+\textbf{Minimum requirement:} TeX~Live 2020 or later (for the TikZ
+libraries used in the diagrams).  On Windows, WSL~2 with Ubuntu 20.04+
+is recommended; alternatively, install
+\href{https://miktex.org/}{MiKTeX} natively and compile from the
+MiKTeX console or command prompt.
 
 % ============================================================================
 % END
