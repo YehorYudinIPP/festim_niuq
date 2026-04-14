@@ -29,7 +29,7 @@ import unittest.mock as _mock
 # test succeeds regardless of whether the full dependency chain is present.
 _easyvvuq_available = True
 try:
-    import easyvvuq.actions  # noqa: F401 – just checking availability
+    import easyvvuq.actions  # noqa: F401 - just checking availability
 except (ImportError, ModuleNotFoundError):
     _easyvvuq_available = False
 
