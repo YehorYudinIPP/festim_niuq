@@ -4,6 +4,7 @@ FESTIM-NIUQ — Non-Intrusive Uncertainty Quantification for FESTIM.
 This is the top-level package.  It re-exports selected utilities from
 the :mod:`uq.util` sub-package for convenience.
 """
+
 import sys
 import os
 
@@ -21,7 +22,8 @@ except ImportError as e:
 # Import utility functions from uq.util
 try:
     from .uq.util import add_timestamp_to_filename, get_festim_python, validate_execution_setup
-    __all__ = ['add_timestamp_to_filename', 'get_festim_python', 'validate_execution_setup']
+
+    __all__ = ["add_timestamp_to_filename", "get_festim_python", "validate_execution_setup"]
 except ImportError as e:
     print(f"Could not import utility functions: {e}")
-    __all__ = [] 
+    __all__ = []

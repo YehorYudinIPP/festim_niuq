@@ -130,6 +130,7 @@ def _extract_uncertain_params(cfg):
 
 # ---- Result file I/O helpers ----------------------------------------------
 
+
 def _find_result_file(run_dir):
     """Locate the primary result CSV/TXT in *run_dir*."""
     candidates = [
@@ -207,6 +208,7 @@ def _read_csv_result(filepath):
 
 # ---- Aggregate statistics --------------------------------------------------
 
+
 def compute_statistics(all_profiles, qoi_name):
     """
     Compute mean, std, and percentile bands over all runs for a given QoI.
@@ -238,6 +240,7 @@ def compute_statistics(all_profiles, qoi_name):
 
 # ---- HTML generation -------------------------------------------------------
 
+
 def generate_html(run_data_list, output_path):
     """
     Generate a self-contained interactive HTML viewer.
@@ -254,15 +257,10 @@ def generate_html(run_data_list, output_path):
         return
 
     # --- Determine parameter names and their unique values ---
-    param_names = sorted({
-        pname for _, params, _, _ in run_data_list for pname in params
-    })
+    param_names = sorted({pname for _, params, _, _ in run_data_list for pname in params})
     param_values = {}
     for pname in param_names:
-        vals = sorted({
-            params.get(pname) for _, params, _, _ in run_data_list
-            if pname in params
-        })
+        vals = sorted({params.get(pname) for _, params, _, _ in run_data_list if pname in params})
         param_values[pname] = vals
 
     # --- Determine available QoIs (column names) ---
@@ -338,8 +336,7 @@ def _format_value(v):
     return f"{v:.6g}"
 
 
-def _build_html(runs_json, stats_json, x_ref_json,
-                param_names, param_values, param_descriptors, qoi_names):
+def _build_html(runs_json, stats_json, x_ref_json, param_names, param_values, param_descriptors, qoi_names):
     """Return the full HTML string for the interactive viewer."""
 
     # Build dropdown option HTML for each parameter
@@ -361,8 +358,7 @@ def _build_html(runs_json, stats_json, x_ref_json,
 
     # QoI selector
     qoi_options = "\n".join(
-        f'            <option value="{html.escape(q)}">{html.escape(q)}</option>'
-        for q in qoi_names
+        f'            <option value="{html.escape(q)}">{html.escape(q)}</option>' for q in qoi_names
     )
 
     # Serialise data – use json.dumps with limited precision
@@ -710,6 +706,7 @@ updatePlot();
 
 # ---- CLI entry point -------------------------------------------------------
 
+
 def main():
     parser = argparse.ArgumentParser(
         description="Generate an interactive HTML viewer for EasyVVUQ campaign results.",
@@ -721,11 +718,14 @@ Examples:
         """,
     )
     parser.add_argument(
-        "--runs-dir", required=True,
+        "--runs-dir",
+        required=True,
         help="Path to the EasyVVUQ campaign directory (or its runs/ subdirectory).",
     )
     parser.add_argument(
-        "--output", "-o", default="uq_interactive_viewer.html",
+        "--output",
+        "-o",
+        default="uq_interactive_viewer.html",
         help="Output HTML file path (default: uq_interactive_viewer.html).",
     )
     args = parser.parse_args()

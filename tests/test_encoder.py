@@ -1,6 +1,7 @@
 """
 Tests for the AdvancedYAMLEncoder and YAMLEncoder classes.
 """
+
 import os
 import math
 import tempfile
@@ -13,13 +14,7 @@ from uq.util.Encoder import YAMLEncoder, AdvancedYAMLEncoder, create_yaml_encode
 @pytest.fixture
 def simple_yaml_template(tmp_path):
     """Create a simple YAML template file for testing."""
-    content = (
-        "model:\n"
-        "  name: test\n"
-        "  value: $PARAM1$\n"
-        "settings:\n"
-        "  tolerance: $TOL$\n"
-    )
+    content = "model:\n" "  name: test\n" "  value: $PARAM1$\n" "settings:\n" "  tolerance: $TOL$\n"
     template_file = tmp_path / "template.yaml"
     template_file.write_text(content)
     return str(template_file)
@@ -38,11 +33,7 @@ def nested_yaml_template(tmp_path):
         "geometry": {
             "domains": [{"length": 0.01}],
         },
-        "simulation": {
-            "tolerances": {
-                "absolute_tolerance": {"tritium_transport": 1e10}
-            }
-        },
+        "simulation": {"tolerances": {"absolute_tolerance": {"tritium_transport": 1e10}}},
     }
     template_file = tmp_path / "nested_template.yaml"
     with open(str(template_file), "w") as f:
@@ -198,18 +189,14 @@ class TestAdvancedYAMLEncoder:
 
     def test_get_restart_dict(self, nested_yaml_template):
         pmap = {"D_0": "materials.D_0.mean"}
-        enc = AdvancedYAMLEncoder(
-            nested_yaml_template, parameter_map=pmap, type_conversions={"D_0": float}
-        )
+        enc = AdvancedYAMLEncoder(nested_yaml_template, parameter_map=pmap, type_conversions={"D_0": float})
         rd = enc.get_restart_dict()
         assert rd["parameter_map"] == pmap
         assert rd["type_conversions"] == {"D_0": float}
 
     def test_deserialize_roundtrip(self, nested_yaml_template):
         pmap = {"D_0": "materials.D_0.mean"}
-        enc = AdvancedYAMLEncoder(
-            nested_yaml_template, parameter_map=pmap, type_conversions={"D_0": float}
-        )
+        enc = AdvancedYAMLEncoder(nested_yaml_template, parameter_map=pmap, type_conversions={"D_0": float})
         rd = enc.get_restart_dict()
         enc2 = AdvancedYAMLEncoder.deserialize(rd)
         assert enc2.parameter_map == enc.parameter_map

@@ -5,6 +5,7 @@ Uses mocks to avoid requiring FESTIM or running actual simulations.
 The easyvvuq_festim module has heavy top-level imports (QCGPJPool, FESTIM, etc.)
 that may not be available in the test environment. We mock these before importing.
 """
+
 import os
 import sys
 import pytest
@@ -28,6 +29,7 @@ sys.modules.setdefault("easyvvuq.actions.QCGPJPool", _qcg_mock)
 
 # Patch the missing names into easyvvuq.actions if not present
 import easyvvuq.actions as _ea
+
 if not hasattr(_ea, "QCGPJPool"):
     _ea.QCGPJPool = MagicMock()
 if not hasattr(_ea, "EasyVVUQBasicTemplate"):

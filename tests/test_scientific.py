@@ -18,14 +18,14 @@ To run these tests (requires FESTIM + FEniCSx):
 
 Mark all tests with @pytest.mark.scientific so they can be skipped in CI.
 """
+
 import pytest
 import numpy as np
-
 
 # Custom marker for scientific tests that need FESTIM
 scientific = pytest.mark.skipif(
     True,  # Set to False when running with FESTIM installed
-    reason="Scientific tests require FESTIM and FEniCSx installation"
+    reason="Scientific tests require FESTIM and FEniCSx installation",
 )
 
 

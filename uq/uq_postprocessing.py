@@ -28,7 +28,8 @@ from datetime import datetime
 import numpy as np
 
 import matplotlib
-matplotlib.use('Agg')  # Use non-interactive backend to avoid display connection issues
+
+matplotlib.use("Agg")  # Use non-interactive backend to avoid display connection issues
 import matplotlib.pyplot as plt
 
 # Add parent directory to path for custom imports
@@ -114,14 +115,16 @@ def log_statistics_from_results(logger, results, qois):
         logger.info(f"\n--- Statistics for QoI: {qoi} ---")
 
         # Describe basic statistics
-        stat_names = ['mean', 'std']
+        stat_names = ["mean", "std"]
         for stat_name in stat_names:
             try:
                 values = results.describe(qoi, stat_name)
                 if values is not None:
-                    if hasattr(values, '__len__') and len(values) > 0:
-                        logger.info(f"  {stat_name}: min={np.min(values):.6e}, max={np.max(values):.6e}, "
-                                    f"avg={np.mean(values):.6e}")
+                    if hasattr(values, "__len__") and len(values) > 0:
+                        logger.info(
+                            f"  {stat_name}: min={np.min(values):.6e}, max={np.max(values):.6e}, "
+                            f"avg={np.mean(values):.6e}"
+                        )
                         logger.debug(f"  {stat_name} (full): {values}")
                     else:
                         logger.info(f"  {stat_name}: {values}")
@@ -129,11 +132,11 @@ def log_statistics_from_results(logger, results, qois):
                 logger.debug(f"  {stat_name}: not available ({e})")
 
         # Try percentiles
-        for pct in ['1%', '10%', 'median', '90%', '99%']:
+        for pct in ["1%", "10%", "median", "90%", "99%"]:
             try:
                 values = results.describe(qoi, pct)
                 if values is not None and not np.all(values == 0):
-                    if hasattr(values, '__len__') and len(values) > 0:
+                    if hasattr(values, "__len__") and len(values) > 0:
                         logger.info(f"  {pct}: min={np.min(values):.6e}, max={np.max(values):.6e}")
                     else:
                         logger.info(f"  {pct}: {values}")
@@ -144,14 +147,15 @@ def log_statistics_from_results(logger, results, qois):
         try:
             sobols_first = results.sobols_first(qoi)
             if sobols_first:
-                non_zero = {k: v for k, v in sobols_first.items()
-                            if v is not None and not np.all(np.array(v) == 0)}
+                non_zero = {k: v for k, v in sobols_first.items() if v is not None and not np.all(np.array(v) == 0)}
                 if non_zero:
                     logger.info(f"  Sobol first-order indices:")
                     for param, vals in non_zero.items():
                         vals_arr = np.array(vals)
-                        logger.info(f"    {param}: min={np.min(vals_arr):.6e}, "
-                                    f"max={np.max(vals_arr):.6e}, avg={np.mean(vals_arr):.6e}")
+                        logger.info(
+                            f"    {param}: min={np.min(vals_arr):.6e}, "
+                            f"max={np.max(vals_arr):.6e}, avg={np.mean(vals_arr):.6e}"
+                        )
         except Exception:
             pass
 
@@ -163,8 +167,10 @@ def log_statistics_from_results(logger, results, qois):
                 for param, vals in derivs.items():
                     if vals is not None:
                         vals_arr = np.array(vals)
-                        logger.info(f"    {param}: min={np.min(vals_arr):.6e}, "
-                                    f"max={np.max(vals_arr):.6e}, avg={np.mean(vals_arr):.6e}")
+                        logger.info(
+                            f"    {param}: min={np.min(vals_arr):.6e}, "
+                            f"max={np.max(vals_arr):.6e}, avg={np.mean(vals_arr):.6e}"
+                        )
         except Exception:
             pass
 
@@ -187,9 +193,7 @@ def postprocess_from_db(db_path, timestamp):
     import easyvvuq as uq
 
     # Create output folder
-    output_folder, timestamp = create_output_folder(
-        prefix="uq_postprocessing_results", timestamp=timestamp
-    )
+    output_folder, timestamp = create_output_folder(prefix="uq_postprocessing_results", timestamp=timestamp)
     logger = setup_logging(output_folder, timestamp)
 
     logger.info(f"Loading campaign from database: {db_path}")
@@ -201,8 +205,9 @@ def postprocess_from_db(db_path, timestamp):
     # Get the last analysis results
     results = campaign.get_last_analysis()
     if results is None:
-        logger.error("No analysis results found in the campaign database. "
-                      "Please run analysis before postprocessing.")
+        logger.error(
+            "No analysis results found in the campaign database. " "Please run analysis before postprocessing."
+        )
         return 1
 
     # Get QoI names from results
@@ -210,11 +215,11 @@ def postprocess_from_db(db_path, timestamp):
     logger.info(f"QoIs found: {qoi_names}")
 
     # Filter out 'x' from QoIs for plotting
-    plot_qois = [q for q in qoi_names if q != 'x']
+    plot_qois = [q for q in qoi_names if q != "x"]
 
     # Read vertices
     try:
-        rs = results.describe('x', 'mean')
+        rs = results.describe("x", "mean")
     except Exception:
         rs = None
 
@@ -222,7 +227,7 @@ def postprocess_from_db(db_path, timestamp):
         logger.warning("No vertex data ('x') found. Using index-based x-axis.")
         if plot_qois:
             try:
-                rs = np.arange(len(results.describe(plot_qois[0], 'mean')))
+                rs = np.arange(len(results.describe(plot_qois[0], "mean")))
             except Exception:
                 rs = np.arange(10)
 
@@ -241,8 +246,7 @@ def postprocess_from_db(db_path, timestamp):
     uqplotter = UQPlotter()
 
     try:
-        uqplotter.plot_stats_vs_r(results, plot_qois, output_folder, timestamp,
-                                   rs=rs, runs_info=runs_info)
+        uqplotter.plot_stats_vs_r(results, plot_qois, output_folder, timestamp, rs=rs, runs_info=runs_info)
         logger.info("Statistical plots generated successfully.")
     except Exception as e:
         logger.warning(f"Could not generate standard plots: {e}")
@@ -250,8 +254,7 @@ def postprocess_from_db(db_path, timestamp):
         try:
             distributions_keys = list(results.sobols_first(plot_qois[0]).keys()) if plot_qois else []
             distributions = {k: None for k in distributions_keys}
-            uqplotter.plot_stats_correlated(results, distributions, plot_qois,
-                                             output_folder, timestamp, rs=rs)
+            uqplotter.plot_stats_correlated(results, distributions, plot_qois, output_folder, timestamp, rs=rs)
             logger.info("Correlated statistical plots generated successfully.")
         except Exception as e2:
             logger.error(f"Could not generate correlated plots either: {e2}")
@@ -272,14 +275,12 @@ def postprocess_from_pickle(pickle_path, timestamp):
         int: 0 on success.
     """
     # Create output folder
-    output_folder, timestamp = create_output_folder(
-        prefix="uq_postprocessing_results", timestamp=timestamp
-    )
+    output_folder, timestamp = create_output_folder(prefix="uq_postprocessing_results", timestamp=timestamp)
     logger = setup_logging(output_folder, timestamp)
 
     logger.info(f"Loading analysis results from pickle: {pickle_path}")
 
-    with open(pickle_path, 'rb') as f:
+    with open(pickle_path, "rb") as f:
         results = pickle.load(f)
 
     logger.info("Analysis results loaded successfully.")
@@ -288,16 +289,18 @@ def postprocess_from_pickle(pickle_path, timestamp):
     try:
         qoi_names = list(results.qois)
     except AttributeError:
-        logger.error("Loaded object does not have 'qois' attribute. "
-                      "Ensure the pickle file contains EasyVVUQ analysis results.")
+        logger.error(
+            "Loaded object does not have 'qois' attribute. "
+            "Ensure the pickle file contains EasyVVUQ analysis results."
+        )
         return 1
 
     logger.info(f"QoIs found: {qoi_names}")
-    plot_qois = [q for q in qoi_names if q != 'x']
+    plot_qois = [q for q in qoi_names if q != "x"]
 
     # Read vertices
     try:
-        rs = results.describe('x', 'mean')
+        rs = results.describe("x", "mean")
     except Exception:
         rs = None
 
@@ -305,7 +308,7 @@ def postprocess_from_pickle(pickle_path, timestamp):
         logger.warning("No vertex data ('x') found. Using index-based x-axis.")
         if plot_qois:
             try:
-                rs = np.arange(len(results.describe(plot_qois[0], 'mean')))
+                rs = np.arange(len(results.describe(plot_qois[0], "mean")))
             except Exception:
                 rs = np.arange(10)
 
@@ -317,16 +320,14 @@ def postprocess_from_pickle(pickle_path, timestamp):
     uqplotter = UQPlotter()
 
     try:
-        uqplotter.plot_stats_vs_r(results, plot_qois, output_folder, timestamp,
-                                   rs=rs, runs_info=None)
+        uqplotter.plot_stats_vs_r(results, plot_qois, output_folder, timestamp, rs=rs, runs_info=None)
         logger.info("Statistical plots generated successfully.")
     except Exception as e:
         logger.warning(f"Could not generate standard plots: {e}")
         try:
             distributions_keys = list(results.sobols_first(plot_qois[0]).keys()) if plot_qois else []
             distributions = {k: None for k in distributions_keys}
-            uqplotter.plot_stats_correlated(results, distributions, plot_qois,
-                                             output_folder, timestamp, rs=rs)
+            uqplotter.plot_stats_correlated(results, distributions, plot_qois, output_folder, timestamp, rs=rs)
             logger.info("Correlated statistical plots generated successfully.")
         except Exception as e2:
             logger.error(f"Could not generate correlated plots either: {e2}")
@@ -355,9 +356,7 @@ def postprocess_from_runs_dir(runs_dir, config_path, timestamp):
     import re
 
     # Create output folder
-    output_folder, timestamp = create_output_folder(
-        prefix="uq_postprocessing_results", timestamp=timestamp
-    )
+    output_folder, timestamp = create_output_folder(prefix="uq_postprocessing_results", timestamp=timestamp)
     logger = setup_logging(output_folder, timestamp)
 
     logger.info(f"Loading runs from directory: {runs_dir}")
@@ -394,7 +393,7 @@ def postprocess_from_runs_dir(runs_dir, config_path, timestamp):
         search_dir = results_subdir if os.path.isdir(results_subdir) else run_dir
 
         for f in os.listdir(search_dir):
-            if f.endswith(('.csv', '.txt')):
+            if f.endswith((".csv", ".txt")):
                 result_files.append(os.path.join(search_dir, f))
 
         if not result_files:
@@ -407,17 +406,17 @@ def postprocess_from_runs_dir(runs_dir, config_path, timestamp):
                 all_data[basename] = []
 
             try:
-                data = np.loadtxt(result_file, delimiter=None, comments='#')
+                data = np.loadtxt(result_file, delimiter=None, comments="#")
                 # If whitespace parsing produced a 1D array, the file may
                 # use comma delimiters instead. Retry with comma delimiter.
                 if data.ndim == 1:
-                    data = np.loadtxt(result_file, delimiter=',', comments='#')
+                    data = np.loadtxt(result_file, delimiter=",", comments="#")
                 all_data[basename].append(data)
                 logger.debug(f"  Loaded {result_file} shape={data.shape}")
             except Exception as e:
                 # Try reading as CSV with header
                 try:
-                    with open(result_file, 'r') as fh:
+                    with open(result_file, "r") as fh:
                         reader = csv.reader(fh)
                         header = next(reader)
                         rows = [list(map(float, row)) for row in reader if row]
@@ -467,7 +466,9 @@ def postprocess_from_runs_dir(runs_dir, config_path, timestamp):
             col_std = std_vals[:, col_idx] if std_vals.ndim > 1 else std_vals
 
             logger.info(f"  Column {col_idx}:")
-            logger.info(f"    Mean:   min={np.min(col_mean):.6e}, max={np.max(col_mean):.6e}, avg={np.mean(col_mean):.6e}")
+            logger.info(
+                f"    Mean:   min={np.min(col_mean):.6e}, max={np.max(col_mean):.6e}, avg={np.mean(col_mean):.6e}"
+            )
             logger.info(f"    Std:    min={np.min(col_std):.6e}, max={np.max(col_std):.6e}, avg={np.mean(col_std):.6e}")
             eps = np.finfo(float).tiny  # smallest positive float, avoids division by zero
             logger.info(f"    CoV:    avg={np.mean(col_std / (np.abs(col_mean) + eps)):.6e}")
@@ -483,20 +484,16 @@ def postprocess_from_runs_dir(runs_dir, config_path, timestamp):
             x_vals = mean_vals[:, 0] if mean_vals.ndim > 1 else np.arange(len(col_mean))
 
             fig, ax = plt.subplots(figsize=(8, 6))
-            ax.plot(x_vals, col_mean, label='Mean')
-            ax.fill_between(x_vals, col_mean - col_std, col_mean + col_std,
-                            alpha=0.3, label=r'$\pm 1\sigma$')
-            ax.fill_between(x_vals, col_p10, col_p90,
-                            alpha=0.1, label='10%-90%')
+            ax.plot(x_vals, col_mean, label="Mean")
+            ax.fill_between(x_vals, col_mean - col_std, col_mean + col_std, alpha=0.3, label=r"$\pm 1\sigma$")
+            ax.fill_between(x_vals, col_p10, col_p90, alpha=0.1, label="10%-90%")
             ax.set_xlabel("Coordinate")
             ax.set_ylabel(f"Column {col_idx}")
             ax.set_title(f"Statistics for {name_stem}, column {col_idx}")
-            ax.legend(loc='best')
+            ax.legend(loc="best")
             ax.grid(True)
 
-            plot_filename = add_timestamp_to_filename(
-                f"{name_stem}_col{col_idx}_stats.pdf", timestamp
-            )
+            plot_filename = add_timestamp_to_filename(f"{name_stem}_col{col_idx}_stats.pdf", timestamp)
             fig.savefig(os.path.join(output_folder, plot_filename))
             plt.close()
             logger.info(f"  Plot saved: {plot_filename}")
@@ -511,35 +508,24 @@ def postprocess_from_runs_dir(runs_dir, config_path, timestamp):
 def main():
     """Main entry point for the postprocessing script."""
     parser = argparse.ArgumentParser(
-        description="UQ Postprocessing: Generate plots and statistics from "
-                    "EasyVVUQ campaign results.",
+        description="UQ Postprocessing: Generate plots and statistics from " "EasyVVUQ campaign results.",
         formatter_class=argparse.RawDescriptionHelpFormatter,
         epilog="""
 Examples:
   %(prog)s --db path/to/campaign_state.json
   %(prog)s --results-pickle path/to/analysis_results.pickle
   %(prog)s --runs-dir path/to/runs/ --config path/to/config.yaml
-        """
+        """,
     )
 
     # Input source (mutually exclusive)
     source = parser.add_mutually_exclusive_group(required=True)
-    source.add_argument(
-        '--db', type=str,
-        help='Path to EasyVVUQ campaign state file (JSON or DB).'
-    )
-    source.add_argument(
-        '--results-pickle', type=str,
-        help='Path to pickled analysis results file.'
-    )
-    source.add_argument(
-        '--runs-dir', type=str,
-        help='Path to directory containing individual run subdirectories.'
-    )
+    source.add_argument("--db", type=str, help="Path to EasyVVUQ campaign state file (JSON or DB).")
+    source.add_argument("--results-pickle", type=str, help="Path to pickled analysis results file.")
+    source.add_argument("--runs-dir", type=str, help="Path to directory containing individual run subdirectories.")
 
     parser.add_argument(
-        '--config', '-c', type=str, default=None,
-        help='Path to YAML config file (required with --runs-dir).'
+        "--config", "-c", type=str, default=None, help="Path to YAML config file (required with --runs-dir)."
     )
 
     args = parser.parse_args()

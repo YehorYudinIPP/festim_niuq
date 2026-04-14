@@ -1,6 +1,7 @@
 """
 Tests for the ScalarCSVDecoder class from uq/util/Decoder.py.
 """
+
 import os
 import pytest
 

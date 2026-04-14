@@ -12,7 +12,6 @@ The canonical parameter list is maintained here; the actual values
 from the YAML configuration file.
 """
 
-
 #: Mapping of internal parameter key to metadata used by plotting and logging.
 PARAMETER_DESCRIPTORS = {
     "D_0": {

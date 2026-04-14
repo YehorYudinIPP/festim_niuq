@@ -1,6 +1,7 @@
 """
 Pytest configuration and shared fixtures for FESTIM-NIUQ tests.
 """
+
 import os
 import sys
 import pytest

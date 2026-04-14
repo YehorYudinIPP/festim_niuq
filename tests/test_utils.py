@@ -1,6 +1,7 @@
 """
 Tests for utility functions in uq/util/utils.py.
 """
+
 import os
 import tempfile
 import pytest
@@ -60,7 +61,7 @@ class TestAddTimestampToFilename:
         assert result.startswith("test_")
         assert result.endswith(".txt")
         # Timestamp part should be 15 chars: YYYYMMDD_HHMMSS
-        name_part = result[len("test_"):-len(".txt")]
+        name_part = result[len("test_") : -len(".txt")]
         assert len(name_part) == 15
 
     def test_handles_path_with_directory(self):

@@ -2,12 +2,14 @@
 Tests for the UQPlotter class from uq/util/plotting.py.
 Uses mocks to avoid requiring real EasyVVUQ results objects.
 """
+
 import os
 import pytest
 import numpy as np
 from unittest.mock import MagicMock, patch
 
 import matplotlib
+
 matplotlib.use("Agg")
 
 from uq.util.plotting import UQPlotter
@@ -46,14 +48,10 @@ def mock_results():
     results.describe = MagicMock(side_effect=describe_side_effect)
 
     # Mock sobols_first
-    results.sobols_first = MagicMock(
-        return_value={"D_0": np.random.rand(n_points), "G": np.random.rand(n_points)}
-    )
+    results.sobols_first = MagicMock(return_value={"D_0": np.random.rand(n_points), "G": np.random.rand(n_points)})
 
     # Mock sobols_total
-    results.sobols_total = MagicMock(
-        return_value={"D_0": np.random.rand(n_points), "G": np.random.rand(n_points)}
-    )
+    results.sobols_total = MagicMock(return_value={"D_0": np.random.rand(n_points), "G": np.random.rand(n_points)})
 
     return results
 
@@ -87,9 +85,7 @@ class TestUQPlotterMethods:
         rs = np.linspace(0, 1, 10)
 
         try:
-            plotter.plot_stats_vs_r(
-                mock_results, qois, folder, "test_ts", rs=rs, runs_info=None
-            )
+            plotter.plot_stats_vs_r(mock_results, qois, folder, "test_ts", rs=rs, runs_info=None)
         except Exception:
             # Plotting may fail due to mock limitations, but we verify it was called
             pass

@@ -76,10 +76,7 @@ class ScalarCSVDecoder:
             with open(filepath, "r", newline="") as fh:
                 reader = csv.DictReader(fh)
                 row = next(reader)
-            return {
-                col: float(row[col]) if col in row else None
-                for col in self.output_columns
-            }
+            return {col: float(row[col]) if col in row else None for col in self.output_columns}
         except (StopIteration, KeyError, ValueError):
             return {col: None for col in self.output_columns}
 

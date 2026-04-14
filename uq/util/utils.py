@@ -5,6 +5,7 @@ Provides configuration loading, file-name helpers, Python-environment
 detection, execution validation, sensitivity-analysis persistence, and
 heuristic absolute-tolerance estimation.
 """
+
 import os
 import sys
 import subprocess
@@ -39,7 +40,7 @@ def load_config(config_file):
     """
 
     try:
-        with open(config_file, 'r') as file:
+        with open(config_file, "r") as file:
             config = yaml.safe_load(file)
         print(f" >> Configuration loaded: {config}")
         return config
@@ -49,18 +50,19 @@ def load_config(config_file):
     except yaml.YAMLError as e:
         print(f"Error parsing YAML file: {e}")
         return None
-    
+
+
 def add_timestamp_to_filename(filename, timestamp=None):
     """
     Add timestamp to filename before the extension.
-    
+
     Args:
         filename (str): Original filename
         timestamp (str, optional): Custom timestamp string. If None, uses current datetime.
-    
+
     Returns:
         str: Filename with timestamp
-    
+
     Example:
         add_timestamp_to_filename("results.hdf5") -> "results_20250718_143025.hdf5"
     """
@@ -71,9 +73,10 @@ def add_timestamp_to_filename(filename, timestamp=None):
         # timestamp = datetime.now().strftime("%Y%m%d")               # 20250718 (date only)
         # timestamp = datetime.now().strftime("%Y%m%d_%H%M")          # 20250718_1430 (no seconds)
         timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-    
+
     name, ext = os.path.splitext(filename)
     return f"{name}_{timestamp}{ext}"
+
 
 def get_festim_python():
     """
@@ -111,48 +114,51 @@ def get_festim_python():
     print("Warning: FESTIM environment not found, using current Python")
     return sys.executable
 
+
 def validate_execution_setup():
     """Validate that the execution environment is properly configured."""
     runnable_script = "festim_model_run.py"
     script_path = os.path.join(os.getcwd(), runnable_script)
-    
+
     # Check script exists
     if not os.path.exists(script_path):
         raise FileNotFoundError(f"Script not found: {script_path}")
-    
+
     # Check script is executable
     if not os.access(script_path, os.X_OK):
         print(f"Making script executable: {script_path}")
         os.chmod(script_path, 0o755)
-    
+
     # Check Python executable
     python_exe = get_festim_python()
     if not os.path.exists(python_exe):
         raise FileNotFoundError(f"Python executable not found: {python_exe}")
-    
+
     print(f"✓ Script validation passed: {script_path}")
     print(f"✓ Python executable: {python_exe}")
     return python_exe, script_path
+
 
 def save_sa_results_yaml():
     """
     Save sensitivity analysis results to a YAML file. - example
     """
     results = {
-        'timestamp': datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
-        'description': 'Sensitivity analysis results',
-        'data': {
+        "timestamp": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
+        "description": "Sensitivity analysis results",
+        "data": {
             # Example data structure
-            'sensitivity_indices': [0.1, 0.2, 0.3],
-            'parameters': ['param1', 'param2', 'param3']
-        }
+            "sensitivity_indices": [0.1, 0.2, 0.3],
+            "parameters": ["param1", "param2", "param3"],
+        },
     }
-    
+
     filename = add_timestamp_to_filename("sa_results.yaml")
     # serialize_yaml(results, filename) # TODO - implement, or copy
 
     print(f"✓ Sensitivity analysis results saved to: {filename}")
     return filename
+
 
 def integrate_statistics(uq_resuls):
     """
@@ -193,10 +199,11 @@ def integrate_statistics(uq_resuls):
 
     return stat_integrated
 
+
 def compute_absolute_tolerance(default_atol, orig_params, new_params):
     """
     Compute (a heuristic for) absolute tolerance by multiplying default absolute tolerance with a factors according to parameter changes.
-    
+
     Args:
         default_atol (float): Default absolute tolerance
         orig_params (dict): Original parameter values
@@ -219,14 +226,14 @@ def compute_absolute_tolerance(default_atol, orig_params, new_params):
     The cahnge is by the following (exp) rule: atol_new = atol_orig * 10**( SUM_{i=1}^{N} (A_i * x_i_new/x_i_orig) ))
     """
     log_sensitivities = {
-        "length": 1.0, #2.0,
+        "length": 1.0,  # 2.0,
         "G": 1.0,
         "right_bc_concentration_value": 0.5,
     }
 
     exp_sensitivities = {
-        "T": -6.0, # special rule has to be applied, i.e. 10**(6.0 * T_new/T_orig)
-        "T_in": 0.0, #-1.5,
+        "T": -6.0,  # special rule has to be applied, i.e. 10**(6.0 * T_new/T_orig)
+        "T_in": 0.0,  # -1.5,
     }
 
     # Compute the exponential factor based on parameter changes
@@ -238,10 +245,10 @@ def compute_absolute_tolerance(default_atol, orig_params, new_params):
             if key in log_sensitivities:
                 log_ratio = np.log10(abs(new_params[key] / orig_params[key])) if orig_params[key] != 0 else 0
                 print(f" >>>> Computing tolerance for {key}: log_ratio={log_ratio}")
-                
+
                 log_sensitivity = log_sensitivities.get(key, 1.0)  # Default sensitivity is 1.0 if not specified
                 print(f" >>>> Computing tolerance for {key}: log_sensitivity={log_sensitivity}")
-                
+
                 exp_factor = log_sensitivity * log_ratio
                 print(f" >>>> Computing tolerance for {key}: exp_factor={exp_factor}")
 
@@ -251,15 +258,15 @@ def compute_absolute_tolerance(default_atol, orig_params, new_params):
 
                 exp_sensitivity = exp_sensitivities.get(key, 1.0)  # Default sensitivity is 1.0 if not specified
                 print(f" >>>> Computing tolerance for {key}: exp_sensitivity={exp_sensitivity}")
-                
+
                 exp_factor = exp_sensitivity * frac_ratio
                 print(f" >>>> Computing tolerance for {key}: exp_factor={exp_factor:.3E}")
-            
+
             else:
                 raise NotImplemented(f"The tolerance sensitivity rule for {key} is not implemented!")
 
             # This is done not as a sum first because different rules can be applied to different parameters
-            multiplier *= 10 ** exp_factor
+            multiplier *= 10**exp_factor
             print(f" >>>> Computing tolerance for {key}: new multiplier={multiplier}")
         else:
             print(f"Warning: Parameter {key} not found in original parameters, skipping.")
