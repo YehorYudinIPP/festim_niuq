@@ -1,8 +1,16 @@
-# FESTIM Model Configuration - for verification tests
+# ================================================================
+# FESTIM-NIUQ Configuration — Release from Pre-loaded Sphere
+# ================================================================
+#
+# Test case: tritium release from a sphere with a uniform initial
+# concentration and zero outer boundary condition.  No volumetric
+# source.  The analytical transient solution is a Fourier series;
+# at long times it decays exponentially.
+# ================================================================
 
 model_parameters:
-  transient: True
-  total_time: 1024.0
+  transient: True               # Transient release problem
+  total_time: 1024.0            # [s]
   problems:
 
     tritium_transport:

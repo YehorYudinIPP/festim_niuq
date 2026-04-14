@@ -1,0 +1,72 @@
+[build-system]
+requires = ["setuptools>=64", "wheel"]
+build-backend = "setuptools.backends._legacy:_Backend"
+
+[project]
+name = "festim-niuq"
+version = "0.1.0"
+description = "Non-Intrusive Uncertainty Quantification for FESTIM code"
+readme = "README.md"
+license = "MIT"
+requires-python = ">=3.9"
+authors = [
+    { name = "Yehor Yudin", email = "y.yudin@bangor.ac.uk" },
+]
+classifiers = [
+    "Development Status :: 3 - Alpha",
+    "Intended Audience :: Science/Research",
+    "License :: OSI Approved :: MIT License",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.9",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Topic :: Scientific/Engineering :: Physics",
+    "Operating System :: OS Independent",
+]
+dependencies = [
+    "numpy",
+    "matplotlib",
+    "pyyaml>=6.0",
+    "easyvvuq>=1.3",
+    "chaospy>=4.3.13",
+    "joblib",
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest",
+    "pytest-cov",
+    "black",
+]
+bayesian = [
+    "emcee",
+]
+
+[project.urls]
+Homepage = "https://github.com/YehorYudinIPP/festim_niuq"
+Repository = "https://github.com/YehorYudinIPP/festim_niuq"
+Issues = "https://github.com/YehorYudinIPP/festim_niuq/issues"
+
+[project.scripts]
+festim-uq = "uq.easyvvuq_festim:main"
+
+[tool.setuptools.packages.find]
+include = ["festim_model*", "uq*"]
+
+# ---------------------------------------------------------------------------
+# Black formatter configuration
+# ---------------------------------------------------------------------------
+[tool.black]
+line-length = 120
+target-version = ["py39", "py310", "py311", "py312"]
+
+# ---------------------------------------------------------------------------
+# Pytest configuration (mirrors pytest.ini)
+# ---------------------------------------------------------------------------
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+python_files = ["test_*.py"]
+python_classes = ["Test*"]
+python_functions = ["test_*"]
+addopts = "-v --tb=short"

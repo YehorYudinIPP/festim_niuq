@@ -1,0 +1,42 @@
+cff-version: 1.2.0
+message: "If you use this software, please cite it as below."
+type: software
+title: "FESTIM-NIUQ: Non-Intrusive Uncertainty Quantification for FESTIM"
+version: 0.1.0
+license: MIT
+repository-code: https://github.com/YehorYudinIPP/festim_niuq
+date-released: "2026-04-14"
+authors:
+  - family-names: Yudin
+    given-names: Yehor
+    orcid: https://orcid.org/0000-0000-0000-0000
+    affiliation: "Nuclear Futures Institute, Bangor University, UK"
+  - family-names: Griffiths
+    given-names: Tom
+    affiliation: "Nuclear Futures Institute, Bangor University, UK"
+  - family-names: Smith
+    given-names: Tom
+    affiliation: "Nuclear Futures Institute, Bangor University, UK"
+  - family-names: Davey
+    given-names: Tessa
+    affiliation: "Nuclear Futures Institute, Bangor University, UK"
+  - family-names: Cockrell
+    given-names: Cillian
+    affiliation: "Nuclear Futures Institute, Bangor University, UK"
+  - family-names: Middleburgh
+    given-names: Simon
+    affiliation: "Nuclear Futures Institute, Bangor University, UK"
+keywords:
+  - uncertainty quantification
+  - tritium transport
+  - sensitivity analysis
+  - fusion energy
+  - polynomial chaos expansion
+  - FESTIM
+  - EasyVVUQ
+abstract: >-
+  A Python package for non-intrusive uncertainty quantification of tritium
+  transport simulations using the FESTIM finite-element framework. FESTIM-NIUQ
+  couples FESTIM with EasyVVUQ to propagate parametric uncertainties and compute
+  Sobol sensitivity indices via polynomial chaos expansion and quasi-Monte Carlo
+  methods.

@@ -29,7 +29,8 @@ import numpy as np
 from datetime import datetime
 
 import matplotlib
-matplotlib.use('Agg')
+
+matplotlib.use("Agg")
 import matplotlib.pyplot as plt
 
 # Add parent directory to path for custom encoder
@@ -70,7 +71,7 @@ def generate_covariance_values(scale, n_points, min_cov, max_cov):
     Raises:
         ValueError: If scale is not 'log' or 'linear', or if bounds are invalid.
     """
-    if scale not in ('log', 'linear'):
+    if scale not in ("log", "linear"):
         raise ValueError(f"Scale must be 'log' or 'linear', got '{scale}'")
     if min_cov <= 0.0:
         raise ValueError(f"Minimum covariance must be > 0, got {min_cov}")
@@ -79,7 +80,7 @@ def generate_covariance_values(scale, n_points, min_cov, max_cov):
     if min_cov >= max_cov:
         raise ValueError(f"min_cov ({min_cov}) must be less than max_cov ({max_cov})")
 
-    if scale == 'log':
+    if scale == "log":
         cov_values = np.logspace(np.log10(min_cov), np.log10(max_cov), n_points)
     else:
         cov_values = np.linspace(min_cov, max_cov, n_points)
@@ -87,8 +88,7 @@ def generate_covariance_values(scale, n_points, min_cov, max_cov):
     return cov_values
 
 
-def run_single_covariance_campaign(config, config_file, corr_value, p_order,
-                                   fixed_params=None):
+def run_single_covariance_campaign(config, config_file, corr_value, p_order, fixed_params=None):
     """
     Run a single correlated UQ campaign for a given covariance value using PCE.
 
@@ -106,8 +106,7 @@ def run_single_covariance_campaign(config, config_file, corr_value, p_order,
     parameters, qois = define_festim_model_parameters(config)
 
     # Define uncertain parameter distributions with this covariance value
-    distributions, distributions_joint = define_parameter_uncertainty(
-        config, corr=corr_value)
+    distributions, distributions_joint = define_parameter_uncertainty(config, corr=corr_value)
 
     param_names = list(distributions.keys())
 
@@ -134,7 +133,7 @@ def run_single_covariance_campaign(config, config_file, corr_value, p_order,
     )
 
     # Set up decoder
-    output_dir = config.get('simulation', {}).get('output_directory', 'results')
+    output_dir = config.get("simulation", {}).get("output_directory", "results")
     decoder = uq.decoders.SimpleCSV(
         target_filename=f"{output_dir}/results_tritium_concentration.txt",
         output_columns=qois,
@@ -143,7 +142,7 @@ def run_single_covariance_campaign(config, config_file, corr_value, p_order,
     # Set up execution and actions
     execute = prepare_execution_command()
     actions = Actions(
-        CreateRunDirectory('run_dir'),
+        CreateRunDirectory("run_dir"),
         Encode(encoder),
         execute,
         Decode(decoder),
@@ -203,19 +202,17 @@ def collect_sobol_indices(results, qois, param_names):
                 s_total_mean = float(np.mean(s_total)) if s_total is not None else 0.0
 
                 sobol_data[qoi][param] = {
-                    'first': s_first_mean,
-                    'total': s_total_mean,
+                    "first": s_first_mean,
+                    "total": s_total_mean,
                 }
             except Exception as e:
-                print(f"  Warning: Could not extract Sobol indices for "
-                      f"{qoi}/{param}: {e}")
-                sobol_data[qoi][param] = {'first': 0.0, 'total': 0.0}
+                print(f"  Warning: Could not extract Sobol indices for " f"{qoi}/{param}: {e}")
+                sobol_data[qoi][param] = {"first": 0.0, "total": 0.0}
 
     return sobol_data
 
 
-def save_scan_results(results_folder, cov_values, all_sobol_data, param_names,
-                      qois, scan_metadata):
+def save_scan_results(results_folder, cov_values, all_sobol_data, param_names, qois, scan_metadata):
     """
     Save covariance scan results to CSV and JSON files.
 
@@ -229,32 +226,32 @@ def save_scan_results(results_folder, cov_values, all_sobol_data, param_names,
     """
     # Save metadata
     metadata_file = os.path.join(results_folder, "scan_metadata.json")
-    with open(metadata_file, 'w') as f:
+    with open(metadata_file, "w") as f:
         json.dump(scan_metadata, f, indent=2, default=str)
     print(f"  Metadata saved to: {metadata_file}")
 
     # Save per-QoI CSV files
     for qoi in qois[1:]:
         csv_file = os.path.join(results_folder, f"sobol_indices_{qoi}.csv")
-        with open(csv_file, 'w', newline='') as f:
+        with open(csv_file, "w", newline="") as f:
             writer = csv.writer(f)
 
             # Header
-            header = ['covariance']
+            header = ["covariance"]
             for param in param_names:
-                header.extend([f'{param}_first', f'{param}_total'])
+                header.extend([f"{param}_first", f"{param}_total"])
             writer.writerow(header)
 
             # Data rows
             for i, cov_val in enumerate(cov_values):
-                row = [f'{cov_val:.6e}']
+                row = [f"{cov_val:.6e}"]
                 sobol_data = all_sobol_data[i]
                 for param in param_names:
                     if qoi in sobol_data and param in sobol_data[qoi]:
                         row.append(f"{sobol_data[qoi][param]['first']:.6e}")
                         row.append(f"{sobol_data[qoi][param]['total']:.6e}")
                     else:
-                        row.extend(['0.0', '0.0'])
+                        row.extend(["0.0", "0.0"])
                 writer.writerow(row)
 
         print(f"  Sobol indices saved to: {csv_file}")
@@ -262,18 +259,17 @@ def save_scan_results(results_folder, cov_values, all_sobol_data, param_names,
     # Save combined JSON results
     combined_file = os.path.join(results_folder, "sobol_indices_all.json")
     combined_data = {
-        'covariance_values': cov_values.tolist(),
-        'param_names': param_names,
-        'qois': qois[1:],
-        'sobol_indices': all_sobol_data,
+        "covariance_values": cov_values.tolist(),
+        "param_names": param_names,
+        "qois": qois[1:],
+        "sobol_indices": all_sobol_data,
     }
-    with open(combined_file, 'w') as f:
+    with open(combined_file, "w") as f:
         json.dump(combined_data, f, indent=2, default=str)
     print(f"  Combined results saved to: {combined_file}")
 
 
-def plot_sobol_vs_covariance(results_folder, cov_values, all_sobol_data,
-                             param_names, qois, scale, timestamp):
+def plot_sobol_vs_covariance(results_folder, cov_values, all_sobol_data, param_names, qois, scale, timestamp):
     """
     Plot first-order and total Sobol indices as a function of covariance.
 
@@ -292,16 +288,15 @@ def plot_sobol_vs_covariance(results_folder, cov_values, all_sobol_data,
         # Plot first-order Sobol indices
         ax1 = axes[0]
         for param in param_names:
-            values = [all_sobol_data[i].get(qoi, {}).get(param, {}).get('first', 0.0)
-                      for i in range(len(cov_values))]
-            if scale == 'log':
-                ax1.semilogx(cov_values, values, 'o-', label=param)
+            values = [all_sobol_data[i].get(qoi, {}).get(param, {}).get("first", 0.0) for i in range(len(cov_values))]
+            if scale == "log":
+                ax1.semilogx(cov_values, values, "o-", label=param)
             else:
-                ax1.plot(cov_values, values, 'o-', label=param)
+                ax1.plot(cov_values, values, "o-", label=param)
 
-        ax1.set_xlabel('Correlation coefficient')
-        ax1.set_ylabel('First-order Sobol index')
-        ax1.set_title(f'First-order Sobol indices — {qoi}')
+        ax1.set_xlabel("Correlation coefficient")
+        ax1.set_ylabel("First-order Sobol index")
+        ax1.set_title(f"First-order Sobol indices — {qoi}")
         ax1.legend()
         ax1.grid(True, alpha=0.3)
         ax1.set_ylim(bottom=-0.05, top=1.05)
@@ -309,25 +304,22 @@ def plot_sobol_vs_covariance(results_folder, cov_values, all_sobol_data,
         # Plot total Sobol indices
         ax2 = axes[1]
         for param in param_names:
-            values = [all_sobol_data[i].get(qoi, {}).get(param, {}).get('total', 0.0)
-                      for i in range(len(cov_values))]
-            if scale == 'log':
-                ax2.semilogx(cov_values, values, 's-', label=param)
+            values = [all_sobol_data[i].get(qoi, {}).get(param, {}).get("total", 0.0) for i in range(len(cov_values))]
+            if scale == "log":
+                ax2.semilogx(cov_values, values, "s-", label=param)
             else:
-                ax2.plot(cov_values, values, 's-', label=param)
+                ax2.plot(cov_values, values, "s-", label=param)
 
-        ax2.set_xlabel('Correlation coefficient')
-        ax2.set_ylabel('Total Sobol index')
-        ax2.set_title(f'Total Sobol indices — {qoi}')
+        ax2.set_xlabel("Correlation coefficient")
+        ax2.set_ylabel("Total Sobol index")
+        ax2.set_title(f"Total Sobol indices — {qoi}")
         ax2.legend()
         ax2.grid(True, alpha=0.3)
         ax2.set_ylim(bottom=-0.05, top=1.05)
 
         plt.tight_layout()
-        plot_file = os.path.join(
-            results_folder,
-            f"sobol_vs_covariance_{qoi}_{timestamp}.pdf")
-        plt.savefig(plot_file, dpi=150, bbox_inches='tight')
+        plot_file = os.path.join(results_folder, f"sobol_vs_covariance_{qoi}_{timestamp}.pdf")
+        plt.savefig(plot_file, dpi=150, bbox_inches="tight")
         plt.close(fig)
         print(f"  Plot saved: {plot_file}")
 
@@ -336,32 +328,30 @@ def plot_sobol_vs_covariance(results_folder, cov_values, all_sobol_data,
         fig, ax = plt.subplots(figsize=(10, 6))
         for qoi in qois[1:]:
             for param in param_names:
-                values = [all_sobol_data[i].get(qoi, {}).get(param, {}).get('first', 0.0)
-                          for i in range(len(cov_values))]
-                label = f'{param} @ {qoi}'
-                if scale == 'log':
-                    ax.semilogx(cov_values, values, 'o-', label=label, markersize=4)
+                values = [
+                    all_sobol_data[i].get(qoi, {}).get(param, {}).get("first", 0.0) for i in range(len(cov_values))
+                ]
+                label = f"{param} @ {qoi}"
+                if scale == "log":
+                    ax.semilogx(cov_values, values, "o-", label=label, markersize=4)
                 else:
-                    ax.plot(cov_values, values, 'o-', label=label, markersize=4)
+                    ax.plot(cov_values, values, "o-", label=label, markersize=4)
 
-        ax.set_xlabel('Correlation coefficient')
-        ax.set_ylabel('First-order Sobol index')
-        ax.set_title('First-order Sobol indices — all QoIs')
-        ax.legend(fontsize='small', ncol=2)
+        ax.set_xlabel("Correlation coefficient")
+        ax.set_ylabel("First-order Sobol index")
+        ax.set_title("First-order Sobol indices — all QoIs")
+        ax.legend(fontsize="small", ncol=2)
         ax.grid(True, alpha=0.3)
         ax.set_ylim(bottom=-0.05, top=1.05)
 
         plt.tight_layout()
-        summary_file = os.path.join(
-            results_folder,
-            f"sobol_vs_covariance_summary_{timestamp}.pdf")
-        plt.savefig(summary_file, dpi=150, bbox_inches='tight')
+        summary_file = os.path.join(results_folder, f"sobol_vs_covariance_summary_{timestamp}.pdf")
+        plt.savefig(summary_file, dpi=150, bbox_inches="tight")
         plt.close(fig)
         print(f"  Summary plot saved: {summary_file}")
 
 
-def run_covariance_scan(config_file, scale='log', n_points=5, min_cov=0.01,
-                        max_cov=0.9, p_order=2, fixed_params=None):
+def run_covariance_scan(config_file, scale="log", n_points=5, min_cov=0.01, max_cov=0.9, p_order=2, fixed_params=None):
     """
     Main function: scan covariance values and collect Sobol indices.
 
@@ -403,15 +393,15 @@ def run_covariance_scan(config_file, scale='log', n_points=5, min_cov=0.01,
 
     # Scan metadata
     scan_metadata = {
-        'timestamp': timestamp,
-        'config_file': config_file,
-        'scale': scale,
-        'n_points': n_points,
-        'min_cov': min_cov,
-        'max_cov': max_cov,
-        'p_order': p_order,
-        'covariance_values': cov_values.tolist(),
-        'fixed_params': fixed_params,
+        "timestamp": timestamp,
+        "config_file": config_file,
+        "scale": scale,
+        "n_points": n_points,
+        "min_cov": min_cov,
+        "max_cov": max_cov,
+        "p_order": p_order,
+        "covariance_values": cov_values.tolist(),
+        "fixed_params": fixed_params,
     }
 
     # Run campaigns
@@ -423,10 +413,9 @@ def run_covariance_scan(config_file, scale='log', n_points=5, min_cov=0.01,
         print(f"\n--- Covariance scan [{i + 1}/{n_points}]: corr = {cov_val:.6f} ---")
 
         try:
-            results, run_qois, distributions, run_param_names = \
-                run_single_covariance_campaign(
-                    config, config_file, cov_val, p_order,
-                    fixed_params=fixed_params)
+            results, run_qois, distributions, run_param_names = run_single_covariance_campaign(
+                config, config_file, cov_val, p_order, fixed_params=fixed_params
+            )
 
             # Store param_names and qois from first successful run
             if param_names is None:
@@ -441,15 +430,13 @@ def run_covariance_scan(config_file, scale='log', n_points=5, min_cov=0.01,
             for qoi in run_qois[1:]:
                 for param in run_param_names:
                     s = sobol_data[qoi][param]
-                    print(f"    {qoi} / {param}: S1={s['first']:.4f}, "
-                          f"ST={s['total']:.4f}")
+                    print(f"    {qoi} / {param}: S1={s['first']:.4f}, " f"ST={s['total']:.4f}")
 
         except Exception as e:
             print(f"  ERROR at corr={cov_val:.6f}: {e}")
             # Append placeholder data to keep alignment with cov_values
             if qois and param_names:
-                empty = {qoi: {p: {'first': 0.0, 'total': 0.0}
-                               for p in param_names} for qoi in qois[1:]}
+                empty = {qoi: {p: {"first": 0.0, "total": 0.0} for p in param_names} for qoi in qois[1:]}
                 all_sobol_data.append(empty)
             else:
                 all_sobol_data.append({})
@@ -461,18 +448,17 @@ def run_covariance_scan(config_file, scale='log', n_points=5, min_cov=0.01,
     # Check for failed campaigns
     n_failed = sum(1 for d in all_sobol_data if len(d) == 0)
     if n_failed > 0:
-        print(f"\nNote: {n_failed} out of {len(cov_values)} campaigns failed. "
-              f"Failed entries use zero Sobol indices.")
+        print(
+            f"\nNote: {n_failed} out of {len(cov_values)} campaigns failed. " f"Failed entries use zero Sobol indices."
+        )
 
     # Save results
     print(f"\nSaving results to: {results_folder}")
-    save_scan_results(results_folder, cov_values, all_sobol_data,
-                      param_names, qois, scan_metadata)
+    save_scan_results(results_folder, cov_values, all_sobol_data, param_names, qois, scan_metadata)
 
     # Generate plots
     print(f"\nGenerating plots...")
-    plot_sobol_vs_covariance(results_folder, cov_values, all_sobol_data,
-                             param_names, qois, scale, timestamp)
+    plot_sobol_vs_covariance(results_folder, cov_values, all_sobol_data, param_names, qois, scale, timestamp)
 
     print(f"\n{'=' * 70}")
     print(f"  COVARIANCE SCAN COMPLETE")
@@ -484,8 +470,8 @@ def run_covariance_scan(config_file, scale='log', n_points=5, min_cov=0.01,
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(
-        description='Analyse the influence of the covariance parameter on '
-                    'Sobol indices in correlated UQ for FESTIM.',
+        description="Analyse the influence of the covariance parameter on "
+        "Sobol indices in correlated UQ for FESTIM.",
         formatter_class=argparse.RawDescriptionHelpFormatter,
         epilog="""
 Examples:
@@ -502,29 +488,33 @@ Examples:
   # With fixed parameters
   python covariance_influence_analysis.py --config config.yaml --scale log \\
       --fixed-length 5e-4
-""")
+""",
+    )
 
-    parser.add_argument('--config', '-c', default='config.yaml',
-                        help='Path to YAML configuration file (default: config.yaml)')
-    parser.add_argument('--scale', '-s', default='log', choices=['log', 'linear'],
-                        help='Scale for covariance scan: log or linear (default: log)')
-    parser.add_argument('--n-points', '-n', type=int, default=5,
-                        help='Number of covariance values to scan (default: 5)')
-    parser.add_argument('--min-cov', type=float, default=0.01,
-                        help='Minimum covariance value (default: 0.01)')
-    parser.add_argument('--max-cov', type=float, default=0.9,
-                        help='Maximum covariance value (default: 0.9)')
-    parser.add_argument('--p-order', '-p', type=int, default=2,
-                        help='Polynomial order for PCE analysis (default: 2)')
-    parser.add_argument('--fixed-length', type=float, default=None,
-                        help='Fixed sample length in meters (optional)')
+    parser.add_argument(
+        "--config", "-c", default="config.yaml", help="Path to YAML configuration file (default: config.yaml)"
+    )
+    parser.add_argument(
+        "--scale",
+        "-s",
+        default="log",
+        choices=["log", "linear"],
+        help="Scale for covariance scan: log or linear (default: log)",
+    )
+    parser.add_argument(
+        "--n-points", "-n", type=int, default=5, help="Number of covariance values to scan (default: 5)"
+    )
+    parser.add_argument("--min-cov", type=float, default=0.01, help="Minimum covariance value (default: 0.01)")
+    parser.add_argument("--max-cov", type=float, default=0.9, help="Maximum covariance value (default: 0.9)")
+    parser.add_argument("--p-order", "-p", type=int, default=2, help="Polynomial order for PCE analysis (default: 2)")
+    parser.add_argument("--fixed-length", type=float, default=None, help="Fixed sample length in meters (optional)")
 
     args = parser.parse_args()
 
     # Build fixed_params from CLI
     fixed_params = {}
     if args.fixed_length is not None:
-        fixed_params['length'] = args.fixed_length
+        fixed_params["length"] = args.fixed_length
 
     run_covariance_scan(
         config_file=args.config,

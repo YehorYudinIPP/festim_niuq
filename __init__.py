@@ -1,4 +1,10 @@
-# festim_niuq package initialization
+"""
+FESTIM-NIUQ — Non-Intrusive Uncertainty Quantification for FESTIM.
+
+This is the top-level package.  It re-exports selected utilities from
+the :mod:`uq.util` sub-package for convenience.
+"""
+
 import sys
 import os
 
@@ -10,16 +16,14 @@ if parent_dir not in sys.path:
 # Import festim_model from parent directory
 try:
     import festim_model
-    print("festim_model package successfully imported from parent directory")
 except ImportError as e:
     print(f"Could not import festim_model: {e}")
 
 # Import utility functions from uq.util
 try:
     from .uq.util import add_timestamp_to_filename, get_festim_python, validate_execution_setup
-    __all__ = ['add_timestamp_to_filename', 'get_festim_python', 'validate_execution_setup']
+
+    __all__ = ["add_timestamp_to_filename", "get_festim_python", "validate_execution_setup"]
 except ImportError as e:
     print(f"Could not import utility functions: {e}")
     __all__ = []
-
-#from .festim_model import Model 

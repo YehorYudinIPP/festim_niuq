@@ -1,24 +1,26 @@
 """
 Custom YAML Encoder for EasyVVUQ
 """
+
 import os
 import yaml
 import math
-#from easyvvuq.encoders.base import BaseEncoder
+
+# from easyvvuq.encoders.base import BaseEncoder
 
 
 class YAMLEncoder:
     """
     Custom encoder for YAML configuration files.
-    
+
     This encoder reads a YAML template file and replaces specified parameters
     with values from the EasyVVUQ campaign.
     """
-    
+
     def __init__(self, template_fname, target_filename="config.yaml", delimiter="$"):
         """
         Initialize the YAML encoder.
-        
+
         Parameters:
         -----------
         template_fname : str
@@ -31,15 +33,15 @@ class YAMLEncoder:
         self.template_fname = template_fname
         self.target_filename = target_filename
         self.delimiter = delimiter
-        
+
         # Verify template file exists
         if not os.path.exists(template_fname):
             raise FileNotFoundError(f"Template file not found: {template_fname}")
-    
+
     def encode(self, params=None, target_dir="./"):
         """
         Encode the parameters into a YAML file.
-        
+
         Parameters:
         -----------
         params : dict
@@ -49,46 +51,46 @@ class YAMLEncoder:
         """
         if params is None:
             params = {}
-        
+
         # Read the template file
-        with open(self.template_fname, 'r') as f:
+        with open(self.template_fname, "r") as f:
             template_content = f.read()
-        
+
         # Replace parameters in template
         for param_name, param_value in params.items():
             placeholder = f"{self.delimiter}{param_name}{self.delimiter}"
             template_content = template_content.replace(placeholder, str(param_value))
-        
+
         # Write the processed content to target file
         target_path = os.path.join(target_dir, self.target_filename)
-        with open(target_path, 'w') as f:
+        with open(target_path, "w") as f:
             f.write(template_content)
-        
+
         print(f"YAML file created: {target_path}")
-        
+
         # Verify the output is valid YAML
         try:
-            with open(target_path, 'r') as f:
+            with open(target_path, "r") as f:
                 yaml.safe_load(f)
             print("✓ Generated YAML file is valid")
         except yaml.YAMLError as e:
             print(f"⚠ Warning: Generated YAML may be invalid: {e}")
-    
+
     def get_restart_dict(self):
         """Return restart dictionary for EasyVVUQ."""
         return {
             "template_fname": self.template_fname,
             "target_filename": self.target_filename,
-            "delimiter": self.delimiter
+            "delimiter": self.delimiter,
         }
-    
+
     @staticmethod
     def deserialize(serialized_encoder):
         """Deserialize the encoder from a dictionary."""
         return YAMLEncoder(
             template_fname=serialized_encoder["template_fname"],
             target_filename=serialized_encoder["target_filename"],
-            delimiter=serialized_encoder["delimiter"]
+            delimiter=serialized_encoder["delimiter"],
         )
 
 
@@ -96,12 +98,18 @@ class AdvancedYAMLEncoder(YAMLEncoder):
     """
     Advanced YAML encoder that can handle nested parameters and type conversion.
     """
-    
-    def __init__(self, template_fname, target_filename="config.yaml", 
-                 parameter_map=None, type_conversions=None, fixed_parameters=None):
+
+    def __init__(
+        self,
+        template_fname,
+        target_filename="config.yaml",
+        parameter_map=None,
+        type_conversions=None,
+        fixed_parameters=None,
+    ):
         """
         Initialize the advanced YAML encoder.
-        
+
         Parameters:
         -----------
         template_fname : str
@@ -121,35 +129,35 @@ class AdvancedYAMLEncoder(YAMLEncoder):
 
         if not os.path.exists(template_fname):
             raise FileNotFoundError(f"Template file not found: {template_fname}")
-    
+
     def encode(self, params=None, target_dir="./"):
         """
         Encode parameters into YAML file with advanced features.
         """
         if params is None:
             params = {}
-        
+
         # Load the template as YAML
-        with open(self.template_fname, 'r') as f:
+        with open(self.template_fname, "r") as f:
             config = yaml.safe_load(f)
-        
+
         # Update configuration with parameters
         for param_name, param_value in params.items():
-            print(f" >> Encoding parameter '{param_name}' with value '{param_value}'") ###DEBUG
+            print(f" >> Encoding parameter '{param_name}' with value '{param_value}'")  ###DEBUG
             # Apply type conversion if specified
             if param_name in self.type_conversions:
                 param_value = self.type_conversions[param_name](param_value)
-            
+
             # Use parameter mapping if available
             if param_name in self.parameter_map:
-                print(f" >> Using parameter map for '{param_name}'") ###DEBUG
+                print(f" >> Using parameter map for '{param_name}'")  ###DEBUG
                 yaml_path = self.parameter_map[param_name]
                 self._set_nested_value(config, yaml_path, param_value)
             else:
-                print(f" >> No parameter map for '{param_name}', searching recursively") ###DEBUG
+                print(f" >> No parameter map for '{param_name}', searching recursively")  ###DEBUG
                 # Try to find the parameter in the config structure
                 self._update_config_recursive(config, param_name, param_value)
-        
+
         # Update fixed parameters for every run
         # print(f" >> Updating fixed parameters in the configuration: {self.fixed_parameters}") ###DEBUG
         if self.fixed_parameters:
@@ -157,11 +165,11 @@ class AdvancedYAMLEncoder(YAMLEncoder):
 
         # Write the updated configuration
         target_path = os.path.join(target_dir, self.target_filename)
-        with open(target_path, 'w') as f:
+        with open(target_path, "w") as f:
             yaml.dump(config, f, default_flow_style=False, indent=2)
-        
+
         print(f"Advanced YAML file created: {target_path}")
-    
+
     def _set_nested_value(self, config, path, value):
         """Set a nested value in the configuration using dot notation."""
         # Split the path into keys
@@ -169,7 +177,7 @@ class AdvancedYAMLEncoder(YAMLEncoder):
             raise ValueError("Path must be a string in dot notation.")
         if not path:
             raise ValueError("Path cannot be empty.")
-        keys = path.split('.')
+        keys = path.split(".")
         current = config
 
         # print(f" >>>> Encoding via keys: {keys}") ###DEBUG
@@ -186,7 +194,7 @@ class AdvancedYAMLEncoder(YAMLEncoder):
             if isinstance(current, list):
                 # ATTENTION: If current is a list, choose the first element
                 current = current[0]
-        
+
         # print(f" >>>> Setting a leave of the config @: {current} >> {key}") ###DEBUG
         # Set the final key to the value
         current[keys[-1]] = value
@@ -209,16 +217,16 @@ class AdvancedYAMLEncoder(YAMLEncoder):
                     if self._update_config_recursive(value, param_name, param_value):
                         return True
         return False
-    
+
     def get_restart_dict(self):
         """Return restart dictionary for EasyVVUQ."""
         return {
             "template_fname": self.template_fname,
             "target_filename": self.target_filename,
             "parameter_map": self.parameter_map,
-            "type_conversions": self.type_conversions
+            "type_conversions": self.type_conversions,
         }
-    
+
     @staticmethod
     def deserialize(serialized_encoder):
         """Deserialize the encoder from a dictionary."""
@@ -226,7 +234,7 @@ class AdvancedYAMLEncoder(YAMLEncoder):
             template_fname=serialized_encoder["template_fname"],
             target_filename=serialized_encoder["target_filename"],
             parameter_map=serialized_encoder.get("parameter_map"),
-            type_conversions=serialized_encoder.get("type_conversions")
+            type_conversions=serialized_encoder.get("type_conversions"),
         )
 
     def _update_fixed_parameters(self, config):
@@ -243,19 +251,19 @@ class AdvancedYAMLEncoder(YAMLEncoder):
                 yaml_path = self.parameter_map[key]
 
                 # print(f" >> Setting nested fixed parameter '{key}' to '{value}' at path '{yaml_path}'") ###DEBUG
-                
+
                 self._set_nested_value(config, yaml_path, value)
-                
+
             else:
                 # Try to find the parameter in the config structure
                 self._update_config_recursive(config, key, value)
 
+
 # Convenience function for simple usage
-def create_yaml_encoder(template_file, output_file="config.yaml", 
-                       advanced=False, **kwargs):
+def create_yaml_encoder(template_file, output_file="config.yaml", advanced=False, **kwargs):
     """
     Create a YAML encoder with sensible defaults.
-    
+
     Parameters:
     -----------
     template_file : str

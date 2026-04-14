@@ -208,7 +208,7 @@ file is needed.
 
 | Fact | Detail |
 |---|---|
-| Language | Python ≥ 3.8 (setup.py lists ≥ 3.7, but 3.7 reached EOL in June 2023) |
+| Language | Python ≥ 3.9 |
 | Package name | `festim_niuq` v 0.1.0 |
 | Author | Yehor Yudin (Bangor University, y.yudin@bangor.ac.uk) |
 | FESTIM versions supported | 1.4 (legacy) and 2.0 (current) |
