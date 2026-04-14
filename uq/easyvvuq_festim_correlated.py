@@ -44,6 +44,8 @@ from easyvvuq.actions import QCGPJPool
 from util.utils import load_config, add_timestamp_to_filename, get_festim_python, validate_execution_setup
 from util.plotting import UQPlotter
 
+logger = logging.getLogger(__name__)
+
 
 def define_phys_conv_rate(results):
     """
@@ -235,7 +237,7 @@ def define_parameter_uncertainty(config, sigma_norm=0.25, corr=0.1):
         .get("thermal_conductivity", None)
         .get("mean", None),
     }
-    print(f" >>> Mean values for uncertain parameters: {means}")  ###DEBUG
+    logger.debug(f" >>> Mean values for uncertain parameters: {means}")
 
     # Define the distributions for uncertain parameters
 
@@ -266,16 +268,16 @@ def define_parameter_uncertainty(config, sigma_norm=0.25, corr=0.1):
     for i, param in enumerate(param_names):
         mean_vector[i] = means[param]
 
-    print(f" > Mean vector: {mean_vector}")  ###DEBUG
+    logger.debug(f" > Mean vector: {mean_vector}")
 
     # Create a standard deviation vector for the multivariate distribution
     std_vector = np.zeros(n_params)
     for i, param in enumerate(param_names):
         std_vector[i] = means[param] * sigma_norm  # Standard deviation is CoV * mean
 
-    print(f" > Standard deviation vector: {std_vector}")  ###DEBUG
+    logger.debug(f" > Standard deviation vector: {std_vector}")
 
-    print(f" > Number of uncertain parameters defined: {n_params}")  ###DEBUG
+    logger.debug(f" > Number of uncertain parameters defined: {n_params}")
 
     # Define correlations between parameters
 
@@ -308,7 +310,7 @@ def define_parameter_uncertainty(config, sigma_norm=0.25, corr=0.1):
     for i in range(n_params):
         covariance_matrix[i, i] = (std_vector[i]) ** 2  # Variance is std_dev^2
 
-    print(f" > Covariance matrix:\n{covariance_matrix}")  ###DEBUG
+    logger.debug(f" > Covariance matrix:\n{covariance_matrix}")
 
     # Make a ChaosPy multivariate distribution
     parameters_distributions_joint = cp.MvNormal(
@@ -451,7 +453,7 @@ def prepare_uq_campaign(config, config_file, fixed_params=None, uq_params=None):
         fixed_parameters=fixed_params,  # Pass the dictionary of parameters to be fixed to the encoder
     )
 
-    print(f"Encoder prepared: {encoder}")  ###DEBUG
+    logger.debug(f"Encoder prepared: {encoder}")
 
     # Create a decoder object
     # The decoder will read the results from the output file and extract the quantities of interest (QoIs)
@@ -461,7 +463,7 @@ def prepare_uq_campaign(config, config_file, fixed_params=None, uq_params=None):
         target_filename=f"{output_dir}/results_tritium_concentration.txt", output_columns=qois
     )
 
-    print(f"Decoder prepared: {decoder}")  ###DEBUG
+    logger.debug(f"Decoder prepared: {decoder}")
 
     # Prepare execution command action
     # This command will be used to run the FESTIM model with the generated configuration file
@@ -475,7 +477,7 @@ def prepare_uq_campaign(config, config_file, fixed_params=None, uq_params=None):
         Decode(decoder),
     )
 
-    print(f"Sequence of actions prepared: {actions}")  ###DEBUG
+    logger.debug(f"Sequence of actions prepared: {actions}")
 
     # Define the campaign parameters and actions
     # This includes the model parameters, quantities of interest (QoIs), and the actions to be performed during the campaign
@@ -709,7 +711,7 @@ def perform_uq_festim_correlated_params(config=None, fixed_params=None, uq_param
         }
 
     print(f" >> UQ parameters: {uq_params}")
-    print(f" >> Passing parameters fixed to the campaign: {fixed_params}")  ###DEBUG
+    logger.debug(f" >> Passing parameters fixed to the campaign: {fixed_params}")
 
     campaign, qois, distributions, campaign_timestamp, sampler = prepare_uq_campaign(
         config, config_file=config_file_path, fixed_params=fixed_params, uq_params=uq_params

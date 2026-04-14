@@ -1,11 +1,12 @@
 # A class to compute qualities of interest using FESTIM results
 
-import numpy as np
-import pandas as pd
+import csv
+import logging
 import os
 import sys
 
-import csv
+import numpy as np
+import pandas as pd
 
 # Configure matplotlib backend before importing pyplot
 import matplotlib
@@ -17,6 +18,8 @@ import festim as F
 
 from dolfinx import io
 from adios2 import Stream
+
+logger = logging.getLogger(__name__)
 
 
 class Diagnostics:
@@ -48,7 +51,7 @@ class Diagnostics:
             print(f"Diagnostics: No results provided, trying to read from {self.result_folder}/")
             self.results = {}
 
-            # print(f">>> Diagnostics.model.quantities_of_interest: {self.model.quantities_of_interest}")  ###DEBUG print available quantities of interest
+            # print(f">>> Diagnostics.model.quantities_of_interest: {self.model.quantities_of_interest}")
 
             if model is not None:
                 qoi_dict = self.model.quantities_of_interest
@@ -99,7 +102,7 @@ class Diagnostics:
             # print(f"Warning: No results for {qoi} file found in {self.result_folder}. Please run the simulation first.")
             # self.results[qoi] = None
             print("Results provided directly after the simulation, skipping file reading.")
-            print(f">>> Diagnostics.results: {self.results}")  ###DEBUG print results
+            logger.debug(f">>> Diagnostics.results: {self.results}")
 
         # Additionally, read results from derived quantities file if available
         if derived_quantities_flag:
@@ -114,7 +117,7 @@ class Diagnostics:
 
                 # Read entire derived quantities file
                 derived_quantities = np.genfromtxt(derived_quantities_file, delimiter=",", skip_header=1)
-                # print(f" >> Derived quantities shape: {derived_quantities.shape}")  ###DEBUG print shape of derived quantities
+                # print(f" >> Derived quantities shape: {derived_quantities.shape}")
 
                 # If the resulting numpy array is 1D, reshape it to 2D
                 if derived_quantities.ndim == 1:
@@ -127,7 +130,7 @@ class Diagnostics:
                 # Add each column of derived_quantities to the results dictionary
                 for i, qoi in enumerate(header):
                     # Check if the quantity name is in the alternative names mapping and replace it
-                    print(f" >> Processing derived quantity: {qoi}")  ###DEBUG
+                    logger.debug(f" >> Processing derived quantity: {qoi}")
                     if qoi in alternative_names:
                         qoi = alternative_names[qoi]
                         # ATTENTION: so far, only the quantities specified in the alternative_names mapping are added
@@ -137,9 +140,9 @@ class Diagnostics:
 
                 # Store the times for derived quantities separately
                 self.derived_quantities_times = derived_quantities[:, 0] if derived_quantities.shape[1] > 0 else []
-                print(
+                logger.debug(
                     f" > Derived quantities times: {self.derived_quantities_times}"
-                )  ###DEBUG print derived quantities times
+                )
 
             else:
                 print(f"No derived quantities file found at {derived_quantities_file}.")
@@ -179,7 +182,7 @@ class Diagnostics:
             self.milestone_times = np.genfromtxt(result_file, max_rows=1, delimiter=",")[1:].tolist()
 
         # n_elem_print = 3
-        # print(f">>> Diagnostics.__init__: Printing last {n_elem_print} elements of the results for last time of {self.milestone_times[-1]}: {self.results[-n_elem_print:, -1]}")  # Print last n elements of the results for the last time step ###DEBUG
+        # print(f">>> Diagnostics.__init__: Printing last {n_elem_print} elements of the results for last time of {self.milestone_times[-1]}: {self.results[-n_elem_print:, -1]}")  # Print last n elements of the results for the last time step
 
         # ATTENTION: this is a workaround; TODO: make work for both reading from file and from object
         # self.milestone_times = ['final']
@@ -249,23 +252,23 @@ class Diagnostics:
                     # Read the mesh data
                     mesh = f.read("Points")
 
-                    print(f" >> Read VTX mesh points: {mesh}")  ###DEBUG
+                    logger.debug(f" >> Read VTX mesh points: {mesh}")
 
                 # Read general data and create data structures on the first step
                 if f.current_step() == 1:
                     # read the time points data
                     time_first = f.read("T_time")
-                    # print(f" > T_time={time_first}") ###DEBUG
+                    # print(f" > T_time={time_first}")
                     times.append(time_first[0])
 
                     # n_timesteps = len(time_first)
                     n_timesteps = int(f.available_variables()["T_time"]["AvailableStepsCount"])
-                    print(f" >> Read VTX timesteps #: {n_timesteps}")  ###DEBUG
+                    logger.debug(f" >> Read VTX timesteps #: {n_timesteps}")
 
                     # read the qoi data
                     data_first = f.read(qoi_name)
                     n_points = len(data_first)
-                    print(f" >> Read VTX vertex #: {n_points}")  ###DEBUG
+                    logger.debug(f" >> Read VTX vertex #: {n_points}")
 
                     data_total = np.zeros((n_points, n_timesteps))
                     data_total[:, i_step - 1] = data_first
@@ -291,7 +294,7 @@ class Diagnostics:
 
         # results[qoi_name] = data
 
-        # print(f" > Finished reading VTX results: {results}") ###DEBUG
+        # print(f" > Finished reading VTX results: {results}")
 
         return results, mesh, times
 
@@ -405,8 +408,8 @@ class Diagnostics:
         if qoi_values.ndim == 1:
             qoi_values = qoi_values.reshape(-1, 1)  # Reshape to 2D if it's 1D
 
-        print(f" >> Visualizing transient 1D quantity: {qoi_name}")  ###DEBUG
-        print(f" >>> Visualizing transient values: \n{qoi_values}")  ###DEBUG
+        logger.debug(f" >> Visualizing transient 1D quantity: {qoi_name}")
+        logger.debug(f" >>> Visualizing transient values: \n{qoi_values}")
 
         # Making an array of plot for different axis scales
         plot_types = ["plot", "semilogy"]  # Add more plot types if needed
@@ -443,7 +446,7 @@ class Diagnostics:
                 )
 
             # n_el_print = 3
-            # print(f"Last {n_el_print} elements at time {time} s: {self.results[-n_el_print:, i+1]}") ### DEBUG
+            # print(f"Last {n_el_print} elements at time {time} s: {self.results[-n_el_print:, i+1]}")
 
         # Set plot labels and title
         for j, plot_func_name in enumerate(plot_types):

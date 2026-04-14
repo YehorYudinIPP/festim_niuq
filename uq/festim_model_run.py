@@ -14,6 +14,7 @@ Usage (called automatically by EasyVVUQ)::
 
 import sys
 import os
+import logging
 
 import numpy as np
 import yaml
@@ -28,6 +29,8 @@ if parent_dir not in sys.path:
 # Now we can import festim_model from parent directory
 from festim_model import Model, Model_legacy
 from festim_model.diagnostics import Diagnostics
+
+logger = logging.getLogger(__name__)
 
 
 def load_config(config_file):
@@ -100,12 +103,12 @@ def main():
     results = model.run()
 
     # n_elem_print = 3
-    # print(f">>> festim_model_run: Printing last {n_elem_print} elements of the results for last time of {model.milestone_times[-1]}: {results[-n_elem_print:, -1]}")  # Print last n elements of the results for the last time step ###DEBUG
-    print(f" >> Model run completed, resutls:\n{results}")  ###DEBUG
+    # print(f">>> festim_model_run: Printing last {n_elem_print} elements of the results for last time of {model.milestone_times[-1]}: {results[-n_elem_print:, -1]}")  # Print last n elements of the results for the last time step
+    logger.debug(f" >> Model run completed, resutls:\n{results}")
 
     # Save results to a file (for EasyVVUQ integration)
     save_results_for_uq(results, model)
-    # print(f">>> festim_model_run: Print results to the console: {results}") ###DEBUG
+    # print(f">>> festim_model_run: Print results to the console: {results}")
 
     # Visualise results
     # TODO make into a separate script such that if this fails, the model results are saved and run passes

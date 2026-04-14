@@ -44,6 +44,8 @@ from easyvvuq.actions import QCGPJPool, EasyVVUQBasicTemplate, EasyVVUQParallelT
 from util.utils import load_config, add_timestamp_to_filename, get_festim_python, validate_execution_setup
 from util.plotting import UQPlotter
 
+logger = logging.getLogger(__name__)
+
 # from util.plotting import plot_unc_vs_r, plot_unc_qoi, plot_stats_vs_r, plot_unc_vs_t, plot_sobols_vs_t, plot_stats_vs_t
 
 
@@ -247,7 +249,7 @@ def define_parameter_uncertainty(config, CoV=None, distribution=None):
         # "right_bc_concentration_value": config.get('boundary_conditions', None).get('concentration', None).get('right', None).get('mean', None),  # Mean right boundary condition value
     }
     # TODO read means and default from the configuration file - alternatively, parse the whole YAML UQ file and get the means from there
-    print(f" >>> Mean values for uncertain parameters: {means}")  ###DEBUG
+    logger.debug(f" >>> Mean values for uncertain parameters: {means}")
 
     # Define standard deviations for the parameters
     if CoV is not None:
@@ -290,7 +292,7 @@ def define_parameter_uncertainty(config, CoV=None, distribution=None):
             # "source_concentration_value": config.get('source_terms', None).get('concentration', None).get('relative_stdev', None),
             # "right_bc_concentration_value": config.get('boundary_conditions', None).get('right', None).get('relative_stdev', None),
         }
-    print(f" >>> Relative STDs for uncertain parameters: {relative_stds}")  ###DEBUG
+    logger.debug(f" >>> Relative STDs for uncertain parameters: {relative_stds}")
 
     # Define the distributions for uncertain parameters
     if distribution is not None:
@@ -329,7 +331,7 @@ def define_parameter_uncertainty(config, CoV=None, distribution=None):
             # "right_bc_concentration_value": config.get('boundary_conditions', None).get('right', None).get('pdf', 'normal'),
         }
 
-    print(f" >>> Distributions for uncertain parameters: {distributions}")  ###DEBUG
+    logger.debug(f" >>> Distributions for uncertain parameters: {distributions}")
 
     # Define coefficients to recalculate distribution defining parameters - absolute bounds of the (uniform) distribution is a function of the mean and CoV
     # - for COV of U[a,b]: STD = (b-a)/sqrt(12) , meaning it should be a=mean*(1-sqrt(3)CoV), b=mean*(1+sqrt(3)CoV)
@@ -427,8 +429,8 @@ def define_festim_model_parameters():
         # "t=final" # Final values extracted from the model
     ]
 
-    # print(f"Model parameters defined: {parameters}") ####DEBUG
-    # print(f"QoIs defined: {qois}") ####DEBUG
+    # print(f"Model parameters defined: {parameters}")
+    # print(f"QoIs defined: {qois}")
     return parameters, qois
 
 
@@ -477,7 +479,7 @@ def prepare_uq_campaign(config, config_file, fixed_params=None, uq_params=None):
     # Option 1) Modify the parameters in a hard-drive file - skipping
     # Option 2) Before running the campaign, substitute the parameters in the template YAML file
 
-    # print(f" >> Preparing the encoder with parameters: {fixed_params}") ###DEBUG
+    # print(f" >> Preparing the encoder with parameters: {fixed_params}")
 
     # Create an Encoder object
 
@@ -534,7 +536,7 @@ def prepare_uq_campaign(config, config_file, fixed_params=None, uq_params=None):
 
     # TODO modify the YAML more arbitrartly - pass a parameter value from this function e.g. for the sample length scan
 
-    # print(f"Using encoder: {encoder.__class__.__name__}") ###DEBUG
+    # print(f"Using encoder: {encoder.__class__.__name__}")
     print(f"Encoder prepared: {encoder}")
 
     # Create a decoder object
@@ -596,7 +598,7 @@ def prepare_uq_campaign(config, config_file, fixed_params=None, uq_params=None):
                 else:
                     p_order = 1
 
-                print(f"Using UQ scheme: {uq_params['uq_scheme']} with polynomial order: {p_order}")  ###DEBUG
+                logger.debug(f"Using UQ scheme: {uq_params['uq_scheme']} with polynomial order: {p_order}")
 
                 sampler = uq.sampling.PCESampler(
                     vary=distributions,
@@ -611,7 +613,7 @@ def prepare_uq_campaign(config, config_file, fixed_params=None, uq_params=None):
                 else:
                     n_samples = 128  # Default number of samples if not specified
 
-                print(f"Using UQ scheme: {uq_params['uq_scheme']} with number of samples: {n_samples}")  ###DEBUG
+                logger.debug(f"Using UQ scheme: {uq_params['uq_scheme']} with number of samples: {n_samples}")
 
                 sampler = uq.sampling.QMCSampler(
                     vary=distributions,
@@ -685,7 +687,7 @@ def analyse_uq_results(campaign, qois, sampler, uq_params=None):
     """
     if uq_params is not None:
         if "uq_scheme" in uq_params:
-            print(f"Performing analysis for UQ scheme: {uq_params['uq_scheme']}")  ###DEBUG
+            logger.debug(f"Performing analysis for UQ scheme: {uq_params['uq_scheme']}")
             if uq_params["uq_scheme"] == "pce":
                 # Perform PCE analysis on the campaign results
                 analysis = uq.analysis.PCEAnalysis(sampler=sampler, qoi_cols=qois)
@@ -707,12 +709,12 @@ def analyse_uq_results(campaign, qois, sampler, uq_params=None):
     # Get the last analysis results
     results = campaign.get_last_analysis()
 
-    print(f"\n >>> Analysis completed. Results:\n{results}")  ###DEBUG
+    logger.debug(f"\n >>> Analysis completed. Results:\n{results}")
 
     # Save the analysis results to a file
     result_filename_base = "analysis_results_uq_campaign.pickle"
     results_filename = add_timestamp_to_filename(result_filename_base)
-    print(f">> Saving the campaign results into {results_filename}")  ###DEBUG
+    logger.debug(f">> Saving the campaign results into {results_filename}")
     pickle.dump(results, open(results_filename, "wb"))
 
     # Display the results of the analysis
@@ -766,7 +768,7 @@ def perform_uq_festim(config=None, fixed_params=None):
         print("No config file provided, quitting...")
         return
 
-    print(f" >> Passing parameters fixed to the campaign: {fixed_params}")  ###DEBUG
+    logger.debug(f" >> Passing parameters fixed to the campaign: {fixed_params}")
 
     # Define UQ parameters for the campaign
     uq_params = {
@@ -787,15 +789,15 @@ def perform_uq_festim(config=None, fixed_params=None):
     # Run the campaign
     print(f" >> Now running the UQ campaign...")
     campaign, campaign_results = run_uq_campaign(campaign)
-    print(f" >> Campaign run completed. Campaign results: {campaign_results}")  ###DEBUG
+    logger.debug(f" >> Campaign run completed. Campaign results: {campaign_results}")
 
     # campaign.campaign_db.save(results_filename)
     campaign.campaign_db.dump()
-    print(f" >> Campaign database dumped. Database: {campaign.campaign_db}.\nNow performing analysis...")  ###DEBUG
+    logger.debug(f" >> Campaign database dumped. Database: {campaign.campaign_db}.\nNow performing analysis...")
 
     # Perform the analysis - also saves a Pickle file with results
     results = analyse_uq_results(campaign, qois, sampler, uq_params=uq_params)
-    print(f" >> Analysis of results completed. Results: {results}")  ###DEBUG
+    logger.debug(f" >> Analysis of results completed. Results: {results}")
 
     # Save campaign configuration and parameters distributions to a YAML file
     config_filename = add_timestamp_to_filename("uq_campaign_config.pickle")
@@ -805,9 +807,9 @@ def perform_uq_festim(config=None, fixed_params=None):
     # Get the individual results from the campaign
     runs = campaign.campaign_db.runs()  # return an iterator over runs in the campaign
 
-    # print(f">> Iterating over runs in the campaign DB") ###DEBUG
+    # print(f">> Iterating over runs in the campaign DB")
     # for run in runs:
-    #     print(f" >> Runs: {run}") ###DEBUG1912:
+    #     print(f" >> Runs: {run}")
 
     # Visualize the results
     visualisation_of_results(

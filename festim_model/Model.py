@@ -3,6 +3,7 @@ import warnings
 
 warnings.filterwarnings("ignore", message="pkg_resources is deprecated as an API")
 
+import logging
 import os
 import numpy as np
 
@@ -14,6 +15,8 @@ from .diagnostics import Diagnostics
 
 # Import DOLFINX
 import dolfinx
+
+logger = logging.getLogger(__name__)
 
 ##### Class definitions #####
 
@@ -163,7 +166,7 @@ class Model_legacy(BaseModel):
         else:
             self.model.T = config["model_parameters"]["T_0"]  # set fixed background temperature
 
-        # print (f" >> Using heat transfer model: {self.model.T.__dict__}") ###DEBUG
+        # print (f" >> Using heat transfer model: {self.model.T.__dict__}")
 
         # Define Boundary conditions
         self._specify_boundary_conditions(config)
@@ -187,10 +190,10 @@ class Model_legacy(BaseModel):
         # Added derived quantities to the model exports
         self._add_derived_quantities(["tritium_inventory"])
 
-        print(f" > config['model_parameters'] = \n {config['model_parameters']}")  ###DEBUG
-        print(f" > config['simulation'] = \n {config['simulation']}")  ###DEBUG
+        logger.debug(f" > config['model_parameters'] = \n {config['model_parameters']}")
+        logger.debug(f" > config['simulation'] = \n {config['simulation']}")
 
-        print(f" > Initialisation finished! Model initialized with {self.n_elements} elements")  ###DEBUG
+        logger.debug(f" > Initialisation finished! Model initialized with {self.n_elements} elements")
 
     def _specify_geometry(self, config, refine_flag=False):
         """
@@ -199,7 +202,7 @@ class Model_legacy(BaseModel):
         """
         print("Specifying geometry...")
 
-        print(f" > config['geometry'] = \n {config['geometry']}")  ###DEBUG
+        logger.debug(f" > config['geometry'] = \n {config['geometry']}")
         # 1D case
 
         # Specifying numerical parameters of mesh: physical size and number of elements
@@ -236,7 +239,7 @@ class Model_legacy(BaseModel):
             )
             # TODO mind round-off errors in the mesh size
 
-        # print(f"Using vertices: {self.vertices}")  ###DEBUG output
+        # print(f"Using vertices: {self.vertices}")
 
         # Create a Mesh object from the vertices
 
@@ -252,7 +255,7 @@ class Model_legacy(BaseModel):
         #     type="spherical",  # Specify spherical mesh type
         # )
 
-        # print(f" >> Using mesh object: {self.model.mesh.__dict__}")  ###DEBUG
+        # print(f" >> Using mesh object: {self.model.mesh.__dict__}")
         return self.model.mesh
 
     def _specify_boundary_conditions(self, config, quantity="concentration"):
@@ -262,7 +265,7 @@ class Model_legacy(BaseModel):
         """
         print("Specifying boundary conditions...")
 
-        print(f" > config['boundary_conditions'] = \n {config['boundary_conditions']}")  ###DEBUG
+        logger.debug(f" > config['boundary_conditions'] = \n {config['boundary_conditions']}")
 
         if self.model.boundary_conditions is None:
             self.model.boundary_conditions = []
@@ -335,10 +338,10 @@ class Model_legacy(BaseModel):
                     else:
                         raise ValueError(f"Unknown or unsupported boundary condition type: {bc_vals['type']}")
 
-        # print(f"Using boundary value at outer surfaces: {self.model.boundary_conditions[1].__dict__}") ###DEBUG
-        # print(f"Using constant volumetric source term with values: {self.model.sources[0].__dict__}") ###DEBUG
+        # print(f"Using boundary value at outer surfaces: {self.model.boundary_conditions[1].__dict__}")
+        # print(f"Using constant volumetric source term with values: {self.model.sources[0].__dict__}")
 
-        print(f" >> Using boundary conditions: {self.model.boundary_conditions}")  ###DEBUG
+        logger.debug(f" >> Using boundary conditions: {self.model.boundary_conditions}")
         return self.model.boundary_conditions
 
     def _specify_materials(self, config):
@@ -348,7 +351,7 @@ class Model_legacy(BaseModel):
         """
         print("Specifying materials...")
 
-        print(f" > config['materials'] = \n {config['materials']}")  ###DEBUG
+        logger.debug(f" > config['materials'] = \n {config['materials']}")
 
         # Define material properties
         material = F.Material(
@@ -364,9 +367,9 @@ class Model_legacy(BaseModel):
 
         self.model.materials = material
 
-        # print(f"Using material properties: D_0={self.model.materials[0].D_0}, E_D={self.model.materials[0].E_D}, T={self.model.T.__dict__}") ###DEBUG
+        # print(f"Using material properties: D_0={self.model.materials[0].D_0}, E_D={self.model.materials[0].E_D}, T={self.model.T.__dict__}")
 
-        print(f" >> Using material properties: {self.model.materials.__dict__}")  ###DEBUG
+        logger.debug(f" >> Using material properties: {self.model.materials.__dict__}")
         return self.model.materials
 
     def _add_source_terms(self, config, quantity="concentration"):
@@ -379,7 +382,7 @@ class Model_legacy(BaseModel):
         if self.model.sources is None:
             self.model.sources = []
 
-        print(f" > config['source_terms'] = \n {config['source_terms']}")  ###DEBUG
+        logger.debug(f" > config['source_terms'] = \n {config['source_terms']}")
 
         # Iterate over source terms in the configuration
         for source_type, source_specs in config["source_terms"].items():
@@ -401,13 +404,13 @@ class Model_legacy(BaseModel):
                             field=field,  # Field for the source term
                         )
                     )
-                    print(
+                    logger.debug(
                         f" >> Using constant source term with value {source_specs['value']} for field {field}"
-                    )  ###DEBUG
+                    )
                 else:
                     raise ValueError(f"Unknown or unsupported source term type: {source_specs['type']}")
 
-        print(f" >> Using source terms: {self.model.sources}")  ###DEBUG
+        logger.debug(f" >> Using source terms: {self.model.sources}")
         return self.model.sources
 
     def _add_heat_conduction(self, config):
@@ -417,7 +420,7 @@ class Model_legacy(BaseModel):
         """
         print("Adding heat conduction model...")
 
-        # print(f" > config[''] = \n {config['']}")  ###DEBUG
+        # print(f" > config[''] = \n {config['']}")
 
         # Add a new quantity of interest for temperature to analyse after the simulation
         self.quantities_of_interest["temperature"] = None
@@ -437,11 +440,11 @@ class Model_legacy(BaseModel):
                 # relative_tolerance=float(config['simulation']['relative_tolerance']),  #  relative tolerance
             )
 
-            # self.model.T = F.HeatTransferProblem(transient=True, initial_condition=F.InitialCondition(field="T", value=300)) ###DEBUG
+            # self.model.T = F.HeatTransferProblem(transient=True, initial_condition=F.InitialCondition(field="T", value=300))
 
-            print(
+            logger.debug(
                 f" >> Using transient heat problem with the initial temperature: {self.model.T.initial_condition.value} [K]"
-            )  ###DEBUG output
+            )
         else:
             self.model.T = F.HeatTransferProblem(
                 transient=False,
@@ -464,13 +467,13 @@ class Model_legacy(BaseModel):
                     )
                 )
 
-                # self.model.sources = [F.Source(value=100, field="T", volume=1)] ###DEBUG
+                # self.model.sources = [F.Source(value=100, field="T", volume=1)]
 
         else:
             print(f"Warning: No heat source term specified, using Q_source = 0.0 W/m³")
             Q_source = 0.0
 
-        print(f" >> Using source term for heat transfer: Q_source={Q_source} [W/m³]")  ###DEBUG output
+        logger.debug(f" >> Using source term for heat transfer: Q_source={Q_source} [W/m³]")
 
         # Apply appropriate boundary conditions for heat transfer
         surfaces_nums = [1, 2]
@@ -487,15 +490,15 @@ class Model_legacy(BaseModel):
 
         # Iterate over surfaces and apply boundary conditions
         for surface_name, surface_num in surface_map.items():
-            print(
+            logger.debug(
                 f" >>> Applying HEAT boundary conditions for surface {surface_name} (surface number {surface_num})"
-            )  ###DEBUG
+            )
 
             # Check if the surface has a temperature boundary condition specified
             if surface_name in config["boundary_conditions"]["temperature"]:
-                print(
+                logger.debug(
                     f" >>> Using boundary condition for surface {surface_name}: {config['boundary_conditions']['temperature'][surface_name]}"
-                )  ###DEBUG
+                )
 
                 # Get the boundary condition for the surface
                 bc = config["boundary_conditions"]["temperature"][surface_name]
@@ -525,9 +528,9 @@ class Model_legacy(BaseModel):
                             field="T",  # Field for the boundary condition
                         )
                     )
-                    print(
+                    logger.debug(
                         f" >>> Using Neumann BC at surface {surface_num} with value {bc['value']} [K m^-1]"
-                    )  ###DEBUG output
+                    )
 
                 # - 3) Convective flux BC: convective heat transfer
                 elif bc["type"] == "convective_flux":
@@ -546,9 +549,9 @@ class Model_legacy(BaseModel):
                             # field="T",  # Field for the boundary condition
                         )
                     )
-                    print(
+                    logger.debug(
                         f" >>> Using Convective Flux BC at surface {surface_num} with h_coeff {h_coeff} [W/(m²*K)] and T_ext {bc['value']} [K]"
-                    )  ###DEBUG output
+                    )
                 else:
                     raise ValueError(f"Unknown or unsupported boundary condition type: {bc['type']}")
             else:
@@ -556,11 +559,11 @@ class Model_legacy(BaseModel):
                     f"Warning: No temperature boundary condition specified for surface {surface_name}, using default values."
                 )
 
-        # self.model.boundary_conditions = [F.DirichletBC(surfaces=[1, 2], value=400, field="T")] ###DEBUG
+        # self.model.boundary_conditions = [F.DirichletBC(surfaces=[1, 2], value=400, field="T")]
 
         # print(f" >> Using boundary conditions for temperature: T={self.model.T.boundary_conditions[0].value} [K] at surface 1, h_coeff={h_coeff}, T_ext={config['boundary_conditions']['temperature']['right']['value']} [K] at surface 2")  # Debugging output
 
-        print(f" >> Using heat transfer model: {self.model.T.__dict__}")  ###DEBUG
+        logger.debug(f" >> Using heat transfer model: {self.model.T.__dict__}")
         return self.model.T
 
     def _specify_time_integration_settings(self, config):
@@ -716,7 +719,7 @@ class Model_legacy(BaseModel):
         print("FESTIM simulation completed successfully!")
 
         # Output verification
-        # print(f"Results: {self.results}") ### DEBUG
+        # print(f"Results: {self.results}")
         self.result_flag = True
 
         # Export results
@@ -730,7 +733,7 @@ class Model_legacy(BaseModel):
         # TODO: Couple with heat conductivity and temperature (+, in testing)
 
         # n_elem_print = 3
-        # print(f">>> Model.run: Printing last {n_elem_print} elements of the results for last time of {self.milestone_times[-1]}: {self.results[-n_elem_print:, -1]}")  # Print last n elements of the results for the last time step ###DEBUG
+        # print(f">>> Model.run: Printing last {n_elem_print} elements of the results for last time of {self.milestone_times[-1]}: {self.results[-n_elem_print:, -1]}")  # Print last n elements of the results for the last time step
 
         return self.results
 
@@ -781,7 +784,7 @@ class Model(BaseModel):
             self.problems = {
                 "tritium_transport": {},
             }
-        print(f" > Model problems: {self.problems}")  ###DEBUG
+        logger.debug(f" > Model problems: {self.problems}")
 
         # Specify materials used
         self._specify_materials(config)
@@ -886,9 +889,9 @@ class Model(BaseModel):
             problem_instance["festim_problem"].boundary_conditions = self._specify_boundary_conditions(
                 config, quantity_filter=qoi_name_condition_local
             )
-            print(
+            logger.debug(
                 f" >> Specified boundary conditions for {qoi_name_condition_local}: {problem_instance['festim_problem'].boundary_conditions}"
-            )  ###DEBUG
+            )
 
             # Add Source terms
             problem_instance["festim_problem"].sources = self._add_source_terms(config, quantity_filter=qoi_name_local)
@@ -897,15 +900,15 @@ class Model(BaseModel):
             # self.problems[problem_name] = problem_instance
 
             print(f" > Finished problem initialisation for {problem_name}")
-            print(f" >> State of the self.problems after {problem_name} initialisation: {self.problems}")  ###DEBUG
+            logger.debug(f" >> State of the self.problems after {problem_name} initialisation: {self.problems}")
             # TODO: the two problems can be specified without if-statement with a map of name and FESTIM object class
 
-        # ###DEBUG BLOCK
+        #
         # self.problems['heat_transport']['festim_problem'].boundary_conditions = [
         #     F.FixedTemperatureBC(subdomain=self.domain_surfaces[1], value=600.0),
         #     F.FixedTemperatureBC(subdomain=self.domain_surfaces[2], value=550.0),
-        # ] ###DEBUG
-        # print(f" >>>! Manually re-specified boundary conditions for {qoi_name_condition_local}: {problem_instance['festim_problem'].boundary_conditions}") ###DEBUG
+        # ]
+        # print(f" >>>! Manually re-specified boundary conditions for {qoi_name_condition_local}: {problem_instance['festim_problem'].boundary_conditions}")
         # ###
 
         # Check if a pair of problems is present
@@ -977,7 +980,7 @@ class Model(BaseModel):
             self.model = self.problems[model_to_solve]["festim_problem"]
             # TODO make Python refer it by reference
 
-        print(f" >> Initialised problems: \n {self.problems}")  ###DEBUG
+        logger.debug(f" >> Initialised problems: \n {self.problems}")
 
         # Specify outputs
         self._specify_outputs(config)
@@ -1001,9 +1004,9 @@ class Model(BaseModel):
             f"Model {self.name} initialized with {len(self.problems)} problems and {len(self.materials)} materials. Number of mesh elements: {self.n_elements}."
         )
 
-        print(
+        logger.debug(
             f" >>> Material parameters used: \n{self.problems['tritium_transport']['festim_problem'].volume_subdomains[0].material.__dict__}"
-        )  ###DEBUG
+        )
 
         print(f" > Initialisation finished !")
 
@@ -1054,7 +1057,7 @@ class Model(BaseModel):
 
         # super()._specify_geometry(config)
 
-        print(f" config[geometry]: {config.get('geometry', {})}")  ###DEBUG
+        logger.debug(f" config[geometry]: {config.get('geometry', {})}")
 
         # Specifying number of physical dimensions of the model
         self.n_dimensions = int(config.get("geometry", {}).get("dimensionality", 1))
@@ -1097,7 +1100,7 @@ class Model(BaseModel):
                 # Get the corresponding mesh configuration for the domain
                 config_mesh = next((m for m in config_meshes if int(m.get("domain_id", 1)) == id), {})
 
-                print(f" > Specifying domain {id}")  ###DEBUG
+                logger.debug(f" > Specifying domain {id}")
                 print(f" >> config domain: \n{config_domain}")
 
                 # Set the physical size (length in 1D) of the domain
@@ -1124,23 +1127,23 @@ class Model(BaseModel):
                 # Create a 1D mesh
                 if self.mesh_type == "regular":
                     # Regular mesh with uniformly spaced elements
-                    print(
+                    logger.debug(
                         f" >> Creating regular mesh with {self.n_elements} elements for domain {id} of size {self.domain_sizes[id]}"
-                    )  ###DEBUG
+                    )
                     vertices = np.linspace(0.0, self.domain_sizes[id], self.n_elements + 1)
                 elif self.mesh_type == "refined":
 
                     # Refined mesh with more elements near the surfaces (ends)
-                    print(
+                    logger.debug(
                         f" >> Creating refined mesh with {self.n_elements} elements for domain {id} of size {self.domain_sizes[id]}"
-                    )  ###DEBUG
+                    )
 
                     if config_mesh.get("refinement", "").get("rule", "") == "quadratic":
 
-                        print(f" >>> Using quadratic refinement")  ###DEBUG
+                        logger.debug(f" >>> Using quadratic refinement")
 
                         refined_location = config_mesh.get("refinement", "").get("location", "")
-                        print(f" >>> Refining mesh towards the {refined_location} end(s)")  ###DEBUG
+                        logger.debug(f" >>> Refining mesh towards the {refined_location} end(s)")
 
                         if refined_location == "right":
 
@@ -1169,7 +1172,7 @@ class Model(BaseModel):
 
                     elif config_mesh.get("refinement", "").get("rule", "") == "linear":
 
-                        print(f" >>> Using local linear refinement for a particular region")  ###DEBUG
+                        logger.debug(f" >>> Using local linear refinement for a particular region")
 
                         refined_location = config_mesh.get("refinement", "").get("location", "")
 
@@ -1250,14 +1253,14 @@ class Model(BaseModel):
                 # For 1D problem, map names of the surfaces to their id-s
                 self.surface_map = {"left": {"festim_id": 1, "loc_id": 1}, "right": {"festim_id": 2, "loc_id": 2}}
 
-                print(
+                logger.debug(
                     f" >> Created 1D mesh with {self.n_elements} elements for domain {id} of size {self.domain_sizes[id]}"
-                )  ###DEBUG
+                )
 
             for surface_id in self.domain_surfaces:
-                print(f" >> Domain surface {surface_id}: {self.domain_surfaces[surface_id].__dict__}")  ###DEBUG
+                logger.debug(f" >> Domain surface {surface_id}: {self.domain_surfaces[surface_id].__dict__}")
             for volume_id in self.domain_volumes:
-                print(f" >> Domain volume {volume_id}: {self.domain_volumes[volume_id].__dict__}")  ###DEBUG
+                logger.debug(f" >> Domain volume {volume_id}: {self.domain_volumes[volume_id].__dict__}")
 
         elif self.n_dimensions == 2:
             raise NotImplementedError("2D geometry is not implemented yet.")
@@ -1270,7 +1273,7 @@ class Model(BaseModel):
 
         # Subdomains are all volumes and surfaces used in the problem
         self.subdomains = [*self.domain_volumes.values(), *self.domain_surfaces.values()]
-        print(f" >> Specified subdomains :\n{self.subdomains}")  ###DEBUG
+        logger.debug(f" >> Specified subdomains :\n{self.subdomains}")
 
         return self.subdomains, self.meshes
 
@@ -1285,7 +1288,7 @@ class Model(BaseModel):
 
         # super()._specify_materials(config)
 
-        print(f" config[materials]: {config.get('materials', {})}")  ###DEBUG
+        logger.debug(f" config[materials]: {config.get('materials', {})}")
 
         # Set empty domain of materials
         if not hasattr(self, "materials") or self.materials is None:
@@ -1324,7 +1327,7 @@ class Model(BaseModel):
 
         # super()._specify_boundary_conditions(config)
 
-        print(f" config[boundary_conditions]: {config.get('boundary_conditions', {})}")  ###DEBUG
+        logger.debug(f" config[boundary_conditions]: {config.get('boundary_conditions', {})}")
 
         # Create an empty list for all the BCs
         if not hasattr(self, "boundary_conditions") or self.boundary_conditions is None:
@@ -1354,7 +1357,7 @@ class Model(BaseModel):
 
                         species = self.species.get(bc_values.get("species", "Tritium"), None)
 
-                        # print(f" >>> Species is a FESTIM class: {isinstance(species, F.Species)}") ###DEBUG
+                        # print(f" >>> Species is a FESTIM class: {isinstance(species, F.Species)}")
 
                         if bc_values["type"] == "dirichlet":
                             # Dirichlet boundary condition
@@ -1365,9 +1368,9 @@ class Model(BaseModel):
                                 value=value,
                             )
 
-                            print(
+                            logger.debug(
                                 f" >> Using {bc_values['type']} BC for {bc_quantity} at surface {surface_loc_id} with value {bc_values['value']} for field {field} and species {species}"
-                            )  ###DEBUG
+                            )
 
                         elif bc_values["type"] == "neumann":
 
@@ -1403,16 +1406,16 @@ class Model(BaseModel):
 
                         if bc_values["type"] == "dirichlet":
                             # Dirichlet BC for temperature
-                            # print(f" >>> Adding {bc_values['type']} BC for {bc_quantity}") ###DEBUG
+                            # print(f" >>> Adding {bc_values['type']} BC for {bc_quantity}")
 
                             bc = F.FixedTemperatureBC(
                                 subdomain=self.domain_surfaces[surface_loc_id],
                                 value=value,
                             )
 
-                            print(
+                            logger.debug(
                                 f" >> Using {bc_values['type']} BC for {bc_quantity} at surface {surface_loc_id} with value {bc_values['value']} for field {field}"
-                            )  ###DEBUG
+                            )
 
                         elif bc_values["type"] == "neumann":
 
@@ -1421,7 +1424,7 @@ class Model(BaseModel):
                                 value=value,
                             )
 
-                            print(f"Using heat flux boundary conditions at surface {surface_loc_id}")  ###DEBUG
+                            logger.debug(f"Using heat flux boundary conditions at surface {surface_loc_id}")
 
                         elif bc_values["type"] == "convective_flux":
 
@@ -1475,7 +1478,7 @@ class Model(BaseModel):
 
                     boundary_conditions.append(bc)
 
-        print(f" >> Specified boundary conditions: {boundary_conditions}")  ###DEBUG
+        logger.debug(f" >> Specified boundary conditions: {boundary_conditions}")
 
         self.boundary_conditions.extend(boundary_conditions)
 
@@ -1498,7 +1501,7 @@ class Model(BaseModel):
 
         for ic_name, ic_config in config.get("initial_conditions", {}).items():
 
-            print(f" >> initial condition config for {ic_name}: \n{ic_config}")  ###DEBUG
+            logger.debug(f" >> initial condition config for {ic_name}: \n{ic_config}")
 
             if ic_name == quantity_filter or quantity_filter is None:
                 # Add IC to the FESTIM 2.0 Model
@@ -1517,9 +1520,9 @@ class Model(BaseModel):
                                 volume=initial_temp_domain,
                             )
 
-                            print(
+                            logger.debug(
                                 f" >> Set IC for {ic_name} with value {initial_temp_value} at domain {initial_temp_domain}"
-                            )  ###DEBUG
+                            )
 
                             self.problems["heat_transport"]["festim_problem"].initial_conditions = [initial_condition]
 
@@ -1547,7 +1550,7 @@ class Model(BaseModel):
 
         # super()._add_source_terms(config)
 
-        print(f" config[source_terms]: {config.get('source_terms', {})}")  ###DEBUG
+        logger.debug(f" config[source_terms]: {config.get('source_terms', {})}")
 
         # Create an empty list for all the source terms
         if not hasattr(self, "source_terms") or self.source_terms is None:
@@ -1560,14 +1563,14 @@ class Model(BaseModel):
         volume_map = {
             k: k for k, v in self.domain_volumes.items()
         }  # No an identity mapping. This could be modified for a more complex mapping if needed
-        print(" >>> volume_map:", volume_map)  ###DEBUG
-        print(" >>> self.domain_volumes:", self.domain_volumes)  ###DEBUG
+        logger.debug(f" >>> volume_map: {volume_map}")
+        logger.debug(f" >>> self.domain_volumes: {self.domain_volumes}")
 
         # Iterate over source terms in the configuration
         for source_term_name, source_term_config in config.get("source_terms", {}).items():
             # Check if the source term applies to the specified quantity
             if source_term_name == quantity_filter or quantity_filter is None:
-                print(f" >> Adding source term for: {source_term_name}")  ###DEBUG
+                logger.debug(f" >> Adding source term for: {source_term_name}")
 
                 source_term_value = self._get_config_entry(source_term_config, "value", float)
 
@@ -1575,7 +1578,7 @@ class Model(BaseModel):
                     int(volume_map.get(source_term_config.get("domain_id", 1))), 1
                 )
 
-                print(f" >>> Source term value = {source_term_value} at domain {source_term_domain}")  ###DEBUG
+                logger.debug(f" >>> Source term value = {source_term_value} at domain {source_term_domain}")
 
                 # Apply a source term for solute concentration
                 if source_term_name == "concentration":
@@ -1605,7 +1608,7 @@ class Model(BaseModel):
 
         self.source_terms.extend(source_terms)
 
-        print(f" >>> Local source terms are: \n{source_terms}")  ###DEBUG
+        logger.debug(f" >>> Local source terms are: \n{source_terms}")
 
         return source_terms
 
@@ -1639,17 +1642,17 @@ class Model(BaseModel):
         # Read the time step settings from the input config
         time_step_config = config.get("simulation", {}).get("time_step", {})
 
-        print(f" config[time_integration]: {time_step_config}")  ###DEBUG
+        logger.debug(f" config[time_integration]: {time_step_config}")
 
         # Read the default time step size [s]
         dt = float(time_step_config.get("default_value", 1.0e-5))  # Default to 1e-5 if not specified
 
         # Apply SAME timestepping for all the problems in the list, which should include self.model if it is coupling
         if hasattr(self, "model") and self.model is not None:
-            print(f" >>> Adding time stepping to the main (coupling) model: {self.model }")  ###DEBUG
+            logger.debug(f" >>> Adding time stepping to the main (coupling) model: {self.model }")
             problem_list = [self.model]
 
-            # print(f" >>> self.model is found among the problems: {self.model in [problem['festim_problem'] for _,problem in self.problems.items() if 'festim_problem' in problem]}") ###DEBUG
+            # print(f" >>> self.model is found among the problems: {self.model in [problem['festim_problem'] for _,problem in self.problems.items() if 'festim_problem' in problem]}")
 
         else:
             problem_list = []
@@ -1666,16 +1669,16 @@ class Model(BaseModel):
             if problem.settings is not None:
 
                 if time_step_config.get("time_stepping_type") == "fixed":
-                    print(f" >>> Setting fixed timestep (dt={dt}) for {problem}")  ###DEBUG
+                    logger.debug(f" >>> Setting fixed timestep (dt={dt}) for {problem}")
                     problem.settings.stepsize = F.Stepsize(dt)
                 elif time_step_config.get("time_stepping_type") == "adaptive":
-                    print(f" >>> Setting adaptive timestep for {problem}")  ###DEBUG
+                    logger.debug(f" >>> Setting adaptive timestep for {problem}")
                     stepsize_change_ratio = float(time_step_config.get("stepsize_change_ratio", 1.5))
                     max_stepsize = float(time_step_config.get("max_stepsize", 1e-3))
                     dt_min = float(time_step_config.get("min_time_step", 1e-5))
-                    print(
+                    logger.debug(
                         f" >>> initial stepsize = {dt} \n >>> max stepsize = {max_stepsize} \n >>> stepsize change ratio = {stepsize_change_ratio}"
-                    )  ###DEBUG
+                    )
 
                     problem.settings.stepsize = F.Stepsize(
                         initial_value=dt,  # Initial time step size
@@ -1713,11 +1716,11 @@ class Model(BaseModel):
         # Apply mutliple milestone output for transient/steady problems
         # if self.transient:
 
-        print(f" >>> State of self.problems before specifying outputs: {self.problems}")  ###DEBUG
+        logger.debug(f" >>> State of self.problems before specifying outputs: {self.problems}")
 
         # Iterate over problems to get different QoIs
         for problem_name, problem in self.problems.items():
-            print(f" >> Specifying outputs for problem: {problem}")  ###DEBUG
+            logger.debug(f" >> Specifying outputs for problem: {problem}")
 
             if "festim_problem" in problem:
                 # Get tritium transport related data
@@ -1957,7 +1960,7 @@ class Model(BaseModel):
         except Exception as e:
             print(f"! Error occurred while running the model: {e}")
 
-        # print(f" >>> tritium concentration profile data collected: {self.problems['tritium_transport']['festim_problem'].exports[1].data}") ###DEBUG
+        # print(f" >>> tritium concentration profile data collected: {self.problems['tritium_transport']['festim_problem'].exports[1].data}")
 
         print(f" ... Finishing the simulation... \n")
         return self.results
