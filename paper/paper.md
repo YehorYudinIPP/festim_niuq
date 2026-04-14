@@ -9,17 +9,22 @@ tags:
   - polynomial chaos expansion
 authors:
   - name: Yehor Yudin
-    orcid: 0000-0000-0000-0000
+    orcid: 0000-0001-8867-3207
     affiliation: 1
   - name: Tom Griffiths
+    orcid: 0000-0002-8120-9134
     affiliation: 1
   - name: Tom Smith
+    orcid: 0000-0002-9956-4046
     affiliation: 1
   - name: Tessa Davey
+    orcid: 0000-0002-4262-1054
     affiliation: 1
   - name: Cillian Cockrell
+    orcid: 0000-0002-8501-7287
     affiliation: 1
   - name: Simon Middleburgh
+    orcid: 0000-0003-2537-4001
     affiliation: 1
 affiliations:
   - name: Nuclear Futures Institute, Bangor University, United Kingdom
