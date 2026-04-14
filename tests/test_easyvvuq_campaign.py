@@ -23,19 +23,41 @@ if _uq_dir not in sys.path:
 # Mock heavy/unavailable imports before importing the module under test
 import unittest.mock as _mock
 
-# Mock QCGPJPool and related imports that may not be installed
-_qcg_mock = MagicMock()
-sys.modules.setdefault("easyvvuq.actions.QCGPJPool", _qcg_mock)
+# On Python 3.12+ setuptools (which provides pkg_resources) may not be
+# installed, causing the chaospy → easyvvuq import chain to fail.
+# Pre-populate sys.modules with mocks so that importing the module under
+# test succeeds regardless of whether the full dependency chain is present.
+_easyvvuq_available = True
+try:
+    import easyvvuq.actions  # noqa: F401 – just checking availability
+except (ImportError, ModuleNotFoundError):
+    _easyvvuq_available = False
 
-# Patch the missing names into easyvvuq.actions if not present
-import easyvvuq.actions as _ea
+if not _easyvvuq_available:
+    # Mock the entire chaospy / easyvvuq module tree so that
+    # ``from uq.easyvvuq_festim import …`` can be executed.
+    for mod_name in (
+        "chaospy",
+        "easyvvuq",
+        "easyvvuq.actions",
+        "easyvvuq.actions.QCGPJPool",
+        "easyvvuq.sampling",
+        "easyvvuq.analysis",
+        "easyvvuq.db",
+        "easyvvuq.db.sql",
+    ):
+        sys.modules.setdefault(mod_name, MagicMock())
+else:
+    # Only mock the optional QCGPJPool sub-module
+    sys.modules.setdefault("easyvvuq.actions.QCGPJPool", MagicMock())
+    import easyvvuq.actions as _ea
 
-if not hasattr(_ea, "QCGPJPool"):
-    _ea.QCGPJPool = MagicMock()
-if not hasattr(_ea, "EasyVVUQBasicTemplate"):
-    _ea.EasyVVUQBasicTemplate = MagicMock()
-if not hasattr(_ea, "EasyVVUQParallelTemplate"):
-    _ea.EasyVVUQParallelTemplate = MagicMock()
+    if not hasattr(_ea, "QCGPJPool"):
+        _ea.QCGPJPool = MagicMock()
+    if not hasattr(_ea, "EasyVVUQBasicTemplate"):
+        _ea.EasyVVUQBasicTemplate = MagicMock()
+    if not hasattr(_ea, "EasyVVUQParallelTemplate"):
+        _ea.EasyVVUQParallelTemplate = MagicMock()
 
 from uq.easyvvuq_festim import (
     define_festim_model_parameters,
