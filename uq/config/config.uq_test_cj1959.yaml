@@ -1,8 +1,24 @@
-# FESTIM Model Configuration - for verification tests
+# ================================================================
+# FESTIM-NIUQ Configuration — Carslaw & Jaeger 1959 Verification
+# ================================================================
+#
+# Verification test case: tritium diffusion in a sphere with constant
+# volumetric source, Dirichlet outer BC (c = 0), and zero-flux inner BC.
+#
+# Analytical steady-state solution (Carslaw & Jaeger, §9.6):
+#     c(r) = G / (6 D) · (R² − r²)
+#
+# where G is the volumetric generation rate, D is the diffusion
+# coefficient, and R is the sphere radius.
+#
+# Reference:
+#   Carslaw, H.S. & Jaeger, J.C., "Conduction of Heat in Solids",
+#   Oxford University Press, 2nd edition, 1959.
+# ================================================================
 
 model_parameters:
-  transient: True
-  total_time: 1024.0
+  transient: True               # Run as transient; steady-state reached at large t
+  total_time: 1024.0            # [s] Long enough to approach steady state
   problems:
 
     tritium_transport:

@@ -1,4 +1,16 @@
-#!/home/yehor/miniconda3/envs/festim-env/bin/python3
+#!/usr/bin/env python3
+"""
+Parameter scanning script for FESTIM.
+
+Sweeps a single parameter (or multiple parameters independently) over a
+logarithmic or linear range and runs a full UQ campaign at each point.
+Useful for understanding how the parameter space affects both the
+physics output and the UQ statistics.
+
+Usage::
+
+    python festim_model_scan.py
+"""
 import sys
 import os
 

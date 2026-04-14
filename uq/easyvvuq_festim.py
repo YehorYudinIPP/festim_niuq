@@ -1,8 +1,18 @@
+"""
+Main EasyVVUQ campaign script for FESTIM uncertainty quantification.
+
+This module orchestrates parameter sampling, FESTIM model execution,
+result collection, and statistical analysis (PCE / QMC).  It is the
+primary entry point for running a UQ campaign:
+
+    python easyvvuq_festim.py --config config/config.uq_test_cj1959.yaml
+
+See :func:`perform_uq_festim` for the top-level workflow.
+"""
 import argparse
 import os
 import sys
 import logging
-# import subprocess
 from datetime import datetime
 import numpy as np
 
@@ -569,9 +579,7 @@ def run_uq_campaign(campaign, resource_pool=None):
         # Make sure the right parameters are passed to the pool: virtual environment, working directory, etc.
         template = EasyVVUQBasicTemplate()
         template_params = {
-            "venv": "/home/yhy25yyp/anaconda3/envs/festim2-env",
-            #"venv": "/home/yhy25yyp/workspace/festim2-venv/",
-            # "working_directory": "/path/to/working/directory"
+            "venv": os.environ.get("CONDA_PREFIX", sys.prefix),
         }
 
         # By default, run with resource pool by QCG-PJ

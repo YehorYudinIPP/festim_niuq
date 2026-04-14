@@ -1,5 +1,9 @@
 """
-Configuration for suppressing common warnings in FESTIM-NIUQ
+Warning filters for FESTIM-NIUQ.
+
+Import this module early (e.g. in ``festim_model/__init__.py``) to
+suppress noisy deprecation and compatibility warnings from upstream
+libraries (pkg_resources, UFL) that do not affect correctness.
 """
 import warnings
 

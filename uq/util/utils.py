@@ -1,3 +1,10 @@
+"""
+Shared utility functions for the FESTIM-NIUQ UQ pipeline.
+
+Provides configuration loading, file-name helpers, Python-environment
+detection, execution validation, sensitivity-analysis persistence, and
+heuristic absolute-tolerance estimation.
+"""
 import os
 import sys
 import subprocess
@@ -12,12 +19,24 @@ project_root = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(_
 if project_root not in sys.path:
     sys.path.insert(0, project_root)
 
-# from serializer import serialize_yaml
-# from serializer import deserialize_yaml
 from joblib import dump, load
 
+
 def load_config(config_file):
-    """Load configuration from YAML file specific for UQ"""
+    """
+    Load a YAML configuration file and return the parsed dictionary.
+
+    Parameters
+    ----------
+    config_file : str
+        Path to the YAML file.
+
+    Returns
+    -------
+    dict or None
+        Parsed configuration, or ``None`` if the file is missing or
+        contains invalid YAML.
+    """
 
     try:
         with open(config_file, 'r') as file:
@@ -57,29 +76,38 @@ def add_timestamp_to_filename(filename, timestamp=None):
     return f"{name}_{timestamp}{ext}"
 
 def get_festim_python():
-    """Get the correct Python executable for FESTIM environment."""
-    
-    # Method 1: Check if specific conda environment exists
-    env_python = "/home/yhy25yyp/anaconda3/envs/festim2-env/bin/python3"
-    #env_python = "/home/yhy25yyp/workspace/festim2-venv/bin/python3"
-    
-    if os.path.exists(env_python):
-        return env_python
-    
-    # Method 2: Try to find conda environment dynamically
-    try:
-        result = subprocess.run(['conda', 'info', '--envs'], 
-                              capture_output=True, text=True, check=True)
-        for line in result.stdout.split('\n'):
-            if 'festim2-env' in line:
-                env_path = line.split()[-1]
-                python_path = os.path.join(env_path, 'bin', 'python')
-                if os.path.exists(python_path):
-                    return python_path
-    except:
-        pass
-    
-    # Method 3: Fallback to current Python
+    """
+    Get the correct Python executable for the FESTIM environment.
+
+    Searches for a conda environment named ``festim2-env`` or
+    ``festim-env`` and returns the path to its Python interpreter.
+    Falls back to the current interpreter (``sys.executable``) if no
+    dedicated FESTIM environment is found.
+
+    Returns
+    -------
+    str
+        Absolute path to a Python 3 executable.
+    """
+    # Method 1: Look for common FESTIM conda environment names
+    for env_name in ("festim2-env", "festim-env"):
+        try:
+            result = subprocess.run(
+                ["conda", "info", "--envs"],
+                capture_output=True,
+                text=True,
+                check=True,
+            )
+            for line in result.stdout.split("\n"):
+                if env_name in line:
+                    env_path = line.split()[-1]
+                    python_path = os.path.join(env_path, "bin", "python3")
+                    if os.path.exists(python_path):
+                        return python_path
+        except (FileNotFoundError, subprocess.CalledProcessError):
+            pass
+
+    # Method 2: Fallback to current Python
     print("Warning: FESTIM environment not found, using current Python")
     return sys.executable
 

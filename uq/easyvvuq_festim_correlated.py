@@ -1,9 +1,18 @@
+"""
+Correlated-parameter EasyVVUQ campaign for FESTIM uncertainty quantification.
+
+Extends the independent-parameter UQ workflow to support non-diagonal
+covariance matrices via Cholesky decomposition.  Supports both PCE and
+finite-difference (FD) sampling schemes.
+
+Usage::
+
+    python easyvvuq_festim_correlated.py --config config.yaml --uq-scheme pce --p-order 3
+"""
 import argparse
 import os
 import sys
 import logging
-
-import numpy as np
 import pickle
 
 from itertools import product

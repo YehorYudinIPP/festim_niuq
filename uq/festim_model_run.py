@@ -1,10 +1,18 @@
-#!/home/yhy25yyp/anaconda3/envs/festim2-env/bin/python3
+#!/usr/bin/env python3
+"""
+FESTIM model runner — single-simulation wrapper for EasyVVUQ.
+
+This script is invoked by EasyVVUQ for every sample point in the UQ
+campaign.  It reads a YAML configuration file, runs a FESTIM simulation
+(steady-state or transient), and writes the results to CSV files that
+the decoder can parse.
+
+Usage (called automatically by EasyVVUQ)::
+
+    python festim_model_run.py --config config.yaml
+"""
 import sys
 import os
-
-# Set environment variables to suppress Qt warnings
-os.environ['QT_LOGGING_RULES'] = '*.debug=false;qt.qpa.*=false'
-os.environ['XDG_RUNTIME_DIR'] = '/tmp/runtime-' + str(os.getuid())
 
 import numpy as np
 import yaml
