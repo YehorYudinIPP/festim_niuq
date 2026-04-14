@@ -20,7 +20,12 @@ from .utils import (
     add_timestamp_to_filename,
     get_festim_python,
     validate_execution_setup,
-    save_sa_results_yaml,
+    save_sa_results,
+    get_qoi_names,
+    get_sobol_first,
+    get_sobol_total,
+    get_stat,
+    integrate_statistics,
 )
 
 # Make encoder classes and utility functions available at package level
@@ -32,5 +37,10 @@ __all__ = [
     "add_timestamp_to_filename",
     "get_festim_python",
     "validate_execution_setup",
-    "save_sa_results_yaml",
+    "save_sa_results",
+    "get_qoi_names",
+    "get_sobol_first",
+    "get_sobol_total",
+    "get_stat",
+    "integrate_statistics",
 ]

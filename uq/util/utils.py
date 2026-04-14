@@ -6,6 +6,8 @@ detection, execution validation, sensitivity-analysis persistence, and
 heuristic absolute-tolerance estimation.
 """
 
+import csv
+import json
 import os
 import sys
 import subprocess
@@ -139,65 +141,293 @@ def validate_execution_setup():
     return python_exe, script_path
 
 
-def save_sa_results_yaml():
+def save_sa_results(results, qois, output_dir, timestamp=None, param_names=None):
     """
-    Save sensitivity analysis results to a YAML file. - example
+    Save sensitivity analysis results (Sobol indices, statistics) to YAML and CSV.
+
+    Extracts first-order and total Sobol sensitivity indices, as well as
+    mean and standard deviation statistics, from an EasyVVUQ analysis
+    *results* object and writes them to timestamped files inside
+    *output_dir*.
+
+    Parameters
+    ----------
+    results : easyvvuq.analysis.results.AnalysisResults
+        EasyVVUQ analysis results object (from ``PCEAnalysis`` or similar).
+    qois : list of str
+        Quantity-of-interest names to extract (e.g. ``["t=steady"]``).
+    output_dir : str
+        Directory where the output files will be written (created if needed).
+    timestamp : str, optional
+        Identifier appended to filenames.  Defaults to ``YYYYMMDD_HHMMSS``.
+    param_names : list of str, optional
+        Uncertain-parameter names expected in the Sobol dictionaries.
+        If *None*, names are inferred from the first non-empty
+        ``sobols_first`` call.
+
+    Returns
+    -------
+    dict
+        ``{"yaml": <path>, "csv": <path>}`` mapping to the written files.
     """
-    results = {
-        "timestamp": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
-        "description": "Sensitivity analysis results",
-        "data": {
-            # Example data structure
-            "sensitivity_indices": [0.1, 0.2, 0.3],
-            "parameters": ["param1", "param2", "param3"],
-        },
+    if timestamp is None:
+        timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+
+    os.makedirs(output_dir, exist_ok=True)
+
+    # ---- Collect data ------------------------------------------------
+    sa_data = {
+        "timestamp": timestamp,
+        "description": "Sensitivity analysis results from FESTIM-NIUQ",
+        "qois": {},
     }
 
-    filename = add_timestamp_to_filename("sa_results.yaml")
-    # serialize_yaml(results, filename) # TODO - implement, or copy
+    for qoi in qois:
+        qoi_entry = {}
 
-    print(f"✓ Sensitivity analysis results saved to: {filename}")
-    return filename
+        # --- statistics -----------------------------------------------
+        for stat_name in ("mean", "std"):
+            try:
+                values = results.describe(qoi, stat_name)
+                if values is not None:
+                    arr = np.asarray(values)
+                    qoi_entry[stat_name] = {
+                        "min": float(np.min(arr)),
+                        "max": float(np.max(arr)),
+                        "avg": float(np.mean(arr)),
+                    }
+            except Exception:
+                pass
+
+        # --- first-order Sobol indices --------------------------------
+        try:
+            sobols = results.sobols_first(qoi)
+            if sobols:
+                non_zero = {
+                    k: np.asarray(v) for k, v in sobols.items() if v is not None and not np.all(np.array(v) == 0)
+                }
+                if non_zero:
+                    if param_names is None:
+                        param_names = list(non_zero.keys())
+                    qoi_entry["sobols_first"] = {
+                        k: {"min": float(np.min(v)), "max": float(np.max(v)), "avg": float(np.mean(v))}
+                        for k, v in non_zero.items()
+                    }
+        except Exception:
+            pass
+
+        # --- total Sobol indices --------------------------------------
+        try:
+            sobols_t = results.sobols_total(qoi)
+            if sobols_t:
+                non_zero_t = {
+                    k: np.asarray(v) for k, v in sobols_t.items() if v is not None and not np.all(np.array(v) == 0)
+                }
+                if non_zero_t:
+                    qoi_entry["sobols_total"] = {
+                        k: {"min": float(np.min(v)), "max": float(np.max(v)), "avg": float(np.mean(v))}
+                        for k, v in non_zero_t.items()
+                    }
+        except Exception:
+            pass
+
+        sa_data["qois"][qoi] = qoi_entry
+
+    # ---- Write YAML --------------------------------------------------
+    yaml_path = os.path.join(output_dir, f"sa_results_{timestamp}.yaml")
+    with open(yaml_path, "w") as fh:
+        yaml.dump(sa_data, fh, default_flow_style=False, sort_keys=False)
+    print(f"✓ SA results (YAML) saved to: {yaml_path}")
+
+    # ---- Write CSV (one row per QoI × param) -------------------------
+    csv_path = os.path.join(output_dir, f"sa_results_{timestamp}.csv")
+    with open(csv_path, "w", newline="") as fh:
+        writer = csv.writer(fh)
+        writer.writerow(["qoi", "parameter", "sobol_first_avg", "sobol_total_avg", "mean_avg", "std_avg"])
+        for qoi, entry in sa_data["qois"].items():
+            mean_avg = entry.get("mean", {}).get("avg", "")
+            std_avg = entry.get("std", {}).get("avg", "")
+            sobol_first = entry.get("sobols_first", {})
+            sobol_total = entry.get("sobols_total", {})
+            all_params = set(list(sobol_first.keys()) + list(sobol_total.keys()))
+            if not all_params:
+                writer.writerow([qoi, "", "", "", mean_avg, std_avg])
+            else:
+                for p in sorted(all_params):
+                    sf = sobol_first.get(p, {}).get("avg", "")
+                    st = sobol_total.get(p, {}).get("avg", "")
+                    writer.writerow([qoi, p, sf, st, mean_avg, std_avg])
+    print(f"✓ SA results (CSV) saved to: {csv_path}")
+
+    return {"yaml": yaml_path, "csv": csv_path}
 
 
-def integrate_statistics(uq_resuls):
+def get_qoi_names(results):
     """
-    A function to integrate statistics over the quantities it is conditioned on:
-    s_int = INT_X s(x)dx
-    12/09/2025: basic functionality is to integrate Sobol indices over the domain of radius values: r e [0., R_max]
+    Return the list of quantity-of-interest (QoI) names from an EasyVVUQ results object.
+
+    Parameters
+    ----------
+    results : easyvvuq.analysis.results.AnalysisResults
+        EasyVVUQ analysis results object.
+
+    Returns
+    -------
+    list of str
+        QoI column names present in the results.
     """
+    try:
+        # EasyVVUQ AnalysisResults stores QoI names in ._qois or as DataFrame columns
+        if hasattr(results, "qois"):
+            return list(results.qois)
+        if hasattr(results, "_qois"):
+            return list(results._qois)
+        # Fallback: inspect the samples DataFrame
+        if hasattr(results, "samples"):
+            return [c for c in results.samples.columns if c not in ("run_id",)]
+    except Exception:
+        pass
+    return []
 
-    # Integrating Sobol indices over the domain of radius values: r e [0., R_max]
 
-    # Get first sobol indices for all quantities of interest
-    qois = uq_resuls.get_qoi_names()
-    print(f"Quantities of interest: {qois}")
+def get_sobol_first(results, qoi):
+    """
+    Return the first-order Sobol indices for a given QoI.
 
-    for qoi in qois[1:]:  # Skip the first 'run' entry
-        print(f"\n>>> Integrating statistics for quantity of interest: {qoi}")
+    Parameters
+    ----------
+    results : easyvvuq.analysis.results.AnalysisResults
+        EasyVVUQ analysis results object.
+    qoi : str
+        Name of the quantity of interest.
 
-        # Get the first-order Sobol indices for this quantity of interest
-        sobol_first = uq_resuls.get_sobol_first(qoi)
-        print(f"Sobol first-order indices shape: {sobol_first.shape}")  # (n_samples, n_params)
+    Returns
+    -------
+    dict of {str: numpy.ndarray}
+        Mapping of parameter name to an array of first-order Sobol indices
+        (one value per spatial collocation point).  Returns an empty dict
+        on failure.
+    """
+    try:
+        sobols = results.sobols_first(qoi)
+        if sobols:
+            return {k: np.asarray(v) for k, v in sobols.items() if v is not None}
+    except Exception:
+        pass
+    return {}
 
-        # Assuming the first dimension corresponds to the varying parameter (e.g., radius)
-        # and the second dimension corresponds to different parameters
 
-        # Integrate over the first dimension (e.g., radius)
+def get_sobol_total(results, qoi):
+    """
+    Return the total-order Sobol indices for a given QoI.
+
+    Parameters
+    ----------
+    results : easyvvuq.analysis.results.AnalysisResults
+        EasyVVUQ analysis results object.
+    qoi : str
+        Name of the quantity of interest.
+
+    Returns
+    -------
+    dict of {str: numpy.ndarray}
+        Mapping of parameter name to an array of total Sobol indices.
+        Returns an empty dict on failure.
+    """
+    try:
+        sobols = results.sobols_total(qoi)
+        if sobols:
+            return {k: np.asarray(v) for k, v in sobols.items() if v is not None}
+    except Exception:
+        pass
+    return {}
+
+
+def get_stat(results, qoi, stat_name):
+    """
+    Return a descriptive statistic for a given QoI.
+
+    Parameters
+    ----------
+    results : easyvvuq.analysis.results.AnalysisResults
+        EasyVVUQ analysis results object.
+    qoi : str
+        Name of the quantity of interest.
+    stat_name : str
+        Statistic to retrieve, e.g. ``"mean"``, ``"std"``, ``"1%"``,
+        ``"median"``, ``"99%"``.
+
+    Returns
+    -------
+    numpy.ndarray or None
+        Array of the requested statistic (one value per spatial node),
+        or ``None`` if not available.
+    """
+    try:
+        values = results.describe(qoi, stat_name)
+        if values is not None:
+            return np.asarray(values)
+    except Exception:
+        pass
+    return None
+
+
+def integrate_statistics(results, qois=None, x_values=None):
+    """
+    Integrate Sobol sensitivity indices over the spatial domain.
+
+    For spatially-resolved QoIs the first-order Sobol index is a
+    function of position (e.g. *r*).  This helper integrates each
+    parameter's Sobol index over *x_values* using the trapezoidal rule,
+    yielding a single scalar importance measure per parameter.
+
+    Parameters
+    ----------
+    results : easyvvuq.analysis.results.AnalysisResults
+        EasyVVUQ analysis results object.
+    qois : list of str, optional
+        QoI names to process.  If *None*, all QoIs from the results are
+        used (skipping the coordinate column ``"x"``).
+    x_values : numpy.ndarray, optional
+        Spatial coordinate array matching the length of the Sobol arrays.
+        When *None*, uniform spacing is assumed (i.e. ``dx = 1``).
+
+    Returns
+    -------
+    dict
+        ``{qoi: {param_name: integrated_sobol_value, ...}, ...}``
+    """
+    if qois is None:
+        qois = get_qoi_names(results)
+        # Skip common non-QoI columns
+        qois = [q for q in qois if q not in ("x", "run_id")]
+
+    all_integrated = {}
+
+    for qoi in qois:
+        print(f"\n>>> Integrating Sobol indices for QoI: {qoi}")
+
+        sobols = get_sobol_first(results, qoi)
+        if not sobols:
+            print(f"  No first-order Sobol indices for '{qoi}', skipping.")
+            continue
+
         stat_integrated = {}
-        for param_idx in range(sobol_first.shape[1]):
-            param_name = f"param_{param_idx+1}"
-            param_values = uq_resuls.get_param_values(param_name)
-            if param_values is None:
-                print(f"Parameter values for {param_name} not found, skipping integration.")
+        for param_name, sobol_arr in sobols.items():
+            if np.all(sobol_arr == 0):
                 continue
-
-            # Simple trapezoidal integration over the parameter values
-            integrated_value = np.trapz(sobol_first[:, param_idx], x=param_values)
+            # np.trapz was renamed to np.trapezoid in NumPy 2.0
+            _trapz = getattr(np, "trapezoid", None) or np.trapz
+            if x_values is not None and len(x_values) == len(sobol_arr):
+                integrated_value = float(_trapz(sobol_arr, x=x_values))
+            else:
+                integrated_value = float(_trapz(sobol_arr))
             stat_integrated[param_name] = integrated_value
-            print(f"Integrated Sobol index for {param_name}: {integrated_value}")
+            print(f"  Integrated S1({param_name}) = {integrated_value:.6e}")
 
-    return stat_integrated
+        all_integrated[qoi] = stat_integrated
+
+    return all_integrated
 
 
 def compute_absolute_tolerance(default_atol, orig_params, new_params):
