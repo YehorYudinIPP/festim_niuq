@@ -2,7 +2,41 @@ __pycache__/
 *.pyc
 *.pyo
 
+# Distribution / packaging
+build/
+dist/
+*.egg-info/
+*.egg
+.eggs/
+
+# Testing
+.pytest_cache/
+.coverage
+htmlcov/
+.tox/
+
+# Virtual environments
+.venv/
+venv/
+env/
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# OS files
+.DS_Store
+Thumbs.db
+
 # UQ postprocessing output folders
 uq_postprocessing_results_*/
 plots_festim_uq_*/
 plots_festim_uq_corr_*/
+
+# Results
+results/
+*.pkl
+*.pickle

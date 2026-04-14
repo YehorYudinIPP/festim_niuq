@@ -1,4 +1,4 @@
-#!/home/yehor/miniconda3/envs/festim-env/bin/python3
+#!/usr/bin/env python3
 import warnings
 warnings.filterwarnings("ignore", message="pkg_resources is deprecated as an API")
 
