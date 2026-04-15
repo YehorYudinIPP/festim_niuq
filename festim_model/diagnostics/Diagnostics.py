@@ -41,8 +41,10 @@ class Diagnostics:
         self.model = model
         self.results = results
         self.result_folder = (
-            result_folder if result_folder else "./results"
-        )  # TODO by default, try to read results from the model attribute
+            result_folder
+            if result_folder
+            else (getattr(model, "result_folder", None) or "./results")
+        )
         self.mesh = {}  # Dictionary to store mesh coordinates for each quantity of interest
         self.times = []  # List to store all the timstamps of the simulation
 
@@ -148,14 +150,6 @@ class Diagnostics:
                 print(f"No derived quantities file found at {derived_quantities_file}.")
                 self.derived_quantities = None
 
-        # Check if results are now present
-        # TODO think if the flag is needed
-        # self.result_flag = None  # Flag to check if results are available
-        # if self.results is not None:
-        #     self.result_flag = True
-        # else:
-        #     self.result_flag = False
-
         # Make a list of milestone/checkpoint times
         self.milestone_times = []
         # Read the milestone times from the configuration
@@ -225,8 +219,6 @@ class Diagnostics:
                 "description": "Temperature distribution at a point",
             },
         }
-
-        # TODO: put all the descriptors like naming mapping here
 
     def read_vtx(self, filename, qoi_name="T_values"):
         """
@@ -515,35 +507,30 @@ class Diagnostics:
         fig.savefig(f"{self.result_folder}/results_{qoi_name}_steady.{file_format}")
         plt.close("all")
 
-    def visualise(self):
+    def visualise(self, qoi_filter=None):
         """
         Visualize the results of the FESTIM simulation.
-        This method can be extended to include specific visualization logic.
+
+        Parameters:
+            qoi_filter: optional list of QoI names to visualise.
+                        If None, all available QoIs are visualised.
         """
         print("Visualizing results...")
-
-        # if self.result_flag is not True:
-        #     # Attempt to fall back and read from results.txt
-        #     print("No results found in the object during visualisation, reading from file...")
-        #     print(f">>> Diagnostics.visualise: Reading results from {self.result_folder}/results.txt")
-        #     self.results = np.genfromtxt(self.result_folder+"/results.txt", skip_header=True, delimiter=',')
 
         if self.results is not None:
 
             print("> Visualizing results")
 
-            # TODO possibility to specify subset of quantities to visualise
-            #  - For now, we assume the first column is radial coordinates and the rest are concentrations at different times
-
-            # Example: for basic temperature visualization at the last time step
-            # from fenics import plot
-            # plot(model.T.T, title="Temperature Distribution", mode='color', interactive=True)
+            qois_to_plot = {
+                k: v for k, v in self.results.items()
+                if qoi_filter is None or k in qoi_filter
+            }
 
             if self.transeint_flag:
                 print("Transient simulation detected, plotting results over time.")
 
                 # Iterate over each quantity of interest in the results dictionary and plot
-                for qoi_name, qoi_values in self.results.items():
+                for qoi_name, qoi_values in qois_to_plot.items():
                     print(f"Visualising quantity of interest: {qoi_name}")
 
                     if qoi_values is not None:
@@ -559,7 +546,7 @@ class Diagnostics:
             else:
                 print("Steady-state simulation detected, only single entry plotted.")
                 # Plot the single plot (t=steady)
-                for qoi_name, qoi_values in self.results.items():
+                for qoi_name, qoi_values in qois_to_plot.items():
                     print(f"Visualising quantity of interest: {qoi_name}")
 
                     # Check if the results for this quantity are available

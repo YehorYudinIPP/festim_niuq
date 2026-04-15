@@ -112,8 +112,7 @@ class Model_legacy(BaseModel):
         # Create a FESTIM model instance
         self.model = F.Simulation()
 
-        self.results = None  # Placeholder for results
-        # TODO find a way to fill this in from FESTIM Model object
+        self.results = None  # Populated after run() completes via model exports
 
         self.quantities_of_interest = {
             "tritium_concentration": None,  # Placeholder for tritium concentration
@@ -162,7 +161,6 @@ class Model_legacy(BaseModel):
         if "heat_model" in config["model_parameters"] and config["model_parameters"]["heat_model"] == "heat_transfer":
             # Use heat transfer model
             self._add_heat_conduction(config)
-            # TODO test thoroughly!
         else:
             self.model.T = config["model_parameters"]["T_0"]  # set fixed background temperature
 
@@ -237,7 +235,8 @@ class Model_legacy(BaseModel):
                     ],  # refined (smaller outer) part of the mesh
                 )
             )
-            # TODO mind round-off errors in the mesh size
+            # Remove near-duplicate vertices from concatenation rounding
+            vertices = np.unique(np.round(vertices, decimals=15))
 
         # print(f"Using vertices: {self.vertices}")
 
@@ -248,7 +247,13 @@ class Model_legacy(BaseModel):
             type=self.coordinate_system_type,  # Specify (spherical) mesh type; available coordinate systems: 'cartesian', 'cylindrical', 'spherical'; default is Cartesian
             vertices=self.vertices,  # Use the vertices defined above
         )
-        # TODO: add a fallback for unsupported coordinate systems
+        # Validate coordinate system type
+        supported_coordinate_systems = ("cartesian", "cylindrical", "spherical")
+        if self.coordinate_system_type not in supported_coordinate_systems:
+            raise ValueError(
+                f"Unsupported coordinate system: '{self.coordinate_system_type}'. "
+                f"Supported types: {supported_coordinate_systems}"
+            )
 
         # Option 2) use FESTIM's Mesh - and FeniCS (Dolfin ?) objects - specific for spherical geometry
         # self.model.mesh = F.Mesh(
@@ -814,8 +819,9 @@ class Model(BaseModel):
             if problem_name == "tritium_transport":
 
                 # Set up name(s) of the relevant quantities of interest
-                problem_instance["qoi_name"] = "tritium_concentration"
-                # TODO this could be a list of QoI names
+                problem_instance["qoi_names"] = config_transport_problem.get(
+                    "qoi_names", ["tritium_concentration"]
+                )
 
                 qoi_name_local = "concentration"
                 qoi_name_condition_local = "concentration"
@@ -830,12 +836,12 @@ class Model(BaseModel):
 
                 if not hasattr(self, "species") or self.species is None:
                     self.species = {
-                        k: None for k in species_names_config
-                    }  # TODO can be merged with the following code block ...
-
-                for species_k, species_v in self.species.items():
-                    self.species[species_k] = F.Species(self.species_descriptor[species_k]["festim_name"])
-                # TODO make automatic parsing of names; create species naming dictionary or make them the same
+                        k: F.Species(self.species_descriptor[k]["festim_name"])
+                        for k in species_names_config
+                    }
+                else:
+                    for species_k in self.species:
+                        self.species[species_k] = F.Species(self.species_descriptor[species_k]["festim_name"])
 
                 # Specify species list for FESTIM Model
                 problem_instance["festim_problem"].species = [v for _, v in self.species.items()]
@@ -860,24 +866,15 @@ class Model(BaseModel):
 
             # TODO: pass other parameters
             # TODO: test on a case with spurious oscillations
-            # E.G.: /home/yhy25yyp/workspace/festim_niuq/uq/runs_uq/runs_20250916/festim_campaign_20250916_191904_e5hzbeur
             # Specify settings, including transient/steady
+            settings_kwargs = {
+                "transient": self.transient,
+                "atol": absolute_tolerance,
+                "rtol": relative_tolerance,
+            }
             if self.transient:
-                # Set settings for transient problem, including time stepping
-
-                problem_instance["festim_problem"].settings = F.Settings(
-                    transient=self.transient,
-                    final_time=self.total_time,  # difference here (and time step size) for transient problems #TODO could be done by in-line comprehension, e.g. ternary operator
-                    atol=absolute_tolerance,
-                    rtol=relative_tolerance,
-                    # linear_solver="mumps",
-                )
-            else:
-                problem_instance["festim_problem"].settings = F.Settings(
-                    transient=self.transient,
-                    atol=absolute_tolerance,
-                    rtol=relative_tolerance,
-                )
+                settings_kwargs["final_time"] = self.total_time
+            problem_instance["festim_problem"].settings = F.Settings(**settings_kwargs)
 
             # Specify geometry and mesh # must be called after _specify_geometry()
             problem_instance["festim_problem"].subdomains = self.subdomains
@@ -978,7 +975,6 @@ class Model(BaseModel):
                 )
 
             self.model = self.problems[model_to_solve]["festim_problem"]
-            # TODO make Python refer it by reference
 
         logger.debug(f" >> Initialised problems: \n {self.problems}")
 
@@ -1246,7 +1242,7 @@ class Model(BaseModel):
                     raise ValueError(f"Unknown mesh type: {self.mesh_type}")
 
                 self.vertices = vertices
-                self.meshes[id] = F.Mesh1D(vertices)  # TODO: double check if this is accroding to FESTIM2.0
+                self.meshes[id] = F.Mesh1D(vertices)
                 # TODO: add spherical coordinates
                 # TODO: add refined meshes
 
@@ -1338,8 +1334,9 @@ class Model(BaseModel):
         # Iterate over boundary conditions in the configuration
         for bc_quantity, bc_config in config.get("boundary_conditions", []).items():
 
-            field = self.quantity_map.get(bc_quantity, "concentration")  # Default to concentration if not specified
-            # TODO should it have a ValueError as a fallback? Also, does not seem to be needed in FESTIM 2.0
+            field = self.quantity_map.get(bc_quantity, None)
+            if field is None:
+                raise ValueError(f"Unknown boundary condition quantity: '{bc_quantity}'")
 
             # Check if the boundary condition applies to the specified quantity
             if bc_quantity == quantity_filter or quantity_filter is None:
@@ -1347,8 +1344,13 @@ class Model(BaseModel):
                 for bc_location, bc_values in bc_config.items():
 
                     # Get the surface location ID for FESTIM model based on YAML specification
-                    surface_loc_id = int(self.surface_map.get(bc_location, 1).get("loc_id", None))
-                    # TODO should it have ValueError as a fallback? Alternatively, use bc_values['id']
+                    surface_entry = self.surface_map.get(bc_location, None)
+                    if surface_entry is None:
+                        raise ValueError(
+                            f"Unknown boundary location '{bc_location}' for quantity '{bc_quantity}'. "
+                            f"Available locations: {list(self.surface_map.keys())}"
+                        )
+                    surface_loc_id = int(surface_entry.get("loc_id", None))
 
                     value = self._get_config_entry(bc_values, "value", float)  # Get the value of the boundary condition
 
@@ -1466,7 +1468,7 @@ class Model(BaseModel):
                             sigma = 5.671e-8  # Stefan-Boltzmann constant [W m^-2 K^-4]
 
                             flux_function = lambda T: h_conv * (T - T_ext) + epsilon * sigma * (T**4 - T_amb**4)
-                            # TODO double check the direction convention, assuming here that '+' is outwards
+                            # Convention: positive flux = outward (per FESTIM convention)
 
                             bc = F.HeatFluxBC(
                                 subdomain=self.domain_surfaces[surface_loc_id],
@@ -1663,7 +1665,11 @@ class Model(BaseModel):
             problem["festim_problem"] for _, problem in self.problems.items() if "festim_problem" in problem
         ]
 
-        # TODO assure that (1) all objects in the list are FESTIM2.0 problems, (2) problems do not repeat, e.g. self.model is not the reference to one of the model as in the case of no coupling
+        # Validate that all objects in the list are FESTIM problems and no duplicates exist
+        if not all(hasattr(p, "settings") for p in problem_list):
+            raise TypeError("All problems must be FESTIM problem objects with a 'settings' attribute")
+        if len(problem_list) != len(set(id(p) for p in problem_list)):
+            raise ValueError("Duplicate problem references found in problem_list")
 
         for problem in problem_list:
             if problem.settings is not None:

@@ -189,10 +189,11 @@ class UQPlotter:
 
             # Setting the title and labels for the plot
             axs[i].set_title(f"Uncertainty at {qoi_name} as a function of radius, in '{plot_func_name}' scale")
-            axs[i].set_xlabel(f"Radius, [m]")  # TODO pass and display proper units for the length
+            length_unit = self.quantities_descriptor.get("x", {}).get("unit", "m")
+            axs[i].set_xlabel(f"Radius, [{length_unit}]")
             axs[i].set_ylabel(
                 f"{self.quantities_descriptor[self.quantity]['name']} ${self.quantities_descriptor[self.quantity]['unit']}$ at {qoi_name}"
-            )  # TODO read full name of the QoI from results
+            )
 
             axs[i].legend(loc="best")
             axs[i].grid(True)
@@ -306,7 +307,7 @@ class UQPlotter:
 
         fig, ax = plt.subplots()
 
-        # for qoi_name_1, qoi_name_2 in itertools.product(qoi_name_s, repeat=2): # TODO: should be param_name_s
+        # for param_name_1, param_name_2 in itertools.product(param_name_s, repeat=2):
 
         # Get Sobol dictionary for each QoI
         for qoi_name in qoi_name_s:
@@ -460,7 +461,6 @@ class UQPlotter:
             print(
                 f"Plots (for spatially resolved functions) saved: {moments_vsr_filename}, {sobols_treemap_filename}, {sobols_filename}"
             )
-            # TODO compare those in absolute values - fix the y axis limits?
 
         # Save plot common for QoIs: specific for bespoke QoI uncertainty plotting
         #  - bespoke plotting of uncertainty in QoI (at selected radius)

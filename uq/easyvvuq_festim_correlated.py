@@ -244,7 +244,7 @@ def define_parameter_uncertainty(config, sigma_norm=0.25, corr=0.1):
     # The absolute bounds of the distribution is a function of the mean and CoV
     # - for CoV of U[a,b]: STD = (b-a)/sqrt(12) , meaning it should be a=mean*(1-sqrt(3)CoV), b=mean*(1+sqrt(3)CoV)
     expansion_factor_uniform = np.sqrt(3)
-    # TODO define for the Normal distribution: should be 1.0
+    expansion_factor_normal = 1.0  # For Normal distribution, STD = sigma, so expansion factor is 1.0
 
     parameters_distributions = {
         "D_0": cp.Normal(
@@ -759,6 +759,3 @@ if __name__ == "__main__":
     except Exception as e:
         print(f"An error occurred during the UQ campaign: {e}")
         sys.exit(1)
-
-##################################
-# TODO:

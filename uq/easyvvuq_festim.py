@@ -703,7 +703,6 @@ def analyse_uq_results(campaign, qois, sampler, uq_params=None):
     else:
         print("No UQ parameters provided. Proceeding with default analysis.")
 
-    # TODO Probably get last analysis results from the campaign
     campaign.apply_analysis(analysis)
 
     # Get the last analysis results
@@ -844,10 +843,3 @@ if __name__ == "__main__":
     except Exception as e:
         print(f"An error occurred during the UQ campaign: {e}")
         sys.exit(1)
-
-##################################
-# TODO:
-
-# 0) Double check everything and clean up the code
-
-# 6*) Add convergence (to the steady state) as a QoI

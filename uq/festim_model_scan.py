@@ -336,7 +336,8 @@ def param_scan_sensitivity_analysis(config, param_name="length", level_variation
 
         # ATTENTION
 
-        # TODO make sure type conversion during iteration over numpy array is correct
+        # Ensure correct type when iterating over numpy array
+        param_value = float(param_value)
         print(f" > Next: calling a UQ campaign")
         try:
             perform_uq_festim(
@@ -350,7 +351,7 @@ def param_scan_sensitivity_analysis(config, param_name="length", level_variation
             print(f"Error occurred while calling UQ campaign: {e}")
             # sys.exit(1)
 
-        # TODO save and display the modified parameter in the scan
+        logger.info(f"Scan iteration {i}: {param_name} = {param_value:.3E}")
         print(f" > Sensitivity analysis iteration {i} for {param_name} = {param_value} completed.\n")
 
     return 0
