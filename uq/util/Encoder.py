@@ -3,10 +3,13 @@ Custom YAML Encoder for EasyVVUQ
 """
 
 import os
+import logging
 import yaml
 import math
 
 # from easyvvuq.encoders.base import BaseEncoder
+
+logger = logging.getLogger(__name__)
 
 
 class YAMLEncoder:
@@ -143,23 +146,23 @@ class AdvancedYAMLEncoder(YAMLEncoder):
 
         # Update configuration with parameters
         for param_name, param_value in params.items():
-            print(f" >> Encoding parameter '{param_name}' with value '{param_value}'")  ###DEBUG
+            logger.debug(f" >> Encoding parameter '{param_name}' with value '{param_value}'")
             # Apply type conversion if specified
             if param_name in self.type_conversions:
                 param_value = self.type_conversions[param_name](param_value)
 
             # Use parameter mapping if available
             if param_name in self.parameter_map:
-                print(f" >> Using parameter map for '{param_name}'")  ###DEBUG
+                logger.debug(f" >> Using parameter map for '{param_name}'")
                 yaml_path = self.parameter_map[param_name]
                 self._set_nested_value(config, yaml_path, param_value)
             else:
-                print(f" >> No parameter map for '{param_name}', searching recursively")  ###DEBUG
+                logger.debug(f" >> No parameter map for '{param_name}', searching recursively")
                 # Try to find the parameter in the config structure
                 self._update_config_recursive(config, param_name, param_value)
 
         # Update fixed parameters for every run
-        # print(f" >> Updating fixed parameters in the configuration: {self.fixed_parameters}") ###DEBUG
+        # print(f" >> Updating fixed parameters in the configuration: {self.fixed_parameters}")
         if self.fixed_parameters:
             self._update_fixed_parameters(config)
 
@@ -180,7 +183,7 @@ class AdvancedYAMLEncoder(YAMLEncoder):
         keys = path.split(".")
         current = config
 
-        # print(f" >>>> Encoding via keys: {keys}") ###DEBUG
+        # print(f" >>>> Encoding via keys: {keys}")
 
         # Traverse the nested structure and set the value
         for key in keys[:-1]:
@@ -188,17 +191,17 @@ class AdvancedYAMLEncoder(YAMLEncoder):
             if key not in current:
                 # Create a new dictionary if the key does not exist
                 current[key] = {}
-            # print(f" >>>> Encoding @: {current} >> {key}") ###DEBUG
+            # print(f" >>>> Encoding @: {current} >> {key}")
             current = current[key]
             # Check if the key is a list
             if isinstance(current, list):
                 # ATTENTION: If current is a list, choose the first element
                 current = current[0]
 
-        # print(f" >>>> Setting a leave of the config @: {current} >> {key}") ###DEBUG
+        # print(f" >>>> Setting a leave of the config @: {current} >> {key}")
         # Set the final key to the value
         current[keys[-1]] = value
-        # print(f"Set nested value at {path} to {value}") ###DEBUG
+        # print(f"Set nested value at {path} to {value}")
         # ATTENTION: will not handle list at the end of the path
 
         # Ensure the value is correctly set
@@ -250,7 +253,7 @@ class AdvancedYAMLEncoder(YAMLEncoder):
 
                 yaml_path = self.parameter_map[key]
 
-                # print(f" >> Setting nested fixed parameter '{key}' to '{value}' at path '{yaml_path}'") ###DEBUG
+                # print(f" >> Setting nested fixed parameter '{key}' to '{value}' at path '{yaml_path}'")
 
                 self._set_nested_value(config, yaml_path, value)
 

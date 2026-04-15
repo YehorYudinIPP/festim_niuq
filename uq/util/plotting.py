@@ -16,8 +16,11 @@ import numpy as np
 
 import itertools
 import json
+import logging
 
 from .utils import add_timestamp_to_filename
+
+logger = logging.getLogger(__name__)
 
 
 class UQPlotter:
@@ -151,14 +154,14 @@ class UQPlotter:
             # Plotting individual trajectories for each run if runs_info is provided
 
             if runs_info is not None:
-                print(
+                logger.debug(
                     f" > Plotting individual trajectories for each run in {qoi_name} at '{self.scale_descriptor[plot_func_name]}' scale"
-                )  ###DEBUG
+                )
 
                 # Iterating over individual runs
                 for run_id, run_info in runs_info:
-                    # print(f" >> Plotting run {run_id} for {qoi_name}")  ###DEBUG
-                    # print(f" >> Run {run_id} info: {run_info}")  ###DEBUG
+                    # print(f" >> Plotting run {run_id} for {qoi_name}")
+                    # print(f" >> Run {run_id} info: {run_info}")
 
                     # Checking if individual run has non-empty results
                     if "result" in run_info:
@@ -167,7 +170,7 @@ class UQPlotter:
                         result_str = run_info["result"]  # This is a string
 
                         result_dict = json.loads(result_str)  # This SHOULD BE a dictionary
-                        # print(f" >> Run {run_id} result_dict type: {type(result_dict)}, content: {result_dict}")  ###DEBUG
+                        # print(f" >> Run {run_id} result_dict type: {type(result_dict)}, content: {result_dict}")
 
                         # Plotting the individual trajectory for the current run
                         plot_func(
@@ -180,16 +183,17 @@ class UQPlotter:
 
                     else:
                         print(f"Run {run_id} does not have 'result' key, skipping individual trajectory plotting.")
-                print(" > Individual trajectories plotted for each run.")  ###DEBUG
+                logger.debug(" > Individual trajectories plotted for each run.")
             else:
                 print("No runs_info provided, skipping individual trajectories plotting.")
 
             # Setting the title and labels for the plot
             axs[i].set_title(f"Uncertainty at {qoi_name} as a function of radius, in '{plot_func_name}' scale")
-            axs[i].set_xlabel(f"Radius, [m]")  # TODO pass and display proper units for the length
+            length_unit = self.quantities_descriptor.get("x", {}).get("unit", "m")
+            axs[i].set_xlabel(f"Radius, [{length_unit}]")
             axs[i].set_ylabel(
                 f"{self.quantities_descriptor[self.quantity]['name']} ${self.quantities_descriptor[self.quantity]['unit']}$ at {qoi_name}"
-            )  # TODO read full name of the QoI from results
+            )
 
             axs[i].legend(loc="best")
             axs[i].grid(True)
@@ -303,7 +307,7 @@ class UQPlotter:
 
         fig, ax = plt.subplots()
 
-        # for qoi_name_1, qoi_name_2 in itertools.product(qoi_name_s, repeat=2): # TODO: should be param_name_s
+        # for param_name_1, param_name_2 in itertools.product(param_name_s, repeat=2):
 
         # Get Sobol dictionary for each QoI
         for qoi_name in qoi_name_s:
@@ -381,7 +385,7 @@ class UQPlotter:
             # ymin = results.describe(qoi, 'min')
             # ymax = results.describe(qoi, 'max')
 
-            # print(f" >>> Finished reading statistics for QoI with EasyVVUQ: {qoi}") ### DEBUG
+            # print(f" >>> Finished reading statistics for QoI with EasyVVUQ: {qoi}")
 
             # Filling in the values for the list of dicts for a common boxplot
             stats_dict_s.append(
@@ -403,13 +407,13 @@ class UQPlotter:
             # rs = np.linspace(0., 1., len(y))  # Should be done outside of scope of current function
 
             # Read out individual trajectories of single runs from .raw_data
-            print(
+            logger.debug(
                 f" >>> Reading individual trajectories for QoI with EasyVVUQ: results.raw_data = \n{results.raw_data}"
-            )  ### DEBUG
+            )
             # TODO might be needed to read from campaign.db
 
             # Default plotting of the moments
-            # print(f" >> Plotting moments for QoI with EasyVVUQ: {qoi}") ###DEBUG
+            # print(f" >> Plotting moments for QoI with EasyVVUQ: {qoi}")
             results.plot_moments(
                 qoi=qoi,
                 ylabel=f"{self.quantities_descriptor.get(qoi, {'name': qoi}).get('name', qoi)} [${self.quantities_descriptor.get(qoi, {'unit': ''}).get('unit', '')}$], {qoi}",
@@ -426,7 +430,7 @@ class UQPlotter:
             # )
 
             # Bespoke plotting of uncertainty in QoI (vs. radius)
-            # print(f" >> Plotting moments for QoI via bespoke function: {qoi}") ###DEBUG
+            # print(f" >> Plotting moments for QoI via bespoke function: {qoi}")
             self.plot_unc_vs_r(
                 rs,
                 y,
@@ -440,7 +444,7 @@ class UQPlotter:
             )
 
             # Plotting Sobol indices as a function of radius
-            # print(f" >> Plotting first Sobol indices for QoI via EasyVVUQ: {qoi}") ###DEBUG
+            # print(f" >> Plotting first Sobol indices for QoI via EasyVVUQ: {qoi}")
             results.plot_sobols_first(
                 qoi=qoi,
                 withdots=False,  # Show dots for each Sobol index
@@ -457,11 +461,10 @@ class UQPlotter:
             print(
                 f"Plots (for spatially resolved functions) saved: {moments_vsr_filename}, {sobols_treemap_filename}, {sobols_filename}"
             )
-            # TODO compare those in absolute values - fix the y axis limits?
 
         # Save plot common for QoIs: specific for bespoke QoI uncertainty plotting
         #  - bespoke plotting of uncertainty in QoI (at selected radius)
-        # print(f" >> Plotting uncertainties for QoI via bespoke functionality: {qoi}") ###DEBUG
+        # print(f" >> Plotting uncertainties for QoI via bespoke functionality: {qoi}")
         file_type = "pdf"  # Assuming we want to save as PDF
         self.plot_unc_qoi(
             stats_dict_s,
@@ -475,7 +478,7 @@ class UQPlotter:
 
         # Read second-order Sobol indices from the UQ results object
         sobols_second = results.sobols_second()
-        print(f" >> Second-order Sobol indices for QoI with EasyVVUQ: {qoi} : \n {sobols_second}")  ###DEBUG
+        logger.debug(f" >> Second-order Sobol indices for QoI with EasyVVUQ: {qoi} : \n {sobols_second}")
         self.plot_sobols_seconds_vs_r(
             rs, sobols_second, qois, foldername=plot_folder_name, filename_base="sobols_second_vs_r"
         )
@@ -487,7 +490,7 @@ class UQPlotter:
         Plot uncertainty in the results as a function of time.
         """
         fig, ax = plt.subplots()
-        # print(f"Shapes of the lists: y_s: {len(y_s)}, sy_s: {len(sy_s)}, y10_s: {len(y10_s)}, y90_s: {len(y90_s)}") ###DEBUG
+        # print(f"Shapes of the lists: y_s: {len(y_s)}, sy_s: {len(sy_s)}, y10_s: {len(y10_s)}, y90_s: {len(y90_s)}")
 
         ax.plot(t_s, y_at_r, label=f"<y> at r={r_at_r}")
         ax.fill_between(
@@ -512,7 +515,7 @@ class UQPlotter:
         Plot Sobol indices as a function of time.
         """
         fig, ax = plt.subplots()
-        # print(s1_s[-1]) ### DEBUG
+        # print(s1_s[-1])
 
         for i, param_name in enumerate(distributions.keys()):
             # Extract r_ind-th element from each Sobol array to get time series at fixed radius

@@ -14,6 +14,7 @@ Usage::
 
 import sys
 import os
+import logging
 
 from util.utils import compute_absolute_tolerance
 
@@ -39,6 +40,8 @@ from festim_model.diagnostics import Diagnostics
 
 # Import UQ functions from easyvvuq_festim
 from easyvvuq_festim import perform_uq_festim, run_uq_campaign, analyse_uq_results, visualisation_of_results
+
+logger = logging.getLogger(__name__)
 
 
 def make_parameter_values_list(param_def_val, level_variation=3, scale="log"):
@@ -155,7 +158,7 @@ def parameter_scan(config, param_name="length", level_variation=3, target_dir=".
         param_def_val = 1.0
 
     print(f"Using default {param_name} value: {param_def_val:.3E} [{param_units[param_name]}]")
-    # print(f"> Default value of {param_name} = {param_def_val}") ###DEBUG
+    # print(f"> Default value of {param_name} = {param_def_val}")
 
     # Specify the list of parameter values to scan
     # Option 1) use logarithmic scale, specify range of magnitudes
@@ -165,7 +168,7 @@ def parameter_scan(config, param_name="length", level_variation=3, target_dir=".
 
     # Option 3) use linear scale, specify range of values
 
-    print(f"> List of {param_name} values for the scan:\n{param_values}")  ###DEBUG
+    logger.debug(f"> List of {param_name} values for the scan:\n{param_values}")
 
     results = []
 
@@ -200,9 +203,9 @@ def parameter_scan(config, param_name="length", level_variation=3, target_dir=".
         new_tt_atol = compute_absolute_tolerance(def_tt_atol, old_params, new_params)
 
         config["simulation"]["tolerances"]["absolute_tolerance"]["tritium_transport"] = new_tt_atol
-        print(
+        logger.debug(
             f" > Changing tritium transport solver absolute tolerance from {def_tt_atol:.2E} to {new_tt_atol:.2E}"
-        )  ###DEBUG
+        )
 
         # ATTENTION: overlaoding atol to 1.e0 for a test
         config["simulation"]["tolerances"]["absolute_tolerance"]["tritium_transport"] = 1.0e0
@@ -214,7 +217,7 @@ def parameter_scan(config, param_name="length", level_variation=3, target_dir=".
         result = model.run()
 
         print(f"Run for {param_name}={value:.3E} completed!")
-        print(f"Result:\n{result}")  ###DEBUG
+        logger.debug(f"Result:\n{result}")
 
         results.append(result)
 
@@ -326,14 +329,15 @@ def param_scan_sensitivity_analysis(config, param_name="length", level_variation
         new_params = {param_name: param_value}
         new_tt_atol = compute_absolute_tolerance(def_tt_atol, old_params, new_params)
         config["simulation"]["tolerances"]["absolute_tolerance"]["tritium_transport"] = new_tt_atol
-        # print(f" > Changing tritium transport solver absolute tolerance from {def_tt_atol:.2E} to {new_tt_atol:.2E}") ###DEBUG
+        # print(f" > Changing tritium transport solver absolute tolerance from {def_tt_atol:.2E} to {new_tt_atol:.2E}")
         print(
             f"\n Computing new solver tolerances:..\n  Old parameter values: {param_name}={old_params[param_name]:.2E}\n  New parameter values: {param_name}={new_params[param_name]:.2E}\n    (Log difference: {np.log10(new_params[param_name] / old_params[param_name]):.2E})\n  Old tolerance value: {def_tt_atol:.2E}\n Computed tritium transport absolute tolerance: {new_tt_atol:.2E}\n"
         )
 
         # ATTENTION
 
-        # TODO make sure type conversion during iteration over numpy array is correct
+        # Ensure correct type when iterating over numpy array
+        param_value = float(param_value)
         print(f" > Next: calling a UQ campaign")
         try:
             perform_uq_festim(
@@ -347,7 +351,7 @@ def param_scan_sensitivity_analysis(config, param_name="length", level_variation
             print(f"Error occurred while calling UQ campaign: {e}")
             # sys.exit(1)
 
-        # TODO save and display the modified parameter in the scan
+        logger.info(f"Scan iteration {i}: {param_name} = {param_value:.3E}")
         print(f" > Sensitivity analysis iteration {i} for {param_name} = {param_value} completed.\n")
 
     return 0
