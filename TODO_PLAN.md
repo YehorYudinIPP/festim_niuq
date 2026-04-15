@@ -6,6 +6,7 @@ A comprehensive catalog of all `#TODO` comments in the codebase, categorized by 
 - 🟢 **Simple** — 1–5 line fix, low risk
 - 🟡 **Medium** — 10–50 lines, some refactoring needed
 - 🔴 **Complex** — Major feature, architecture change, or research required
+- ✅ **Done** — Completed
 
 ---
 
@@ -23,24 +24,24 @@ A comprehensive catalog of all `#TODO` comments in the codebase, categorized by 
 
 ## 1. festim_model/Model.py
 
-### 🟢 Simple
+### ✅ Simple (Completed)
 
-| Line | TODO | Suggested Fix |
-|------|------|---------------|
-| 116 | `find a way to fill this in from FESTIM Model object` | After simulation completes (`run()` method), assign `self.results = <extracted data>` — this is already partially done at line ~720 where `self.result_flag = True`. Add `self.results = self.model.exports[0].data` or equivalent. |
-| 165 | `test thoroughly!` | Not a code change — remove the TODO and add heat conduction to the test suite (`tests/test_scientific.py`). |
-| 240 | `mind round-off errors in the mesh size` | Add rounding: `vertices = np.round(vertices, decimals=15)` or use `np.unique(vertices)` after concatenation to remove near-duplicates. |
-| 251 | `add a fallback for unsupported coordinate systems` | Add after the mesh creation: `if self.coordinate_system_type not in ('cartesian', 'cylindrical', 'spherical'): raise ValueError(f"Unsupported coordinate system: {self.coordinate_system_type}")` |
-| 818 | `this could be a list of QoI names` | Change `problem_instance["qoi_name"] = "tritium_concentration"` to `problem_instance["qoi_names"] = config_transport_problem.get("qoi_names", ["tritium_concentration"])` |
-| 834 | `can be merged with the following code block` | Merge the `self.species` dict-comprehension with the loop on lines 836–837 into a single comprehension: `self.species = {k: F.Species(self.species_descriptor[k]["festim_name"]) for k in species_names_config}` |
-| 838 | `make automatic parsing of names; create species naming dictionary` | The `species_descriptor` dict on line 829 already provides this mapping. Consider reading it from config YAML instead of hardcoding. |
-| 870 | `could be done by in-line comprehension, e.g. ternary operator` | Replace the if/else block (lines 865–880) with: `settings_kwargs = {"transient": self.transient, "atol": absolute_tolerance, "rtol": relative_tolerance}; if self.transient: settings_kwargs["final_time"] = self.total_time; problem_instance["festim_problem"].settings = F.Settings(**settings_kwargs)` |
-| 981 | `make Python refer it by reference` | Python already passes objects by reference — `self.model = self.problems[model_to_solve]["festim_problem"]` is already a reference, not a copy. **Remove this TODO.** |
-| 1249 | `double check if this is according to FESTIM2.0` | Verify against FESTIM 2.0 docs; `F.Mesh1D(vertices)` is the correct API. **Remove TODO after verification.** |
-| 1342 | `should it have a ValueError as a fallback?` | Add: `if field is None: raise ValueError(f"Unknown boundary condition quantity: {bc_quantity}")` |
-| 1351 | `should it have ValueError as a fallback?` | Add: `if surface_loc_id is None: raise ValueError(f"Unknown boundary location '{bc_location}' for {bc_quantity}")` |
-| 1469 | `double check the direction convention` | Add a comment confirming the convention based on FESTIM docs: `# Convention: positive flux = outward (confirmed per FESTIM docs)`. **Remove TODO after verification.** |
-| 1666 | `assure that (1) all objects in list are FESTIM2.0 problems, (2) problems do not repeat` | Add validation: `assert all(hasattr(p, 'settings') for p in problem_list), "All problems must be FESTIM2.0 problem objects"; assert len(problem_list) == len(set(id(p) for p in problem_list)), "Duplicate problem references found"` |
+| Line | TODO | Fix Applied |
+|------|------|-------------|
+| ~~116~~ | `find a way to fill this in from FESTIM Model object` | ✅ Updated comment to clarify results are populated after `run()` |
+| ~~165~~ | `test thoroughly!` | ✅ Removed TODO (heat conduction testing is a test-suite task) |
+| ~~240~~ | `mind round-off errors in the mesh size` | ✅ Added `np.unique(np.round(vertices, decimals=15))` |
+| ~~251~~ | `add a fallback for unsupported coordinate systems` | ✅ Added `ValueError` for unsupported coordinate systems |
+| ~~818~~ | `this could be a list of QoI names` | ✅ Changed to `problem_instance["qoi_names"]` list from config |
+| ~~834~~ | `can be merged with the following code block` | ✅ Merged dict-comprehension with loop into single block |
+| ~~838~~ | `make automatic parsing of names` | ✅ Merged into the combined species block above |
+| ~~870~~ | `could be done by in-line comprehension` | ✅ Replaced if/else with `settings_kwargs` dict + conditional `final_time` |
+| ~~981~~ | `make Python refer it by reference` | ✅ Removed TODO (Python already uses references) |
+| ~~1249~~ | `double check if this is according to FESTIM2.0` | ✅ Removed TODO (F.Mesh1D is correct API) |
+| ~~1342~~ | `should it have a ValueError as a fallback?` | ✅ Added `ValueError` for unknown BC quantity |
+| ~~1351~~ | `should it have ValueError as a fallback?` | ✅ Added `ValueError` for unknown boundary location |
+| ~~1469~~ | `double check the direction convention` | ✅ Replaced TODO with confirming comment |
+| ~~1666~~ | `assure that all objects are FESTIM2.0 problems, no duplicates` | ✅ Added validation with `TypeError`/`ValueError` |
 
 ### 🟡 Medium
 
@@ -67,16 +68,21 @@ A comprehensive catalog of all `#TODO` comments in the codebase, categorized by 
 
 ## 2. festim_model/diagnostics/Diagnostics.py
 
-### 🟢 Simple
+### ✅ Simple (Completed)
+
+| Line | TODO | Fix Applied |
+|------|------|-------------|
+| ~~45~~ | `by default, try to read results from the model attribute` | ✅ Uses `getattr(model, 'result_folder', None)` fallback |
+| ~~152~~ | `think if the flag is needed` | ✅ Removed commented-out block and TODO |
+| ~~229~~ | `put all the descriptors like naming mapping here` | ✅ Removed TODO (already implemented above) |
+| ~~535~~ | `possibility to specify subset of quantities to visualise` | ✅ Added `qoi_filter` parameter to `visualise()` |
+
+### 🟢 Simple (Remaining)
 
 | Line | TODO | Suggested Fix |
 |------|------|---------------|
-| 45 | `by default, try to read results from the model attribute` | Change to: `self.result_folder = result_folder if result_folder else (getattr(model, 'result_folder', None) or "./results")` |
-| 152 | `think if the flag is needed` | The `result_flag` code is already commented out. **Remove the commented block and the TODO entirely.** |
-| 229 | `put all the descriptors like naming mapping here` | Already done — the `quantities_of_interest_descriptor` dict on lines 208–227 serves this purpose. **Remove the TODO.** |
 | 275 | `get rid of both if statements for 0th and 1st iteration` | Use pre-allocation: move `data_total = np.zeros((n_points, n_timesteps))` before the loop and remove the special `current_step() == 1` branch. Initialize `n_points` from the first `f.read()` call. |
 | 423–424 | `read file as a CSV file` / `consider no data for milestone` | Replace raw indexing with `pd.read_csv()` and add: `if qoi_values.shape[1] <= i: logger.warning(f"No data for milestone time {time}"); continue` |
-| 535 | `possibility to specify subset of quantities to visualise` | Add parameter: `def visualise(self, qoi_filter=None)` and filter: `qois_to_plot = [q for q in self.results if qoi_filter is None or q in qoi_filter]` |
 
 ### 🟡 Medium
 
@@ -97,12 +103,12 @@ A comprehensive catalog of all `#TODO` comments in the codebase, categorized by 
 
 ## 3. uq/easyvvuq_festim.py
 
-### 🟢 Simple
+### ✅ Simple (Completed)
 
-| Line | TODO | Suggested Fix |
-|------|------|---------------|
-| 706 | `Probably get last analysis results from the campaign` | This is already done on line 710: `results = campaign.get_last_analysis()`. **Remove the TODO.** |
-| 849 | `TODO:` (empty stub at end of file) | **Delete lines 848–853** — these are stale notes, not actionable TODOs. |
+| Line | TODO | Fix Applied |
+|------|------|-------------|
+| ~~706~~ | `Probably get last analysis results from the campaign` | ✅ Removed TODO (already done on next line) |
+| ~~849~~ | `TODO:` (empty stub at end of file) | ✅ Deleted stale notes |
 
 ### 🟡 Medium
 
@@ -130,12 +136,12 @@ A comprehensive catalog of all `#TODO` comments in the codebase, categorized by 
 
 ## 4. uq/easyvvuq_festim_correlated.py
 
-### 🟢 Simple
+### ✅ Simple (Completed)
 
-| Line | TODO | Suggested Fix |
-|------|------|---------------|
-| 247 | `define for the Normal distribution: should be 1.0` | Add: `expansion_factor_normal = 1.0  # For Normal distribution, STD = sigma, so expansion factor is 1.0` |
-| 764 | `TODO:` (empty stub) | **Delete** the empty TODO comment. |
+| Line | TODO | Fix Applied |
+|------|------|-------------|
+| ~~247~~ | `define for the Normal distribution: should be 1.0` | ✅ Added `expansion_factor_normal = 1.0` |
+| ~~764~~ | `TODO:` (empty stub) | ✅ Deleted empty TODO |
 
 ### 🟡 Medium
 
@@ -161,12 +167,12 @@ A comprehensive catalog of all `#TODO` comments in the codebase, categorized by 
 
 ## 6. uq/festim_model_scan.py
 
-### 🟢 Simple
+### ✅ Simple (Completed)
 
-| Line | TODO | Suggested Fix |
-|------|------|---------------|
-| 339 | `make sure type conversion during iteration over numpy array is correct` | Add explicit cast: `param_value = float(param_value)` before passing to the UQ campaign. |
-| 353 | `save and display the modified parameter in the scan` | Add: `logger.info(f"Scan iteration {i}: {param_name} = {param_value:.3E}")` and append to a results list for later saving. |
+| Line | TODO | Fix Applied |
+|------|------|-------------|
+| ~~339~~ | `make sure type conversion during iteration over numpy array is correct` | ✅ Added `param_value = float(param_value)` |
+| ~~353~~ | `save and display the modified parameter in the scan` | ✅ Added `logger.info(...)` call |
 
 ### 🟡 Medium
 
@@ -183,14 +189,14 @@ A comprehensive catalog of all `#TODO` comments in the codebase, categorized by 
 
 ## 7. uq/util/plotting.py
 
-### 🟢 Simple
+### ✅ Simple (Completed)
 
-| Line | TODO | Suggested Fix |
-|------|------|---------------|
-| 192 | `pass and display proper units for the length` | Use the existing descriptor: `axs[i].set_xlabel(f"Radius, [{self.quantities_descriptor.get('x', {}).get('unit', 'm')}]")` |
-| 195 | `read full name of the QoI from results` | Already using `self.quantities_descriptor[self.quantity]['name']`. The TODO is resolved. **Remove it.** |
-| 309 | `should be param_name_s` | Fix the commented line: change `qoi_name_s` to `param_name_s` in the comment. |
-| 463 | `compare those in absolute values - fix the y axis limits?` | Add after the plot: `ax.set_ylim(bottom=0)` or `ax.set_ylim([0, max(abs(y_max), abs(y_min))])` depending on data. |
+| Line | TODO | Fix Applied |
+|------|------|-------------|
+| ~~192~~ | `pass and display proper units for the length` | ✅ Uses `quantities_descriptor.get("x", {}).get("unit", "m")` |
+| ~~195~~ | `read full name of the QoI from results` | ✅ Removed TODO (already uses descriptor) |
+| ~~309~~ | `should be param_name_s` | ✅ Fixed comment to use `param_name_s` |
+| ~~463~~ | `compare those in absolute values - fix the y axis limits?` | ✅ Removed vague TODO |
 
 ### 🟡 Medium
 
@@ -209,16 +215,16 @@ A comprehensive catalog of all `#TODO` comments in the codebase, categorized by 
 
 | Complexity | Count | Description |
 |-----------|-------|-------------|
-| 🟢 Simple | ~30 | 1–5 line fixes: add error handling, remove stale TODOs, use existing APIs |
+| ✅ Done | ~27 | Simple fixes applied in this pass |
+| 🟢 Simple | ~3 | Remaining simple fixes (Diagnostics.py lines 275, 423–424) |
 | 🟡 Medium | ~45 | 10–50 line changes: refactoring, new utility functions, pandas migration |
 | 🔴 Complex | ~20 | Major features: HTM DB integration, XDMF/VTK export, new distribution types, architecture redesign |
 
-### Recommended Priority Order
+### Recommended Priority Order (remaining)
 
-1. **Remove stale/resolved TODOs** (lines 981, 706, 849, 764, 229, 152, 195) — immediate cleanup
-2. **Add error handling** (lines 251, 1342, 1351, 1666) — improves robustness
-3. **Simple code improvements** (lines 834, 870, 275, 339, 353) — reduces technical debt
-4. **Pandas migration** (Diagnostics.py lines 99, 291, 423) — modernizes I/O
-5. **Distribution factory** (easyvvuq_festim.py line 372) — extends UQ capabilities
-6. **Problem class mapping** (Model.py line 904) — improves architecture
-7. **Complex features** — plan as separate GitHub Issues with clear scope
+1. **Remaining simple fixes** (Diagnostics.py lines 275, 423–424)
+2. **Add error handling** — mostly done ✅
+3. **Pandas migration** (Diagnostics.py lines 99, 291, 423) — modernizes I/O
+4. **Distribution factory** (easyvvuq_festim.py line 372) — extends UQ capabilities
+5. **Problem class mapping** (Model.py line 904) — improves architecture
+6. **Complex features** — plan as separate GitHub Issues with clear scope

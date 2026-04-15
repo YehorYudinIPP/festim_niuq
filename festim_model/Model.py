@@ -834,6 +834,14 @@ class Model(BaseModel):
 
                 self.species_descriptor = {"Tritium": {"festim_name": "T"}}
 
+                # Validate all requested species are in the descriptor
+                unknown_species = [k for k in species_names_config if k not in self.species_descriptor]
+                if unknown_species:
+                    raise ValueError(
+                        f"Unknown species {unknown_species} not found in species_descriptor. "
+                        f"Available: {list(self.species_descriptor.keys())}"
+                    )
+
                 if not hasattr(self, "species") or self.species is None:
                     self.species = {
                         k: F.Species(self.species_descriptor[k]["festim_name"])
@@ -1666,8 +1674,12 @@ class Model(BaseModel):
         ]
 
         # Validate that all objects in the list are FESTIM problems and no duplicates exist
-        if not all(hasattr(p, "settings") for p in problem_list):
-            raise TypeError("All problems must be FESTIM problem objects with a 'settings' attribute")
+        invalid_problems = [type(p).__name__ for p in problem_list if not hasattr(p, "settings")]
+        if invalid_problems:
+            raise TypeError(
+                f"All problems must be FESTIM problem objects with a 'settings' attribute. "
+                f"Invalid: {invalid_problems}"
+            )
         if len(problem_list) != len(set(id(p) for p in problem_list)):
             raise ValueError("Duplicate problem references found in problem_list")
 

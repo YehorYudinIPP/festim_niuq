@@ -526,6 +526,11 @@ class Diagnostics:
                 if qoi_filter is None or k in qoi_filter
             }
 
+            if qoi_filter is not None:
+                unmatched = set(qoi_filter) - set(self.results.keys())
+                if unmatched:
+                    logger.warning(f"QoI filter contains unknown quantities: {unmatched}")
+
             if self.transeint_flag:
                 print("Transient simulation detected, plotting results over time.")
 
