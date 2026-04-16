@@ -1,9 +1,8 @@
 PyYAML>=6.0
-festim
 numpy
 matplotlib
-easyvvuq>=1.2
-chaospy>=4.3
+easyvvuq>=1.3
+chaospy>=4.3.13
 joblib
 emcee>=3.0
 arviz>=0.12

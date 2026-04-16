@@ -1,9 +1,19 @@
+"""
+Correlated-parameter EasyVVUQ campaign for FESTIM uncertainty quantification.
+
+Extends the independent-parameter UQ workflow to support non-diagonal
+covariance matrices via Cholesky decomposition.  Supports both PCE and
+finite-difference (FD) sampling schemes.
+
+Usage::
+
+    python easyvvuq_festim_correlated.py --config config.yaml --uq-scheme pce --p-order 3
+"""
+
 import argparse
 import os
 import sys
 import logging
-
-import numpy as np
 import pickle
 
 from itertools import product
@@ -12,7 +22,8 @@ from datetime import datetime
 
 # consider import visualisation libraries optional
 import matplotlib
-matplotlib.use('Agg')  # Use non-interactive backend to avoid display connection issues
+
+matplotlib.use("Agg")  # Use non-interactive backend to avoid display connection issues
 import matplotlib.pyplot as plt
 
 # Add parent directory to path for custom encoder
@@ -33,6 +44,8 @@ from easyvvuq.actions import QCGPJPool
 from util.utils import load_config, add_timestamp_to_filename, get_festim_python, validate_execution_setup
 from util.plotting import UQPlotter
 
+logger = logging.getLogger(__name__)
+
 
 def define_phys_conv_rate(results):
     """
@@ -41,6 +54,7 @@ def define_phys_conv_rate(results):
     """
     print(f"Convergence rate estimate: not implemented yet!")
     return 0
+
 
 def save_statistics_log(results, qois, plot_folder_name, plot_timestamp):
     """
@@ -69,12 +83,14 @@ def save_statistics_log(results, qois, plot_folder_name, plot_timestamp):
 
     for qoi in qois:
         logger.info(f"\n--- Statistics for QoI: {qoi} ---")
-        for stat_name in ['mean', 'std']:
+        for stat_name in ["mean", "std"]:
             try:
                 values = results.describe(qoi, stat_name)
                 if values is not None:
-                    if hasattr(values, '__len__') and len(values) > 0:
-                        logger.info(f"  {stat_name}: min={np.min(values):.6e}, max={np.max(values):.6e}, avg={np.mean(values):.6e}")
+                    if hasattr(values, "__len__") and len(values) > 0:
+                        logger.info(
+                            f"  {stat_name}: min={np.min(values):.6e}, max={np.max(values):.6e}, avg={np.mean(values):.6e}"
+                        )
                         logger.debug(f"  {stat_name} (full): {values}")
                     else:
                         logger.info(f"  {stat_name}: {values}")
@@ -88,7 +104,9 @@ def save_statistics_log(results, qois, plot_folder_name, plot_timestamp):
                 for param, vals in derivs.items():
                     if vals is not None:
                         vals_arr = np.array(vals)
-                        logger.info(f"    {param}: min={np.min(vals_arr):.6e}, max={np.max(vals_arr):.6e}, avg={np.mean(vals_arr):.6e}")
+                        logger.info(
+                            f"    {param}: min={np.min(vals_arr):.6e}, max={np.max(vals_arr):.6e}, avg={np.mean(vals_arr):.6e}"
+                        )
         except Exception:
             pass
 
@@ -145,13 +163,13 @@ def visualisation_of_results(results, distributions, qois, plot_folder_name, plo
         os.makedirs(plot_folder_name)
 
     # Read the vertices from the results
-    vertices = results.describe('x', 'mean')  # Assuming 'x' is the vertex coordinate in results
+    vertices = results.describe("x", "mean")  # Assuming 'x' is the vertex coordinate in results
     if vertices is None:
         print("No vertices found in the results. Using a simple range for plotting.")
         if len(qois) > 1:
-            rs = np.linspace(0., 1., len(results.describe(qois[1], 'mean')))
+            rs = np.linspace(0.0, 1.0, len(results.describe(qois[1], "mean")))
         else:
-            rs = np.linspace(0., 1., 10)
+            rs = np.linspace(0.0, 1.0, 10)
     else:
         rs = vertices
 
@@ -165,6 +183,7 @@ def visualisation_of_results(results, distributions, qois, plot_folder_name, plo
     print(f"Plots saved in folder: {plot_folder_name}")
     return 0
 
+
 def define_parameter_uncertainty(config, sigma_norm=0.25, corr=0.1):
     """Define uncertain parameters and their distributions for FESTIM model UQ.
 
@@ -174,7 +193,7 @@ def define_parameter_uncertainty(config, sigma_norm=0.25, corr=0.1):
 
     Args:
         config (dict): Configuration dictionary loaded from YAML config file.
-        sigma_norm (float, optional): Normalized standard deviation for normal 
+        sigma_norm (float, optional): Normalized standard deviation for normal
             distributions. Must be in range [0, 1]. Defaults to 0.1. Can be reused for Uniform distributions.
             For Uniform distributions, the expansion factor is sqrt(3) to maintain the specified CoV.
             For Normal distributions, the expansion factor is 1.0.
@@ -206,38 +225,38 @@ def define_parameter_uncertainty(config, sigma_norm=0.25, corr=0.1):
     # define common coefficient of variation (CoV) for all parameters
     if sigma_norm < 0.0 or sigma_norm > 1.0:
         raise ValueError("Coefficient of variation (CoV) must be in the range [0, 1].")
-    
+
     print(f"Defining uncertain parameters with CoV={sigma_norm}")
 
     # Define default mean values for parameters from the YAML configuration file
-    material_num = config.get('geometry', None).get('domains', None)[0].get('material', None)
+    material_num = config.get("geometry", None).get("domains", None)[0].get("material", None)
 
     means = {
-        "D_0": config.get('materials', None)[material_num-1].get('D_0', None).get('mean', None),
-        "thermal_conductivity": config.get('materials', None)[material_num-1].get('thermal_conductivity', None).get('mean', None),
+        "D_0": config.get("materials", None)[material_num - 1].get("D_0", None).get("mean", None),
+        "thermal_conductivity": config.get("materials", None)[material_num - 1]
+        .get("thermal_conductivity", None)
+        .get("mean", None),
     }
-    print(f" >>> Mean values for uncertain parameters: {means}") ###DEBUG
+    logger.debug(f" >>> Mean values for uncertain parameters: {means}")
 
     # Define the distributions for uncertain parameters
 
     # The absolute bounds of the distribution is a function of the mean and CoV
     # - for CoV of U[a,b]: STD = (b-a)/sqrt(12) , meaning it should be a=mean*(1-sqrt(3)CoV), b=mean*(1+sqrt(3)CoV)
     expansion_factor_uniform = np.sqrt(3)
-    # TODO define for the Normal distribution: should be 1.0
+    expansion_factor_normal = 1.0  # For Normal distribution, STD = sigma, so expansion factor is 1.0
 
     parameters_distributions = {
-        "D_0": cp.Normal(means["D_0"], means["D_0"]*sigma_norm), # cp.Uniform(1.0e-7, 1.0e-5), # Diffusion coefficient base value - Normal distribution
-
-        #"E_D": cp.Uniform(0.1, 1.0), # Activation energy
-
+        "D_0": cp.Normal(
+            means["D_0"], means["D_0"] * sigma_norm
+        ),  # cp.Uniform(1.0e-7, 1.0e-5), # Diffusion coefficient base value - Normal distribution
+        # "E_D": cp.Uniform(0.1, 1.0), # Activation energy
         # "T": cp.Uniform(means["T"]*(1.-expansion_factor_uniform*sigma_norm), means["T"]*(1.+expansion_factor_uniform*sigma_norm)), # Temperature [K]
-
-        "thermal_conductivity": cp.Normal(means["thermal_conductivity"], means["thermal_conductivity"]*sigma_norm), # Temperature [K] - Normal distribution
-
-        # "source_concentration_value": cp.Uniform(means["source_concentration_value"]*(1.-expansion_factor_uniform*sigma_norm), means["source_concentration_value"]*(1.+expansion_factor_uniform*sigma_norm)), 
-
-        #"left_bc_value": cp.Uniform(means["left_bc_value"]*(1.-sigma_norm), means["left_bc_value"]*(1.+sigma_norm)),  # Boundary condition value: see on choice of left/right BC
-
+        "thermal_conductivity": cp.Normal(
+            means["thermal_conductivity"], means["thermal_conductivity"] * sigma_norm
+        ),  # Temperature [K] - Normal distribution
+        # "source_concentration_value": cp.Uniform(means["source_concentration_value"]*(1.-expansion_factor_uniform*sigma_norm), means["source_concentration_value"]*(1.+expansion_factor_uniform*sigma_norm)),
+        # "left_bc_value": cp.Uniform(means["left_bc_value"]*(1.-sigma_norm), means["left_bc_value"]*(1.+sigma_norm)),  # Boundary condition value: see on choice of left/right BC
         # "right_bc_concentration_value": cp.Uniform(means["right_bc_concentration_value"]*(1.-expansion_factor_uniform*sigma_norm), means["right_bc_concentration_value"]*(1.+expansion_factor_uniform*sigma_norm)),  # Boundary condition value at the right (outer) surface of the sample
     }
 
@@ -249,16 +268,16 @@ def define_parameter_uncertainty(config, sigma_norm=0.25, corr=0.1):
     for i, param in enumerate(param_names):
         mean_vector[i] = means[param]
 
-    print(f" > Mean vector: {mean_vector}") ###DEBUG
+    logger.debug(f" > Mean vector: {mean_vector}")
 
     # Create a standard deviation vector for the multivariate distribution
     std_vector = np.zeros(n_params)
     for i, param in enumerate(param_names):
         std_vector[i] = means[param] * sigma_norm  # Standard deviation is CoV * mean
 
-    print(f" > Standard deviation vector: {std_vector}") ###DEBUG
+    logger.debug(f" > Standard deviation vector: {std_vector}")
 
-    print(f" > Number of uncertain parameters defined: {n_params}") ###DEBUG
+    logger.debug(f" > Number of uncertain parameters defined: {n_params}")
 
     # Define correlations between parameters
 
@@ -271,28 +290,35 @@ def define_parameter_uncertainty(config, sigma_norm=0.25, corr=0.1):
     parameter_correlations = {(x, y): 0.0 for x, y in product(parameters_distributions.keys(), repeat=2)}
 
     # Define correlations between specific pairs of parameters
-    parameter_correlations[('D_0', 'thermal_conductivity')] = corr  # correlation between D_0 and thermal conductivity
-    parameter_correlations[('thermal_conductivity', 'D_0')] = parameter_correlations[('D_0', 'thermal_conductivity')]  # symmetric matrix
+    parameter_correlations[("D_0", "thermal_conductivity")] = corr  # correlation between D_0 and thermal conductivity
+    parameter_correlations[("thermal_conductivity", "D_0")] = parameter_correlations[
+        ("D_0", "thermal_conductivity")
+    ]  # symmetric matrix
 
-    #TODO: to assure symmetry of the correlation matrix: (1) use frozenset as key pair, (2) add a validation function to check that the matrix is symmetric
+    # TODO: to assure symmetry of the correlation matrix: (1) use frozenset as key pair, (2) add a validation function to check that the matrix is symmetric
 
     # Create correlation matrix as numpy array
     covariance_matrix = np.zeros((n_params, n_params))
-    
+
     # Fill the correlation matrix - TODO there is a more Pythonic way to do this, with double list comprehension and a separate diagonal matrix specification
     for i, (p1, p2) in enumerate(product(param_names, repeat=2)):
-        covariance_matrix[i // n_params, i % n_params] = parameter_correlations.get((p1, p2), 1.0) * (std_vector[i // n_params] * std_vector[i % n_params])  # Covariance is correlation * std_dev1 * std_dev2
+        covariance_matrix[i // n_params, i % n_params] = parameter_correlations.get((p1, p2), 1.0) * (
+            std_vector[i // n_params] * std_vector[i % n_params]
+        )  # Covariance is correlation * std_dev1 * std_dev2
 
     # For the covariance matrix, the diagonal elements should be the variances of the parameters - should be covered by the loop above
     for i in range(n_params):
-        covariance_matrix[i, i] = (std_vector[i])**2  # Variance is std_dev^2
+        covariance_matrix[i, i] = (std_vector[i]) ** 2  # Variance is std_dev^2
 
-    print(f" > Covariance matrix:\n{covariance_matrix}") ###DEBUG
+    logger.debug(f" > Covariance matrix:\n{covariance_matrix}")
 
     # Make a ChaosPy multivariate distribution
-    parameters_distributions_joint = cp.MvNormal(mean_vector, covariance_matrix) # uses Rosenblatt transform to generate samples from the multivariate normal distribution down the line
+    parameters_distributions_joint = cp.MvNormal(
+        mean_vector, covariance_matrix
+    )  # uses Rosenblatt transform to generate samples from the multivariate normal distribution down the line
 
     return parameters_distributions, parameters_distributions_joint
+
 
 def define_festim_model_parameters(config):
     """
@@ -301,26 +327,45 @@ def define_festim_model_parameters(config):
 
     # Define the model input parameters
     parameters = {
-    "D_0": {"type": "float", "default": 1.0e-7,}, # Diffusion coefficient base value [m^2/s]
-
-    "E_D": {"type": "float", "default": 0.2,}, # Activation energy [eV]
-
-    "T": {"type": "float", "default": 300.0,}, # Temperature [K]
-
-    "rho": {"type": "float", "default": 1.0e+3,},  # Density of the material [g/cm^3]
-
-    "thermal_conductivity": {"type": "float", "default": 1.0,}, # Thermal conductivity [W/(m*K)]
-
-    "heat_capacity": {"type": "float", "default": 1.0,}, # Heat capacity [J/(kg*K)]
-
-    "source_concentration_value": {"type": "float", "default": 1.0e20,}, # Source term value [atoms/m^3]
-
-    "left_bc_concentration_value": {"type": "float", "default": 1.0e15},  # Boundary condition value: better to specify centre at r=0.0
-
-    "right_bc_concentration_value": {"type": "float", "default": 1.0e15},  # Boundary condition value at the right (outer) surface of the sample
+        "D_0": {
+            "type": "float",
+            "default": 1.0e-7,
+        },  # Diffusion coefficient base value [m^2/s]
+        "E_D": {
+            "type": "float",
+            "default": 0.2,
+        },  # Activation energy [eV]
+        "T": {
+            "type": "float",
+            "default": 300.0,
+        },  # Temperature [K]
+        "rho": {
+            "type": "float",
+            "default": 1.0e3,
+        },  # Density of the material [g/cm^3]
+        "thermal_conductivity": {
+            "type": "float",
+            "default": 1.0,
+        },  # Thermal conductivity [W/(m*K)]
+        "heat_capacity": {
+            "type": "float",
+            "default": 1.0,
+        },  # Heat capacity [J/(kg*K)]
+        "source_concentration_value": {
+            "type": "float",
+            "default": 1.0e20,
+        },  # Source term value [atoms/m^3]
+        "left_bc_concentration_value": {
+            "type": "float",
+            "default": 1.0e15,
+        },  # Boundary condition value: better to specify centre at r=0.0
+        "right_bc_concentration_value": {
+            "type": "float",
+            "default": 1.0e15,
+        },  # Boundary condition value at the right (outer) surface of the sample
     }
 
-    milestone_times = config.get('simulation', {}).get('milestone_times', [])
+    milestone_times = config.get("simulation", {}).get("milestone_times", [])
     qois = ["x"]
     qois.extend([f"t={float(t):.2e}s" for t in milestone_times])
 
@@ -329,6 +374,7 @@ def define_festim_model_parameters(config):
         qois.append("t=steady")
 
     return parameters, qois
+
 
 def prepare_execution_command():
     """
@@ -340,18 +386,38 @@ def prepare_execution_command():
 
     # Use the filename that the encoder creates (config.yaml)
     exec_command_line = f"{python_exe} {script_path} --config config.yaml"
-    
+
     print(f"Execution command line: {exec_command_line}")
 
     # Execute the script locally - prepare the ExecuteLocal action
     execute = ExecuteLocal(exec_command_line)
-    
+
     return execute
 
-def prepare_uq_campaign(config, config_file, fixed_params=None):
+
+def prepare_uq_campaign(config, config_file, fixed_params=None, uq_params=None):
     """
     Prepare the uncertainty quantification (UQ) campaign by creating necessary steps: set-up, parameter definitions, encoders, decoders, and actions.
+
+    Args:
+        config (dict): Configuration dictionary loaded from YAML config file.
+        config_file (str): Path to the YAML configuration file.
+        fixed_params (dict, optional): Dictionary of fixed parameters.
+        uq_params (dict, optional): UQ scheme parameters. Keys:
+            - 'uq_scheme' (str): 'fd' (finite difference) or 'pce' (polynomial chaos). Default: 'fd'.
+            - 'n_samples' (int): Desired number of samples. For 'fd', sample count is fixed
+              at 2*n_params+1 and this value is ignored with a note. For 'pce', the number of
+              samples is determined by the polynomial order (p_order), not directly by n_samples.
+            - 'p_order' (int): Polynomial order for PCE (default: 2). Higher orders increase
+              accuracy but require more samples (number of quadrature points grows with order).
     """
+
+    if uq_params is None:
+        uq_params = {
+            "uq_scheme": "fd",
+            "p_order": 2,
+            "n_samples": None,
+        }
 
     # Define the model input and output parameters
     parameters, qois = define_festim_model_parameters(config)
@@ -359,7 +425,7 @@ def prepare_uq_campaign(config, config_file, fixed_params=None):
     # Set up necessary elements for the EasyVVUQ campaign
 
     # Before running the campaign, substitute the fixed parameters in the template YAML file
-    
+
     # Create an Encoder object - Advanced YAML Encoder
     encoder = AdvancedYAMLEncoder(
         template_fname=config_file,
@@ -367,15 +433,12 @@ def prepare_uq_campaign(config, config_file, fixed_params=None):
         parameter_map={
             "D_0": "materials.D_0.mean",
             "thermal_conductivity": "materials.thermal_conductivity.mean",
-
             # "E_D": "materials.E_D.mean",
             # "T": "initial_conditions.temperature.value.mean",
-
             # "source_concentration_value": "source_terms.concentration.source_value",
             # "left_bc_concentration_value": "boundary_conditions.concentration.left.value",
             # "right_bc_concentration_value": "boundary_conditions.concentration.right.value",
-
-            "length": "geometry.domains.length", 
+            "length": "geometry.domains.length",
         },
         type_conversions={
             "D_0": float,
@@ -384,24 +447,23 @@ def prepare_uq_campaign(config, config_file, fixed_params=None):
             "T": float,
             "source_concentration_value": float,
             "left_bc_concentration_value": float,
-            "right_bc_concentration_value": float, 
+            "right_bc_concentration_value": float,
             "length": float,
         },
         fixed_parameters=fixed_params,  # Pass the dictionary of parameters to be fixed to the encoder
     )
 
-    print(f"Encoder prepared: {encoder}") ###DEBUG
+    logger.debug(f"Encoder prepared: {encoder}")
 
     # Create a decoder object
     # The decoder will read the results from the output file and extract the quantities of interest (QoIs)
     # TODO change the output and decoder to YAML (for UQ derived quantities) or other format
-    output_dir = config.get('simulation', {}).get('output_directory', 'results')
+    output_dir = config.get("simulation", {}).get("output_directory", "results")
     decoder = uq.decoders.SimpleCSV(
-        target_filename=f"{output_dir}/results_tritium_concentration.txt",
-        output_columns=qois
-        )
-    
-    print(f"Decoder prepared: {decoder}") ###DEBUG
+        target_filename=f"{output_dir}/results_tritium_concentration.txt", output_columns=qois
+    )
+
+    logger.debug(f"Decoder prepared: {decoder}")
 
     # Prepare execution command action
     # This command will be used to run the FESTIM model with the generated configuration file
@@ -409,13 +471,13 @@ def prepare_uq_campaign(config, config_file, fixed_params=None):
 
     # Set up actions for the campaign
     actions = Actions(
-        CreateRunDirectory('run_dir'), # TODO figure out how not to use it
+        CreateRunDirectory("run_dir"),  # TODO figure out how not to use it
         Encode(encoder),
         execute,
         Decode(decoder),
     )
 
-    print(f"Sequence of actions prepared: {actions}") ###DEBUG
+    logger.debug(f"Sequence of actions prepared: {actions}")
 
     # Define the campaign parameters and actions
     # This includes the model parameters, quantities of interest (QoIs), and the actions to be performed during the campaign
@@ -432,22 +494,47 @@ def prepare_uq_campaign(config, config_file, fixed_params=None):
     distributions, distributions_joint = define_parameter_uncertainty(config)
     print(f"Uncertain parameters distributions defined: {distributions}")
 
-    # Define sampling method and create a sampler for the campaign - this sampler will generate samples based on the defined distributions
+    # Define sampling method and create a sampler for the campaign
+    uq_scheme = uq_params.get("uq_scheme", "fd")
 
-    # Here we use a Finite Difference (FD) surrogate sampler using the covariance matrix
-    #p_order = 2  # Polynomial order for the expansion
+    if uq_scheme == "pce":
+        # PCE supports correlated distributions and computes proper Sobol indices
+        p_order = uq_params.get("p_order", 2)
 
-    sampler = uq.sampling.FDSampler(
-        vary=distributions,
-        distribution=distributions_joint,  # Use the joint distribution for sampling
-        relative_analysis=True,  # Use relative analysis for the sampler
-    )
+        print(f"Using PCE sampler with polynomial order {p_order}")
+        if uq_params.get("n_samples") is not None:
+            print(
+                f"  Note: PCE sample count is determined by polynomial order ({p_order}), "
+                f"not by --n-samples directly. Use --p-order to control accuracy."
+            )
+        sampler = uq.sampling.PCESampler(
+            vary=distributions,
+            distribution=distributions_joint,
+            polynomial_order=p_order,
+        )
+    else:
+        # Default: Finite Difference sampler (fixed sample count = 2*n_params+1)
+        n_params = len(distributions)
+        fd_n_samples = 2 * n_params + 1
+        if uq_params.get("n_samples") is not None and uq_params["n_samples"] != fd_n_samples:
+            print(
+                f"Note: FD scheme uses a fixed number of samples ({fd_n_samples}). "
+                f"The --n-samples value ({uq_params['n_samples']}) is ignored. "
+                f"Use --uq-scheme pce to control sample count via polynomial order."
+            )
+
+        sampler = uq.sampling.FDSampler(
+            vary=distributions,
+            distribution=distributions_joint,
+            relative_analysis=True,
+        )
 
     campaign.set_sampler(sampler)
     print(f"Sampler prepared and set for the campaign: {sampler}")
 
     print(f"Campaign and its elements are prepared!")
     return campaign, qois, distributions, campaign_timestamp, sampler
+
 
 def run_uq_campaign(campaign, resource_pool=None):
     """
@@ -467,18 +554,35 @@ def run_uq_campaign(campaign, resource_pool=None):
 
     return campaign, campaign_results
 
-def analyse_uq_results(campaign, params, qois, sampler):
+
+def analyse_uq_results(campaign, params, qois, sampler, uq_params=None):
     """
     Perform analysis on the UQ results.
+
+    Args:
+        campaign: EasyVVUQ campaign object.
+        params (dict): Dictionary of uncertain parameter distributions.
+        qois (list[str]): List of QoI column names.
+        sampler: The sampler used for the campaign.
+        uq_params (dict, optional): UQ scheme parameters. Keys:
+            - 'uq_scheme' (str): 'fd' or 'pce'. Default: 'fd'.
 
     Note: FDAnalysis computes mean, variance, std and derivative-based sensitivity
     indices. Sobol indices and percentiles are NOT computed by FDAnalysis and will
     be zero — use derivatives_first for sensitivity information instead.
+    PCEAnalysis computes proper Sobol indices (first-order and total), percentiles,
+    and full statistical moments.
     """
-    # Perform FD analysis on the campaign results
-    analysis = uq.analysis.FDAnalysis(sampler=sampler, qoi_cols=qois)
+    if uq_params is None:
+        uq_params = {"uq_scheme": "fd"}
 
-    #TODO Better - get last analysis results from the campaign
+    uq_scheme = uq_params.get("uq_scheme", "fd")
+
+    if uq_scheme == "pce":
+        analysis = uq.analysis.PCEAnalysis(sampler=sampler, qoi_cols=qois)
+    else:
+        analysis = uq.analysis.FDAnalysis(sampler=sampler, qoi_cols=qois)
+
     campaign.apply_analysis(analysis)
 
     # Get the last analysis results
@@ -488,37 +592,41 @@ def analyse_uq_results(campaign, params, qois, sampler):
     for qoi in qois[1:]:
         print(f"Results for {qoi}:")
 
-        print(f"Mean:", results.describe(qoi, 'mean'))
-        print(f"Standard Deviation:", results.describe(qoi, 'std'))
+        print(f"Mean:", results.describe(qoi, "mean"))
+        print(f"Standard Deviation:", results.describe(qoi, "std"))
 
-        # Note: FDAnalysis does not compute percentiles — they remain as zero arrays.
-        # Use mean +/- k*std for approximate confidence intervals instead.
-
-        for param in params.keys():
-            print(f"Parameter: {param}")
-
-            # Derivative-based sensitivity (the primary FD measure)
-            print(f"Derivative first indices: {results._get_derivatives_first(qoi, param)}")
-
-            # Note: Sobol indices from FDAnalysis are zero — they are not computed
-            # by the finite-difference method. Use derivatives_first instead.
+        if uq_scheme == "pce":
+            # PCEAnalysis computes proper Sobol indices
+            for param in params.keys():
+                print(f"Parameter: {param}")
+                print(f"  Sobol first-order: {results._get_sobols_first(qoi, param)}")
+                print(f"  Sobol total: {results._get_sobols_total(qoi, param)}")
+        else:
+            # FDAnalysis: Sobol indices are zero; use derivatives_first instead
+            for param in params.keys():
+                print(f"Parameter: {param}")
+                print(f"  Derivative first indices: {results._get_derivatives_first(qoi, param)}")
 
         print("\n")
 
     # Save the analysis results
     analysis_filename = add_timestamp_to_filename("analysis_results.hdf5")
 
-    #print(f"Results saved to: {results_filename}")
-    # TODO: specify the results filename in the campaign or save it in a specific folder
-    # TODO: save the results of a campaign
-    # TODO: add config files and parameters distriubtions to the saved results
-
     return results
 
-def perform_uq_festim_correlated_params(config=None, fixed_params=None):
+
+def perform_uq_festim_correlated_params(config=None, fixed_params=None, uq_params=None):
     """
     Main function to perform the UQ campaign for FESTIM with correlated parameters.
     This function orchestrates the preparation, execution, and analysis of the UQ campaign.
+
+    Args:
+        config (dict, optional): Configuration dictionary. If None, reads from CLI args.
+        fixed_params (dict, optional): Dictionary of fixed parameters.
+        uq_params (dict, optional): UQ scheme parameters with keys:
+            - 'uq_scheme' (str): 'fd' or 'pce'. Default: 'fd'.
+            - 'n_samples' (int): Number of samples (for PCE, used as polynomial order).
+            - 'p_order' (int): Polynomial order for PCE (default: 2).
     """
     # EasyVVUQ script to be executed as a function
     print(" \n ! Starting FESTIM UQ campaign (correlated) !.. \n")
@@ -535,15 +643,55 @@ def perform_uq_festim_correlated_params(config=None, fixed_params=None):
         print("No config file provided, reading from arguments")
 
         # Read the configuration file from the command line argument or use a default one
-        parser = argparse.ArgumentParser(description='Run FESTIM model with correlated UQ using YAML configuration')
+        parser = argparse.ArgumentParser(description="Run FESTIM model with correlated UQ using YAML configuration")
 
-        parser.add_argument('--config', '-c',
-                        default='config.yaml',
-                        help='Path to YAML configuration file (default: config.yaml)')
+        parser.add_argument(
+            "--config", "-c", default="config.yaml", help="Path to YAML configuration file (default: config.yaml)"
+        )
+
+        parser.add_argument(
+            "--uq-scheme",
+            "-s",
+            default="fd",
+            choices=["fd", "pce"],
+            help="UQ sampling scheme: fd (finite difference, fixed sample count) "
+            "or pce (polynomial chaos expansion, configurable accuracy). "
+            "Default: fd",
+        )
+
+        parser.add_argument(
+            "--n-samples",
+            "-n",
+            type=int,
+            default=None,
+            help="Number of samples. For PCE scheme, this overrides --p-order "
+            "if --p-order is not explicitly set. For FD scheme, sample "
+            "count is fixed at 2*n_params+1 and this value is ignored.",
+        )
+
+        parser.add_argument(
+            "--p-order",
+            "-p",
+            type=int,
+            default=None,
+            help="Polynomial order for PCE scheme (default: 2). "
+            "Higher values increase accuracy but require more samples.",
+        )
 
         args = parser.parse_args()
         config_file_path = args.config
         print(f"> Using arguments file: {config_file_path}")
+
+        # Build uq_params from CLI arguments if not provided
+        if uq_params is None:
+            uq_params = {
+                "uq_scheme": args.uq_scheme,
+                "n_samples": args.n_samples,
+            }
+            if args.p_order is not None:
+                uq_params["p_order"] = args.p_order
+            elif args.uq_scheme == "pce":
+                uq_params["p_order"] = 2  # default PCE polynomial order
 
         # Load configuration from YAML file
         config = load_config(config_file_path)
@@ -554,14 +702,20 @@ def perform_uq_festim_correlated_params(config=None, fixed_params=None):
         print("No config file provided, quitting...")
         return
 
-    print(f" >> Passing parameters fixed to the campaign: {fixed_params}") ###DEBUG
+    # Set default uq_params if still None
+    if uq_params is None:
+        uq_params = {
+            "uq_scheme": "fd",
+            "n_samples": None,
+            "p_order": 2,
+        }
 
-    campaign, qois, distributions, campaign_timestamp, sampler = prepare_uq_campaign(config, config_file=config_file_path, fixed_params=fixed_params)
+    print(f" >> UQ parameters: {uq_params}")
+    logger.debug(f" >> Passing parameters fixed to the campaign: {fixed_params}")
 
-    # TODO: add more parameter for Arrhenious law
-    # TODO: try higher BC concentration values - does it even make sense to have such low BC (+)
-    # TODO: run with higher polynomial degree (+: now 2)
-    # TODO: check if there are actually negative concentrations, if yes - check model and specify correct params ranges - work out expressions for quantiles for unfiorm distribution based on PCE(p=2)
+    campaign, qois, distributions, campaign_timestamp, sampler = prepare_uq_campaign(
+        config, config_file=config_file_path, fixed_params=fixed_params, uq_params=uq_params
+    )
 
     # Run the campaign
     campaign, campaign_results = run_uq_campaign(campaign)
@@ -576,10 +730,12 @@ def perform_uq_festim_correlated_params(config=None, fixed_params=None):
     print(f" >> Campaign configuration saved to: {config_filename}")
 
     # Perform the analysis
-    results = analyse_uq_results(campaign, distributions, qois, sampler)
+    results = analyse_uq_results(campaign, distributions, qois, sampler, uq_params=uq_params)
 
     # Visualize the results
-    visualisation_of_results(results, distributions, qois, "plots_festim_uq_corr_" + campaign_timestamp, plot_timestamp=campaign_timestamp)
+    visualisation_of_results(
+        results, distributions, qois, "plots_festim_uq_corr_" + campaign_timestamp, plot_timestamp=campaign_timestamp
+    )
 
     print("FESTIM UQ campaign completed successfully!")
     return 0
@@ -596,13 +752,10 @@ if __name__ == "__main__":
 
         # More complex case: run with fixed parameters
         fixed_params = {
-            "length": 5.e-4,  # Length of the sample in meters
+            "length": 5.0e-4,  # Length of the sample in meters
         }
         perform_uq_festim_correlated_params(fixed_params=fixed_params)
 
     except Exception as e:
         print(f"An error occurred during the UQ campaign: {e}")
         sys.exit(1)
-
-##################################
-# TODO:

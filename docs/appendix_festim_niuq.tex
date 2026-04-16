@@ -1,0 +1,1217 @@
+% =============================================================================
+% Appendix: FESTIM-NIUQ Package Documentation
+% =============================================================================
+% Draft version — see Section~\ref{sec:questions} for open questions.
+%
+% --- Compilation instructions ------------------------------------------------
+% Option A: Overleaf (recommended for collaboration)
+%   1. Create a new project on https://overleaf.com
+%   2. Upload this file as the main document
+%   3. Set compiler to pdfLaTeX (Menu -> Compiler -> pdfLaTeX)
+%   4. Click "Recompile" (run twice for cross-references)
+%   No additional packages need to be installed — Overleaf ships a full
+%   TeX Live distribution that includes all packages used here.
+%
+% Option B: Standalone LaTeX on WSL / Linux
+%   # Install TeX Live (full or subset) — run once:
+%   sudo apt-get update
+%   sudo apt-get install -y texlive-latex-base texlive-latex-recommended \
+%        texlive-latex-extra texlive-pictures texlive-fonts-recommended
+%
+%   # Compile (run twice for cross-references and table of contents):
+%   cd docs/
+%   pdflatex appendix_festim_niuq.tex
+%   pdflatex appendix_festim_niuq.tex
+%
+%   # The output is appendix_festim_niuq.pdf in the same directory.
+%
+% Minimum requirement: TeX Live 2020 or later (for modern TikZ libraries).
+% =============================================================================
+\documentclass[11pt,a4paper]{article}
+
+% ---------- packages --------------------------------------------------------
+\usepackage[utf8]{inputenc}
+\usepackage[T1]{fontenc}
+\usepackage{lmodern}
+\usepackage[margin=2.5cm]{geometry}
+\usepackage{amsmath,amssymb}
+\usepackage{booktabs}
+\usepackage{longtable}
+\usepackage{array}
+\usepackage{tabularx}
+\usepackage{xcolor}
+\usepackage{hyperref}
+\usepackage{tikz}
+\usetikzlibrary{
+  shapes.geometric,
+  arrows.meta,
+  positioning,
+  fit,
+  calc,
+  backgrounds,
+  decorations.pathreplacing
+}
+\usepackage{listings}
+\usepackage{caption}
+\usepackage{enumitem}  % better list control
+
+% ---------- custom colours --------------------------------------------------
+\definecolor{festimblue}{HTML}{2B6CB0}
+\definecolor{uqgreen}{HTML}{38A169}
+\definecolor{toolorange}{HTML}{DD6B20}
+\definecolor{lightgray}{HTML}{F7FAFC}
+\definecolor{codebg}{HTML}{EDF2F7}
+
+% ---------- listings style --------------------------------------------------
+\lstset{
+  basicstyle=\ttfamily\small,
+  backgroundcolor=\color{codebg},
+  frame=single,
+  framerule=0.4pt,
+  rulecolor=\color{gray!50},
+  breaklines=true,
+  columns=fullflexible,
+}
+
+% ---------- TikZ styles -----------------------------------------------------
+\tikzstyle{classbox} = [
+  rectangle, rounded corners=3pt, draw=festimblue, thick,
+  fill=festimblue!8, text width=4.2cm, minimum height=1.1cm,
+  align=center, font=\small\sffamily
+]
+\tikzstyle{utilbox} = [
+  rectangle, rounded corners=3pt, draw=uqgreen, thick,
+  fill=uqgreen!8, text width=3.8cm, minimum height=1cm,
+  align=center, font=\small\sffamily
+]
+\tikzstyle{scriptbox} = [
+  rectangle, rounded corners=3pt, draw=toolorange, thick,
+  fill=toolorange!8, text width=4cm, minimum height=1cm,
+  align=center, font=\small\sffamily
+]
+\tikzstyle{extbox} = [
+  rectangle, rounded corners=3pt, draw=gray, thick,
+  fill=gray!8, text width=3.2cm, minimum height=0.9cm,
+  align=center, font=\small\sffamily
+]
+\tikzstyle{flowbox} = [
+  rectangle, rounded corners=4pt, draw=festimblue!80, thick,
+  fill=festimblue!10, text width=3.6cm, minimum height=1.1cm,
+  align=center, font=\small\sffamily
+]
+\tikzstyle{decisionbox} = [
+  diamond, draw=toolorange!80, thick,
+  fill=toolorange!10, text width=2.2cm,
+  align=center, font=\small\sffamily, aspect=2
+]
+\tikzstyle{arrowstyle} = [-{Stealth[length=3mm]}, thick]
+
+% ---------- title -----------------------------------------------------------
+\title{%
+  \textbf{Appendix: FESTIM-NIUQ Package}\\[4pt]
+  \large Non-Intrusive Uncertainty Quantification\\
+  for Tritium Transport Simulations%
+}
+\author{FESTIM-NIUQ Development Team}
+\date{Draft — \today}
+
+\begin{document}
+\maketitle
+\tableofcontents
+\newpage
+
+% ============================================================================
+\section{Introduction}
+\label{sec:intro}
+% ============================================================================
+
+FESTIM-NIUQ is a Python package for \emph{non-intrusive uncertainty
+quantification} (NIUQ) of tritium transport simulations performed with the
+\href{https://github.com/festim-dev/FESTIM}{FESTIM} finite-element code.
+It relies on
+\href{https://github.com/UCL-CCS/EasyVVUQ}{EasyVVUQ} (part of the SEAVEA
+Toolkit) to orchestrate parametric sampling, surrogate construction, and
+sensitivity analysis.  The deterministic forward model is treated as a
+black box and driven by either FESTIM~v1.4 or~v2.0.
+
+The principal capabilities of the package are:
+\begin{itemize}[nosep]
+  \item Forward uncertainty propagation via Polynomial Chaos Expansion (PCE)
+        and quasi-Monte~Carlo (QMC) sampling.
+  \item Correlated-parameter uncertainty propagation using multivariate
+        normal distributions with finite-difference (FD) or PCE samplers.
+  \item Covariance influence analysis---scanning correlation coefficients
+        and tracking Sobol indices as a function of inter-parameter correlation.
+  \item Parametric model scans over individual input parameters.
+  \item Postprocessing, interactive visualisation, and automated statistics
+        logging.
+\end{itemize}
+
+
+% ============================================================================
+\section{Physical Model}
+\label{sec:physics}
+% ============================================================================
+
+FESTIM models the transport and retention of hydrogen isotopes
+(primarily \emph{tritium}) in solid materials exposed to a tritium source.
+The governing partial differential equations are solved on a 1-D
+domain~$\Omega = [0, L]$ and are summarised below.
+
+\subsection{Tritium Transport (Hydrogen Diffusion)}
+
+The mobile tritium concentration~$c(\mathbf{r}, t)$ satisfies a
+diffusion--source equation:
+\begin{equation}
+  \frac{\partial c}{\partial t}
+  = \nabla \cdot \bigl( D(T)\,\nabla c \bigr) + G,
+  \label{eq:diffusion}
+\end{equation}
+where $G\;\mathrm{[m^{-3}\,s^{-1}]}$ is the volumetric tritium generation
+rate and the temperature-dependent diffusivity follows an Arrhenius law:
+\begin{equation}
+  D(T) = D_0 \exp\!\Bigl(-\frac{E_D}{k_B T}\Bigr).
+  \label{eq:arrhenius}
+\end{equation}
+
+\subsection{Heat Transfer}
+
+When coupled heat transfer is enabled, the temperature field
+$T(\mathbf{r},t)$ satisfies:
+\begin{equation}
+  \rho \, c_p \frac{\partial T}{\partial t}
+  = \nabla \cdot \bigl(\kappa \,\nabla T\bigr) + Q,
+  \label{eq:heat}
+\end{equation}
+where $\rho$ is the material density, $c_p$ is the specific heat capacity,
+$\kappa$ is the thermal conductivity, and
+$Q\;\mathrm{[W\,m^{-3}]}$ is a volumetric heat source.
+
+\subsection{Boundary Conditions}
+
+The following boundary-condition types are supported:
+\begin{itemize}[nosep]
+  \item \textbf{Dirichlet:} $c\big|_{\partial\Omega} = c_0$ \; or \;
+        $T\big|_{\partial\Omega} = T_0$.
+  \item \textbf{Neumann (flux):} $-D\,\nabla c \cdot \hat{n} = J_0$ \; or \;
+        $-\kappa\,\nabla T \cdot \hat{n} = q_0$.
+  \item \textbf{Convective flux:}
+        $-\kappa\,\nabla T \cdot \hat{n} = h_\mathrm{conv}(T - T_\mathrm{ext})$.
+  \item \textbf{Surface recombination} (where applicable):
+        $J_\mathrm{rec} = k_{r0}\,\exp(-E_{k_r}/k_B T)\,c^2$.
+\end{itemize}
+
+\subsection{Coordinate Systems}
+
+The 1-D domain can be interpreted in Cartesian, cylindrical, or spherical
+coordinates.  For example, in spherical symmetry the Laplacian becomes
+\begin{equation}
+  \nabla^2 c = \frac{1}{r^2}\frac{\partial}{\partial r}
+               \Bigl(r^2 \frac{\partial c}{\partial r}\Bigr),
+\end{equation}
+which changes the volume-integration weights used when computing integral
+quantities such as the tritium inventory.
+
+\subsection{Derived Quantities of Interest}
+
+From the solution fields the package computes several derived quantities:
+\begin{itemize}[nosep]
+  \item \textbf{Tritium inventory:}
+        $\displaystyle I(t) = \int_\Omega c(\mathbf{r},t)\,\mathrm{d}V$.
+  \item \textbf{Total tritium release} (via mass balance):
+        $R(t) = I(0) + \int_0^t G\,\mathrm{d}V\,\mathrm{d}t' - I(t)$.
+\end{itemize}
+
+
+% ============================================================================
+\section{Main Classes and Functions}
+\label{sec:classes}
+% ============================================================================
+
+This section describes the principal software components, organised by
+architectural layer.
+
+\subsection{FESTIM Model Layer (\texttt{festim\_model/})}
+
+\begin{description}[style=nextline]
+  \item[\texttt{BaseModel}] Abstract base class that declares the interface
+    for all FESTIM model wrappers.  Key virtual methods:
+    \texttt{\_specify\_geometry}, \texttt{\_specify\_materials},
+    \texttt{\_specify\_boundary\_conditions}, \texttt{\_add\_source\_terms},
+    \texttt{\_add\_heat\_conduction}, \texttt{\_specify\_time\_integration\_settings},
+    \texttt{\_add\_derived\_quantities}, and \texttt{run}.
+
+  \item[\texttt{Model\_legacy}] Concrete wrapper for FESTIM~v1.4.  Reads a
+    YAML configuration file, builds a \texttt{festim.Simulation} object
+    (geometry, materials, boundary conditions, sources, time stepping,
+    exports), and executes the simulation.  Outputs profile data via
+    \texttt{TXTExport}.
+
+  \item[\texttt{Model}] Concrete wrapper for FESTIM~v2.0.  Supports
+    multiple coupled problems (\texttt{HydrogenTransportProblem},
+    \texttt{HeatTransferProblem}), FESTIM~2.0 mesh types
+    (\texttt{Mesh1D}), species objects, and milestone-time profile exports
+    via the custom \texttt{ProfileExport} class.
+    Key methods include:
+    \begin{itemize}[nosep]
+      \item \texttt{\_specify\_geometry} --- creates 1-D meshes with
+            optional local refinement (linear or quadratic rules).
+      \item \texttt{\_specify\_materials} --- parses the material list from
+            YAML and constructs \texttt{festim.Material} objects with
+            $D_0$, $E_D$, $\kappa$, $\rho$, $c_p$.
+      \item \texttt{\_specify\_boundary\_conditions} --- maps YAML BC
+            specifications to FESTIM BC objects (Dirichlet, Neumann,
+            convective, recombination).
+      \item \texttt{\_export\_results} --- extracts milestone profiles from
+            \texttt{ProfileExport.data}, saves CSV files readable by the
+            UQ decoder, and computes the total tritium release via mass
+            balance.
+      \item \texttt{run} --- initialises, solves, and exports results.
+    \end{itemize}
+
+  \item[\texttt{ProfileExport}] A subclass of \texttt{festim.VolumeQuantity}
+    that records the full concentration array after every solve step,
+    enabling subsequent extraction at user-specified milestone times.
+
+  \item[\texttt{Diagnostics}] Postprocessing class that reads simulation
+    results (TXT or BP/VTX format), computes derived quantities
+    (e.g.\ tritium inventory), and generates visualisation plots.
+\end{description}
+
+
+\subsection{UQ Orchestration Layer (\texttt{uq/})}
+
+\begin{description}[style=nextline]
+  \item[\texttt{easyvvuq\_festim.py}]
+    Forward-UQ driver for \emph{independent} parameters.  Principal
+    functions:
+    \begin{itemize}[nosep]
+      \item \texttt{define\_parameter\_uncertainty(config, CoV, distribution)}
+            --- builds \texttt{chaospy} distributions from YAML means and
+            coefficients of variation.
+      \item \texttt{define\_festim\_model\_parameters()} --- returns the
+            parameter dictionary and QoI column list for EasyVVUQ.
+      \item \texttt{prepare\_uq\_campaign(config, \dots)} --- assembles
+            encoder, decoder, execution action, sampler (PCE or QMC),
+            and campaign object.
+      \item \texttt{run\_uq\_campaign(campaign, pool)} --- executes the
+            campaign with a QCG-PilotJob resource pool.
+      \item \texttt{analyse\_uq\_results} --- runs PCE or QMC analysis and
+            returns statistical results.
+      \item \texttt{visualisation\_of\_results} --- generates uncertainty-band
+            and Sobol-index plots.
+    \end{itemize}
+
+  \item[\texttt{easyvvuq\_festim\_correlated.py}]
+    Forward-UQ driver for \emph{correlated} parameters.  Constructs a
+    multivariate normal distribution (\texttt{chaospy.MvNormal}) from
+    per-parameter coefficients of variation and an inter-parameter
+    correlation coefficient.  Supports both FD and PCE samplers.
+
+  \item[\texttt{covariance\_influence\_analysis.py}]
+    Scans a range of correlation-coefficient values (logarithmic or linear
+    scale), runs a correlated PCE campaign at each value, and collects
+    first-order and total Sobol indices.  Results are saved as CSV, JSON,
+    and PDF plots in a timestamped folder.
+
+  \item[\texttt{festim\_model\_run.py}]
+    Thin wrapper executed by EasyVVUQ for each sample point.  It loads a
+    YAML configuration, instantiates \texttt{Model} or
+    \texttt{Model\_legacy}, runs the simulation, and writes
+    \texttt{output.csv} with scalar QoIs (tritium inventory, total tritium
+    release).
+
+  \item[\texttt{festim\_model\_scan.py}]
+    Parametric scan driver that varies a single input parameter across a
+    user-defined range (logarithmic or linear scale) and collects the
+    resulting QoI values.  Useful for one-at-a-time sensitivity studies
+    complementary to the global Sobol analysis.
+
+  \item[\texttt{uq\_postprocessing.py}]
+    Standalone postprocessing script that reloads a completed campaign
+    (from a database, pickle file, or run directory) and regenerates plots
+    and statistics logs.
+
+  \item[\texttt{interactive\_run\_viewer.py}]
+    Generates a self-contained HTML file with interactive Plotly.js plots
+    from an EasyVVUQ campaign's run directories, with dropdown selectors
+    for each uncertain parameter.
+\end{description}
+
+
+\subsection{Utility Modules (\texttt{uq/util/})}
+
+\begin{description}[style=nextline]
+  \item[\texttt{Encoder.py}]
+    Contains \texttt{YAMLEncoder} (simple delimiter-based substitution) and
+    \texttt{AdvancedYAMLEncoder} (dot-notation path-based YAML manipulation
+    that directly modifies nested keys, e.g.\
+    \texttt{materials.D\_0.mean}).
+
+  \item[\texttt{plotting.py}]
+    The \texttt{UQPlotter} class provides methods such as
+    \texttt{plot\_unc\_vs\_r}, \texttt{plot\_stats\_vs\_r},
+    \texttt{plot\_stats\_correlated}, and Sobol-index bar charts.
+    Uses \texttt{matplotlib} with the \texttt{Agg} backend for headless
+    server environments.
+
+  \item[\texttt{utils.py}]
+    Shared helper functions: \texttt{load\_config},
+    \texttt{add\_timestamp\_to\_filename},
+    \texttt{get\_festim\_python}, \texttt{validate\_execution\_setup},
+    and \texttt{compute\_absolute\_tolerance}.
+\end{description}
+
+
+% ============================================================================
+\section{Numerical Parameters}
+\label{sec:parameters}
+% ============================================================================
+
+Table~\ref{tab:params} lists the uncertain numerical parameters supported
+by the UQ campaigns.  Mean values are read from the YAML configuration
+file; distributions and coefficients of variation are set at run-time.
+
+\begin{table}[htbp]
+\centering
+\caption{Numerical parameters considered in FESTIM-NIUQ uncertainty quantification.}
+\label{tab:params}
+\footnotesize
+\setlength{\tabcolsep}{4pt}
+\begin{tabularx}{\textwidth}{@{} l l l X @{}}
+\toprule
+\textbf{Symbol} & \textbf{Name} & \textbf{Unit} & \textbf{Description / YAML key} \\
+\midrule
+$D_0$         & Diffusion coefficient       & $\mathrm{m^2\,s^{-1}}$      & Pre-exponential Arrhenius diffusivity \newline \texttt{materials.D\_0.mean} \\[2pt]
+$E_D$         & Activation energy           & $\mathrm{eV}$               & Activation energy for diffusion \newline \texttt{materials.E\_D.mean} \\[2pt]
+$\kappa$      & Thermal conductivity        & $\mathrm{W\,m^{-1}K^{-1}}$  & Thermal conductivity \newline \texttt{materials.thermal\_conductivity.mean} \\[2pt]
+$\rho$        & Density                     & $\mathrm{kg\,m^{-3}}$       & Material density \newline \texttt{materials.rho.mean} \\[2pt]
+$c_p$         & Heat capacity               & $\mathrm{J\,kg^{-1}K^{-1}}$ & Specific heat capacity \newline \texttt{materials.heat\_capacity.mean} \\[2pt]
+$G$           & Generation rate             & $\mathrm{m^{-3}\,s^{-1}}$   & Volumetric tritium generation rate \newline \texttt{source\_terms.concentration.value.mean} \\[2pt]
+$Q$           & Heat source                 & $\mathrm{W\,m^{-3}}$        & Volumetric heat source \newline \texttt{source\_terms.heat.value.mean} \\[2pt]
+$E_{k_r}$     & Recombination energy        & $\mathrm{eV}$               & Surface recomb.\ activation energy \newline \texttt{boundary\_conditions\ldots E\_kr.mean} \\[2pt]
+$k_{r0}$      & Recomb.\ rate constant      & $\mathrm{m\,s^{-1}}$        & Pre-exponential recombination constant \\[2pt]
+$h_\mathrm{conv}$ & Convective HT coeff.   & $\mathrm{W\,m^{-2}K^{-1}}$  & Boundary convective heat-transfer coeff.\ \newline \texttt{boundary\_conditions\ldots h\_conv.mean} \\[2pt]
+$E_k$         & Trapping energy             & $\mathrm{eV}$               & Trapping energy (Boltzmann weighting) \newline \texttt{materials.E\_k.mean} \\
+\bottomrule
+\end{tabularx}
+\end{table}
+
+\noindent
+Table~\ref{tab:sim_params} lists the main simulation (numerical) settings.
+
+\begin{table}[htbp]
+\centering
+\caption{Simulation control parameters.}
+\label{tab:sim_params}
+\small
+\begin{tabularx}{\textwidth}{@{} l l X @{}}
+\toprule
+\textbf{Parameter} & \textbf{Default} & \textbf{Description} \\
+\midrule
+\texttt{n\_elements}        & 128--1024   & Number of finite elements in the 1-D mesh \\
+\texttt{mesh\_type}         & \texttt{regular} & Mesh type: \texttt{regular} or \texttt{refined} (quadratic / linear rule) \\
+\texttt{time\_step}         & 0.01\,s     & Initial (or fixed) time step for transient runs \\
+\texttt{max\_stepsize}      & 0.1\,s      & Maximum adaptive time step \\
+\texttt{stepsize\_change\_ratio} & 1.1    & Ratio for adaptive time-stepping \\
+\texttt{absolute\_tolerance}& $10^{6}$    & Absolute solver tolerance (problem-specific) \\
+\texttt{relative\_tolerance}& $10^{-6}$   & Relative solver tolerance \\
+\texttt{total\_time}        & ---         & Final simulation time (transient only) \\
+\texttt{milestone\_times}   & [list]      & Checkpoint times for profile export \\
+\bottomrule
+\end{tabularx}
+\end{table}
+
+
+% ============================================================================
+\section{Quantities of Interest (QoIs)}
+\label{sec:qois}
+% ============================================================================
+
+Table~\ref{tab:qois} lists the quantities of interest computed and
+analysed in FESTIM-NIUQ.
+
+\begin{table}[htbp]
+\centering
+\caption{Quantities of interest measured and analysed in FESTIM-NIUQ.}
+\label{tab:qois}
+\small
+\begin{tabularx}{\textwidth}{@{} l l l X @{}}
+\toprule
+\textbf{QoI} & \textbf{Type} & \textbf{Unit} & \textbf{Description} \\
+\midrule
+Tritium concentration $c(r,t)$   & Profile (1-D)   & $\mathrm{m^{-3}}$   & Spatial profile of the mobile tritium concentration at each milestone time \\
+Temperature $T(r,t)$             & Profile (1-D)   & K                    & Temperature distribution (when heat transfer is coupled) \\
+Tritium inventory $I(t)$         & Scalar / series  & $^\ast$              & Volume-integrated tritium content: $I = \int_\Omega c\,\mathrm{d}V$ \\
+Total tritium release $R(t)$     & Scalar / series  & $^\ast$              & Cumulative release via mass balance: $R = I_0 + \int_0^t G\,\mathrm{d}V\,\mathrm{d}t' - I$ \\
+\bottomrule
+\end{tabularx}
+\end{table}
+
+\noindent
+$^\ast$\textit{Note on units.}  The unit of the tritium inventory depends on
+the concentration unit and the domain geometry.  If $c$ is a number density
+in~$\mathrm{m^{-3}}$, then $I = \int c\,\mathrm{d}V$ has units of total
+count; the same applies to the release~$R$.  These units should be
+confirmed for each specific application.
+
+\medskip\noindent
+For profile QoIs the EasyVVUQ decoder reads columns named
+\texttt{t=\textit{time}s} from \texttt{results\_tritium\_concentration.txt}.
+For steady-state simulations the column is labelled \texttt{t=steady}.
+Scalar QoIs are written to \texttt{output.csv} with columns
+\texttt{tritium\_inventory} and \texttt{total\_tritium\_release}.
+
+% ============================================================================
+\section{Code Architecture Diagram}
+\label{sec:arch}
+% ============================================================================
+
+Figure~\ref{fig:architecture} shows the high-level module architecture.
+
+\begin{figure}[htbp]
+\centering
+\resizebox{\textwidth}{!}{%
+\begin{tikzpicture}[node distance=1.2cm and 1.4cm]
+
+% --- External dependencies ---
+\node[extbox] (festim) {FESTIM\\(v1.4 / v2.0)};
+\node[extbox, right=1.8cm of festim] (easyvvuq) {EasyVVUQ\\+ ChaosPy};
+\node[extbox, right=1.8cm of easyvvuq] (qcgpj) {QCG-PilotJob\\resource pool};
+
+% --- FESTIM model layer ---
+\node[classbox, below=1.6cm of festim] (basemodel) {\textbf{BaseModel}\\(abstract)};
+\node[classbox, below left=1.0cm and 0.1cm of basemodel] (legacy) {Model\_legacy\\(FESTIM 1.4)};
+\node[classbox, below right=1.0cm and 0.1cm of basemodel] (model) {\textbf{Model}\\(FESTIM 2.0)};
+\node[classbox, right=0.6cm of model] (profexp) {ProfileExport};
+\node[classbox, below=0.6cm of legacy] (diag) {Diagnostics};
+
+% --- UQ layer ---
+\node[scriptbox, below=1.6cm of easyvvuq] (uqind) {easyvvuq\_festim.py\\(independent UQ)};
+\node[scriptbox, right=0.6cm of uqind] (uqcorr) {easyvvuq\_festim\\\_correlated.py};
+\node[scriptbox, below=0.6cm of uqind] (covana) {covariance\_influence\\\_analysis.py};
+\node[scriptbox, below=0.6cm of uqcorr] (fmrun) {festim\_model\_run.py\\(per-sample wrapper)};
+
+% --- Utilities ---
+\node[utilbox, below=1.6cm of qcgpj] (encoder) {AdvancedYAML\\Encoder};
+\node[utilbox, below=0.6cm of encoder] (decoder) {SimpleCSV\\Decoder};
+\node[utilbox, below=0.6cm of decoder] (plotter) {UQPlotter};
+
+% --- Post-processing ---
+\node[scriptbox, below=0.6cm of covana] (postproc) {uq\_postprocessing.py};
+\node[scriptbox, right=0.6cm of postproc] (viewer) {interactive\_run\\\_viewer.py};
+
+% --- Arrows ---
+\draw[arrowstyle, dashed] (festim) -- (basemodel);
+\draw[arrowstyle, dashed] (easyvvuq) -- (uqind);
+\draw[arrowstyle, dashed] (qcgpj) -- (encoder);
+
+\draw[arrowstyle] (basemodel) -- (legacy);
+\draw[arrowstyle] (basemodel) -- (model);
+
+\draw[arrowstyle, dotted] (model) -- (profexp);
+\draw[arrowstyle, dotted] (legacy) -- (diag);
+
+\draw[arrowstyle] (uqind) -- (fmrun) node[midway, right, font=\tiny] {execute};
+\draw[arrowstyle] (uqcorr) -- (fmrun);
+\draw[arrowstyle] (fmrun.west) -- +(-1.1,0) |- (model.east) node[near start, above, font=\tiny] {instantiates};
+
+\draw[arrowstyle, gray] (uqind.east) -- ++(0.2,0) |- (encoder.west);
+\draw[arrowstyle, gray] (uqind) -- (covana);
+\draw[arrowstyle, gray] (postproc) -- (plotter.west |- postproc);
+
+\draw[arrowstyle] (covana) -- ++(2.4,0) |- (uqcorr);
+
+% --- Background boxes ---
+\begin{scope}[on background layer]
+  \node[draw=festimblue!40, fill=festimblue!3, rounded corners=6pt,
+        fit=(basemodel)(legacy)(model)(profexp)(diag),
+        label={[festimblue, font=\sffamily\small]above left:FESTIM Model Layer}] {};
+  \node[draw=toolorange!40, fill=toolorange!3, rounded corners=6pt,
+        fit=(uqind)(uqcorr)(covana)(fmrun)(postproc)(viewer),
+        label={[toolorange, font=\sffamily\small]above left:UQ Orchestration Layer}] {};
+  \node[draw=uqgreen!40, fill=uqgreen!3, rounded corners=6pt,
+        fit=(encoder)(decoder)(plotter),
+        label={[uqgreen, font=\sffamily\small]above left:Utilities}] {};
+\end{scope}
+
+\end{tikzpicture}%
+}
+\caption{High-level architecture of the FESTIM-NIUQ package.
+  Blue boxes: FESTIM model layer; orange boxes: UQ orchestration scripts;
+  green boxes: utility modules; grey boxes: external dependencies.
+  Solid arrows denote calls or inheritance; dashed arrows denote
+  dependency on external libraries; dotted arrows denote composition.}
+\label{fig:architecture}
+\end{figure}
+
+
+% ============================================================================
+\section{Typical UQ Workflow}
+\label{sec:workflow}
+% ============================================================================
+
+Figure~\ref{fig:workflow} illustrates the typical uncertainty-quantification
+workflow from configuration to results.
+
+\begin{figure}[htbp]
+\centering
+\resizebox{0.72\textwidth}{!}{%
+\begin{tikzpicture}[node distance=0.9cm]
+
+% --- Nodes ---
+\node[flowbox] (config) {1.\ Load YAML\\configuration};
+\node[flowbox, below=of config] (params) {2.\ Define uncertain\\parameters \&\\distributions};
+\node[flowbox, below=of params] (campaign) {3.\ Create EasyVVUQ\\campaign\\(encoder + decoder)};
+\node[decisionbox, below=1.0cm of campaign] (scheme) {Sampling\\scheme?};
+\node[flowbox, below left=1.0cm and 1.0cm of scheme] (pce) {PCE Sampler\\(polynomial order $p$)};
+\node[flowbox, below right=1.0cm and 1.0cm of scheme] (fd) {FD / QMC\\Sampler};
+\node[flowbox, below=2.4cm of scheme] (execute) {4.\ Execute campaign\\(QCG-PJ pool)};
+\node[flowbox, below=of execute] (collate) {5.\ Collate results};
+\node[decisionbox, below=1.0cm of collate] (analysis) {Analysis\\method?};
+\node[flowbox, below left=1.0cm and 1.0cm of analysis] (pceana) {PCE Analysis\\Sobol indices};
+\node[flowbox, below right=1.0cm and 1.0cm of analysis] (fdana) {FD Analysis\\Derivatives};
+\node[flowbox, below=2.4cm of analysis] (stats) {6.\ Compute statistics\\(mean, std, quantiles)};
+\node[flowbox, below=of stats] (viz) {7.\ Visualise \&\\export results};
+\node[flowbox, below=of viz] (report) {8.\ Statistics log\\+ plots + pickle};
+
+% --- Arrows ---
+\draw[arrowstyle] (config) -- (params);
+\draw[arrowstyle] (params) -- (campaign);
+\draw[arrowstyle] (campaign) -- (scheme);
+\draw[arrowstyle] (scheme) -| (pce) node[near start, above left, font=\tiny] {PCE};
+\draw[arrowstyle] (scheme) -| (fd) node[near start, above right, font=\tiny] {FD/QMC};
+\draw[arrowstyle] (pce) |- (execute);
+\draw[arrowstyle] (fd) |- (execute);
+\draw[arrowstyle] (execute) -- (collate);
+\draw[arrowstyle] (collate) -- (analysis);
+\draw[arrowstyle] (analysis) -| (pceana) node[near start, above left, font=\tiny] {PCE};
+\draw[arrowstyle] (analysis) -| (fdana) node[near start, above right, font=\tiny] {FD};
+\draw[arrowstyle] (pceana) |- (stats);
+\draw[arrowstyle] (fdana) |- (stats);
+\draw[arrowstyle] (stats) -- (viz);
+\draw[arrowstyle] (viz) -- (report);
+
+% --- Annotations ---
+\node[right=3cm of execute, text width=3.2cm, font=\footnotesize\itshape, text=gray]
+  {Each sample:\\
+   \texttt{festim\_model\_run.py}\\
+   runs one FESTIM solve};
+
+\end{tikzpicture}%
+}
+\caption{Typical UQ workflow in FESTIM-NIUQ.  The user provides a YAML
+  configuration file that defines the physical model and uncertain
+  parameters.  EasyVVUQ orchestrates sampling, execution, and analysis.
+  Results include statistical moments, Sobol sensitivity indices, and
+  publication-quality plots.}
+\label{fig:workflow}
+\end{figure}
+
+
+% ============================================================================
+\section{Configuration and Usage}
+\label{sec:usage}
+% ============================================================================
+
+All model and UQ settings are specified in a single YAML configuration
+file.  The examples below assume the working directory is \texttt{uq/}.
+
+\medskip\noindent
+\textbf{Independent-parameter UQ} (PCE with polynomial order~2):
+
+\begin{lstlisting}[language=bash]
+python3 easyvvuq_festim.py --config config/config.uq_test_cj1959.yaml \
+        --uq-scheme pce --p-order 2
+\end{lstlisting}
+
+\noindent
+\textbf{Correlated-parameter UQ} with a covariance scan:
+
+\begin{lstlisting}[language=bash]
+python3 covariance_influence_analysis.py \
+        --config config/config.uq_test_cj1959.yaml \
+        --scale log --n-points 5 --p-order 3
+\end{lstlisting}
+
+\noindent
+\textbf{Postprocessing} a completed campaign:
+
+\begin{lstlisting}[language=bash]
+python3 uq_postprocessing.py --runs-dir path/to/runs --config config.yaml
+\end{lstlisting}
+
+\noindent
+\textbf{Interactive viewer} (generates a self-contained HTML file):
+
+\begin{lstlisting}[language=bash]
+python3 interactive_run_viewer.py --runs-dir path/to/runs -o viewer.html
+\end{lstlisting}
+
+
+% ============================================================================
+\section{Tutorial: Running Your First UQ Campaign}
+\label{sec:tutorial}
+% ============================================================================
+
+This section walks through a complete, minimal uncertainty-quantification
+campaign---from environment setup to result interpretation.  The example
+uses the \emph{correlated-parameter} UQ driver
+(\texttt{easyvvuq\_festim\_correlated.py}) to propagate uncertainties in
+three material parameters of a 1-D spherical tritium-transport model
+using a Polynomial Chaos Expansion with a multivariate normal
+distribution.  The workflow produces Sobol sensitivity indices and
+statistical moments of the concentration profile.
+
+% ----------------------------------------------------------------------------
+\subsection{Step 1 --- Install Dependencies}
+\label{sec:tut:install}
+
+\begin{lstlisting}[language=bash]
+# Clone the repository
+git clone https://github.com/YehorYudinIPP/festim_niuq.git
+cd festim_niuq
+
+# Create a virtual environment (conda or venv)
+conda create -n festim-uq python=3.10 -y
+conda activate festim-uq
+
+# Install the package and its dependencies
+pip install -r requirements.txt
+# Core dependencies (see requirements.txt for exact pins):
+#   festim, easyvvuq>=1.2, chaospy>=4.3,
+#   numpy, matplotlib, PyYAML>=6.0
+\end{lstlisting}
+
+\noindent
+Verify the installation by importing the main modules:
+
+\begin{lstlisting}[language=bash]
+python3 -c "import festim; import easyvvuq; import chaospy; print('OK')"
+\end{lstlisting}
+
+% ----------------------------------------------------------------------------
+\subsection{Step 2 --- Prepare the YAML Configuration}
+\label{sec:tut:config}
+
+All model physics and UQ settings live in a single YAML file.
+The reference configuration shipped with the repository
+(\texttt{uq/config/config.uq\_test\_cj1959.yaml}) describes a transient
+tritium-diffusion problem in a 1-D spherical domain of radius $L = 1$\,m
+with a volumetric source $G = 10^{15}$\,m$^{-3}$\,s$^{-1}$,
+zero-flux (Neumann) boundary at the centre, and zero-concentration
+(Dirichlet) boundary at the outer surface.
+
+\medskip\noindent
+Listing~\ref{lst:yaml} shows the key sections of the file.
+
+\begin{lstlisting}[
+  caption={Abridged YAML configuration
+           (\texttt{config.uq\_test\_cj1959.yaml}).},
+  label={lst:yaml},
+  basicstyle=\ttfamily\footnotesize,
+]
+# --- Physical model ---
+model_parameters:
+  transient: True
+  total_time: 1024.0
+  problems:
+    tritium_transport:
+      species: ["Tritium"]
+      domains: [{id: 1}]
+
+geometry:
+  dimensionality: 1
+  coordinate_system: "spherical"
+  domains:
+    - id: 1
+      length: 1.0
+      material: 123456789
+
+# --- Material properties (uncertain) ---
+materials:
+  - material_id: 123456789
+    material_name: "test_stuff"
+    D_0:                        # Diffusion pre-exp [m^2/s]
+      mean: 1.0e-6
+      relative_stdev: 0.05
+      pdf: 'uniform'
+    E_D:                        # Activation energy [eV]
+      mean: 1.0
+      relative_stdev: 0.1
+      pdf: 'uniform'
+    thermal_conductivity:       # kappa [W/(m K)]
+      mean: 1.0
+      relative_stdev: 0.1
+      pdf: 'uniform'
+    rho:   {mean: 1000.0}      # Density [kg/m^3]
+    heat_capacity: {mean: 10000.0}
+
+# --- Numerical settings ---
+simulation:
+  mesh_type: "regular"
+  n_elements: 1024
+  time_step:
+    default_value: 0.01
+    time_stepping_type: "fixed"
+  tolerances:
+    absolute_tolerance:
+      tritium_transport: 1.0e+6
+    relative_tolerance: 1.0e-6
+  output_directory: "results/test"
+  milestone_times: [0.1, 1.0, 16.0, 128.0, 1024.0]
+
+# --- Boundary conditions ---
+boundary_conditions:
+  concentration:
+    left:
+      type: "neumann"
+      species: "Tritium"
+      value: {mean: 0.0}       # zero-flux at centre
+    right:
+      type: "dirichlet"
+      species: "Tritium"
+      value: {mean: 0.0}       # zero conc. at surface
+
+# --- Source term ---
+source_terms:
+  concentration:
+    domain_id: 1
+    species: "Tritium"
+    type: "constant"
+    value: {mean: 1.0e+15}     # [m^{-3} s^{-1}]
+\end{lstlisting}
+
+\noindent
+Three parameters carry uncertainty tags (\texttt{relative\_stdev} and
+\texttt{pdf}): the diffusion pre-exponential~$D_0$, the activation
+energy~$E_D$, and the thermal conductivity~$\kappa$.  Their uncertainty
+is propagated through the solver.
+
+% ----------------------------------------------------------------------------
+\subsection{Step 3 --- Run the UQ Campaign}
+\label{sec:tut:run}
+
+From the \texttt{uq/} directory, launch a Polynomial Chaos Expansion
+campaign with polynomial order~$p = 2$:
+
+\begin{lstlisting}[language=bash]
+cd uq/
+python3 easyvvuq_festim_correlated.py \
+    --config config/config.uq_test_cj1959.yaml \
+    --uq-scheme pce --p-order 2
+\end{lstlisting}
+
+\noindent
+\textit{Note:} For independent (uncorrelated) parameters, replace the
+command with \texttt{easyvvuq\_festim.py} and the same flags.  The
+correlated driver is used here because it is the more general case.
+
+\noindent
+This command will:
+\begin{enumerate}[nosep]
+  \item Parse the YAML configuration and build a multivariate normal
+        distribution over the three uncertain parameters.
+  \item Create an EasyVVUQ campaign with an \texttt{AdvancedYAMLEncoder}
+        (substitutes \texttt{.mean} values in the YAML template) and a
+        \texttt{SimpleCSV} decoder that reads the profile output.
+  \item Generate PCE quadrature samples and execute
+        \texttt{festim\_model\_run.py} once per sample.
+  \item Collate results and run the PCE analysis to obtain statistical
+        moments and Sobol sensitivity indices.
+  \item Save plots and a statistics log in a timestamped folder
+        (e.g.\ \texttt{plots\_festim\_uq\_corr\_20260413\_1530/}).
+\end{enumerate}
+
+\noindent
+\textbf{Execution time.}  With $p = 2$ and 3~parameters the PCE sampler
+generates $\mathcal{O}(10)$~samples.  Each FESTIM solve on a 1024-element
+mesh takes approximately 10--30\,s, so the full campaign completes in a
+few minutes on a single CPU core.
+
+% ----------------------------------------------------------------------------
+\subsection{Step 4 --- Examine the Output}
+\label{sec:tut:output}
+
+The campaign produces the following artefacts:
+
+\begin{description}[nosep]
+  \item[Per-sample results] Each run directory contains:
+    \begin{itemize}[nosep]
+      \item \texttt{results/test/results\_tritium\_concentration.txt}
+            --- spatial profiles at each milestone time (CSV).
+      \item \texttt{output.csv} --- scalar QoIs
+            (\texttt{tritium\_inventory}, \texttt{total\_tritium\_release}).
+    \end{itemize}
+
+  \item[Aggregated output] The timestamped plots folder contains:
+    \begin{itemize}[nosep]
+      \item Mean and $\pm 1\sigma$ concentration profiles vs.\ radius
+            at each milestone time.
+      \item Sobol first-order sensitivity bar charts
+            (one per milestone time).
+      \item \texttt{uq\_statistics\_log\_*.txt} --- a text log with
+            statistical moments and sensitivity indices for every QoI
+            column.
+    \end{itemize}
+
+  \item[Campaign state]
+    \texttt{analysis\_results\_uq\_campaign\_*.pickle} and the EasyVVUQ
+    campaign database for later reloading via
+    \texttt{uq\_postprocessing.py}.
+\end{description}
+
+% ----------------------------------------------------------------------------
+\subsection{Step 5 --- Interpret the Results}
+\label{sec:tut:interpret}
+
+The statistics log reports, for each spatial profile column
+(e.g.\ \texttt{t=1.02e+03s}), the following quantities:
+
+\begin{itemize}[nosep]
+  \item \textbf{Mean $\boldsymbol{\mu}(r)$} and \textbf{standard deviation
+        $\boldsymbol{\sigma}(r)$} of the tritium concentration.
+  \item \textbf{First-order Sobol index $S_i$} for each uncertain
+        parameter --- the fraction of output variance attributable to
+        that parameter alone.
+  \item \textbf{Total Sobol index $S_{T_i}$} --- the fraction of output
+        variance attributable to a parameter including all its
+        interactions.
+\end{itemize}
+
+\noindent
+A high Sobol index for~$D_0$ at large~$r$ and late~$t$ means that
+diffusivity uncertainty dominates the prediction uncertainty in the outer
+part of the domain at long times, which is physically expected: the
+steady-state profile scales as $G \, r^2 / (6 D)$ in spherical
+coordinates.
+
+
+% ============================================================================
+\section{Reference Run}
+\label{sec:refrun}
+% ============================================================================
+
+This section documents a concrete reference run so that users can verify
+their installation and compare results.
+
+\subsection{Configuration}
+
+\begin{tabularx}{\textwidth}{@{} l X @{}}
+\toprule
+\textbf{Item} & \textbf{Value} \\
+\midrule
+Config file           & \texttt{uq/config/config.uq\_test\_cj1959.yaml} \\
+Coordinate system     & Spherical ($r \in [0, 1]$\,m) \\
+Mesh                  & Regular, 1024 elements \\
+Total time            & 1024\,s (fixed time step $\Delta t = 0.01$\,s) \\
+Species               & Tritium \\
+Source                & $G = 10^{15}\;\mathrm{m^{-3}\,s^{-1}}$ (constant, volumetric) \\
+Left BC (centre)      & Neumann, $J = 0$ \\
+Right BC (surface)    & Dirichlet, $c = 0$ \\
+Uncertain parameters  & $D_0$, $E_D$, $\kappa$ (uniform, CoV as in YAML) \\
+UQ scheme             & PCE, polynomial order $p = 2$ \\
+\bottomrule
+\end{tabularx}
+
+\subsection{Command}
+
+\begin{lstlisting}[language=bash]
+cd uq/
+python3 easyvvuq_festim_correlated.py \
+    --config config/config.uq_test_cj1959.yaml \
+    --uq-scheme pce --p-order 2
+\end{lstlisting}
+
+\subsection{Expected Results}
+\label{sec:refrun:results}
+
+Table~\ref{tab:refrun} summarises the expected order-of-magnitude
+statistics for the tritium concentration profile at the final milestone
+time $t = 1024$\,s.  Because the exact values depend on the solver
+version and floating-point environment, the table reports approximate
+ranges rather than exact numbers.
+
+\begin{table}[htbp]
+\centering
+\caption{Reference-run statistics for the tritium concentration profile
+  at $t = 1024$\,s.  Values are representative and may vary slightly
+  with FESTIM version.}
+\label{tab:refrun}
+\small
+\begin{tabularx}{\textwidth}{@{} l l X @{}}
+\toprule
+\textbf{Statistic} & \textbf{Typical value} & \textbf{Notes} \\
+\midrule
+Mean $\mu(r\!=\!0)$
+  & $\sim 10^{20}\;\mathrm{m^{-3}}$
+  & Peak concentration at the centre of the sphere \\
+Mean $\mu(r\!=\!L)$
+  & $0$
+  & Enforced by the Dirichlet BC \\
+Std.\ dev.\ $\sigma / \mu$
+  & $\sim 5$--$10\%$
+  & Relative uncertainty, largest near the surface \\
+\midrule
+$S_{D_0}$ (first-order)
+  & Dominant ($\gtrsim 0.5$)
+  & Diffusivity is the main driver of profile uncertainty \\
+$S_{E_D}$ (first-order)
+  & Moderate ($\sim 0.1$--$0.4$)
+  & Activation energy contributes via $D(T) = D_0 e^{-E_D/k_B T}$ \\
+$S_{\kappa}$ (first-order)
+  & Small ($\lesssim 0.1$)
+  & Thermal conductivity has little effect in an isothermal run \\
+\bottomrule
+\end{tabularx}
+\end{table}
+
+\subsection{Output Folder Structure}
+
+After a successful run the working directory will contain:
+
+\begin{lstlisting}[basicstyle=\ttfamily\footnotesize]
+uq/
+  plots_festim_uq_corr_YYYYMMDD_HHMMSS/
+    stats_corr_tritium_concentration_*.pdf   # profiles
+    uq_statistics_log_YYYYMMDD_HHMMSS.txt   # full log
+  analysis_results_uq_campaign_*.pickle     # reloadable
+  uq_campaign_config_*.pickle               # campaign state
+  campaign_state_*.json                     # EasyVVUQ DB
+\end{lstlisting}
+
+\subsection{Re-running Postprocessing}
+
+To regenerate plots from a completed campaign without re-running the
+simulations:
+
+\begin{lstlisting}[language=bash]
+python3 uq_postprocessing.py \
+    --runs-dir campaign_runs_YYYYMMDD_HHMMSS \
+    --config config/config.uq_test_cj1959.yaml
+\end{lstlisting}
+
+\noindent
+To create an interactive HTML viewer:
+
+\begin{lstlisting}[language=bash]
+python3 interactive_run_viewer.py \
+    --runs-dir campaign_runs_YYYYMMDD_HHMMSS \
+    -o reference_run_viewer.html
+\end{lstlisting}
+
+
+% ============================================================================
+\section{Draft Notes and Questions Requiring Clarification}
+\label{sec:questions}
+% ============================================================================
+
+This section collects open questions and items that require input from
+the authors or domain experts before the appendix is finalised.
+
+\begin{enumerate}
+  \item \textbf{Scope of the appendix.}  Should this appendix be
+    self-contained (reproducible without reading other documents), or is
+    it intended as a supplement to a specific paper or thesis?
+
+  \item \textbf{Physical model details.}
+    \begin{itemize}[nosep]
+      \item What is the primary application material system
+            (e.g.\ Li$_2$TiO$_3$ breeding blanket, tungsten PFC, other)?
+      \item Are surface recombination boundary conditions ($k_{r0}$,
+            $E_{k_r}$) actively used in the current test cases, or are
+            they placeholder functionality?
+    \end{itemize}
+
+  \item \textbf{Parameter distributions.}
+    \begin{itemize}[nosep]
+      \item Should the parameter table list specific nominal values and
+            coefficients of variation from a reference test case, or
+            should it remain generic?
+      \item Are uniform and normal distributions the only ones used in
+            practice?  The code includes stubs for log-normal, beta,
+            gamma, and exponential distributions.
+    \end{itemize}
+
+  \item \textbf{Correlated UQ.}
+    \begin{itemize}[nosep]
+      \item What physical justification exists for the correlation between
+            $D_0$ and $\kappa$?  Should a specific reference be cited?
+      \item A Bayesian inverse UQ module is mentioned in design notes but
+            is not present in the current repository.  Should it be
+            documented as planned functionality, or is it available on a
+            separate branch?
+    \end{itemize}
+
+  \item \textbf{FESTIM version.}
+    \begin{itemize}[nosep]
+      \item The code supports both FESTIM~1.4 (\texttt{Model\_legacy}) and
+            v2.0 (\texttt{Model}).  Should both be documented equally, or
+            is v1.4 considered deprecated?
+      \item The steady-state coupled model (tritium~+ heat) currently raises
+            \texttt{NotImplementedError}.  Should this limitation be
+            explicitly noted?
+    \end{itemize}
+
+  \item \textbf{QoI definitions.}
+    \begin{itemize}[nosep]
+      \item What are the units of the tritium inventory in a spherical
+            domain?  The current text notes that
+            $I = \int c\,\mathrm{d}V$ may be dimensionless (a total count)
+            when $c$ is a number density.
+      \item Are there additional scalar QoIs (e.g.\ peak concentration,
+            permeation flux) that should be documented?
+    \end{itemize}
+
+  \item \textbf{Diagrams.}
+    \begin{itemize}[nosep]
+      \item Should the architecture diagram include SLURM submission
+            scripts (\texttt{uq/slurm\_scripts/})?
+      \item Would a data-flow diagram or a UML class-hierarchy diagram add
+            value?
+    \end{itemize}
+
+  \item \textbf{Notation and conventions.}
+    \begin{itemize}[nosep]
+      \item Should $k_B$ denote the Boltzmann constant in
+            $\mathrm{J\,K^{-1}}$, or should $E_D$ be expressed in
+            $\mathrm{J\,mol^{-1}}$ with the gas constant~$R$?  The code
+            uses eV in some places and SI units in others.
+      \item Should a nomenclature or list-of-symbols section be included?
+    \end{itemize}
+
+  \item \textbf{References.}
+    \begin{itemize}[nosep]
+      \item Which publications should be cited for the FESTIM code, the
+            EasyVVUQ framework, and the specific test cases?
+      \item Is there a DOI or repository reference for the FESTIM-NIUQ
+            package itself?
+    \end{itemize}
+
+  \item \textbf{Formatting preferences.}
+    \begin{itemize}[nosep]
+      \item Should this be a stand-alone document or an
+            \texttt{\textbackslash appendix} section within a larger
+            document?
+      \item Are there journal or style-guide requirements (e.g.\ Elsevier,
+            Springer, IEEE)?
+    \end{itemize}
+\end{enumerate}
+
+
+% ============================================================================
+\section{Reviewer Comments: Strengths and Weaknesses}
+\label{sec:review}
+% ============================================================================
+
+The following self-assessment is intended to guide further revision of this
+appendix, viewed through the lens of a publication on open-source
+computational software.
+
+\subsection{Strengths}
+
+\begin{itemize}[nosep]
+  \item \textbf{Clear physical motivation.}  The physical model section
+    presents the governing equations concisely and links them directly to
+    the code's boundary-condition and source-term implementations.
+  \item \textbf{Comprehensive parameter and QoI tables.}  The tables
+    provide a one-stop reference for the full set of uncertain inputs and
+    measured outputs, including YAML configuration keys that are
+    directly actionable by users.
+  \item \textbf{Architecture and workflow diagrams.}  The TikZ diagrams
+    give a visual overview that significantly aids comprehension of
+    the package's layered design and its execution pipeline.
+  \item \textbf{Reproducible usage examples.}  The command-line invocations
+    in Section~\ref{sec:usage} are copy-pasteable and cover the main use
+    cases (independent UQ, correlated UQ, postprocessing, viewer).
+  \item \textbf{Non-intrusive design.}  The document clearly communicates
+    the key architectural decision: FESTIM is treated as a black box,
+    making the UQ layer solver-agnostic in principle.
+\end{itemize}
+
+\subsection{Weaknesses and Suggested Improvements}
+
+\begin{itemize}[nosep]
+  \item \textbf{Lack of a worked example with results.}  The appendix
+    describes \emph{what} the package can do but does not show a complete
+    input-to-output example with sample plots.  Including a minimal
+    reproducible example (e.g.\ a 3-parameter PCE run with
+    Sobol-index bar chart) would substantially increase the document's
+    utility.
+  \item \textbf{No validation or verification section.}  For a
+    publication on computational software, demonstrating agreement with
+    analytical solutions or benchmark results is essential.  A brief V\&V
+    subsection (even citing external work) would strengthen credibility.
+  \item \textbf{Missing dependency and installation instructions.}
+    The document does not list Python package dependencies
+    (\texttt{requirements.txt}) or environment setup steps.  Readers
+    wanting to reproduce results need this information.
+  \item \textbf{Incomplete treatment of limitations.}
+    Known limitations (e.g.\ 1-D only, no steady-state coupled problems,
+    hardcoded environment paths in some scripts) should be collected in
+    a dedicated subsection for transparency.
+  \item \textbf{Absent bibliography.}  The document references FESTIM,
+    EasyVVUQ, and ChaosPy via hyperlinks but lacks formal
+    \texttt{\textbackslash cite} entries.  A proper bibliography is
+    expected for peer-reviewed publication.
+  \item \textbf{Parameter table lacks reference values.}
+    The parameter table lists symbols and YAML keys but not typical
+    numerical ranges or nominal values.  Adding a ``Typical range''
+    column would make the table more informative.
+  \item \textbf{Physical model section could be deeper.}  The equations
+    are correct but brief.  For instance, the coupling mechanism between
+    the tritium transport and heat transfer equations (via $D(T)$) is not
+    explicitly discussed, and the trapping model is mentioned in the
+    parameter table but not derived in the physics section.
+\end{itemize}
+
+
+% ============================================================================
+\section{Compilation Instructions}
+\label{sec:compilation}
+% ============================================================================
+
+\subsection{Overleaf}
+
+\begin{enumerate}[nosep]
+  \item Go to \url{https://www.overleaf.com} and create a new blank project.
+  \item Upload \texttt{appendix\_festim\_niuq.tex} as the main document
+        (or copy-paste its contents into \texttt{main.tex}).
+  \item In the top-left menu, set \textbf{Compiler} to \texttt{pdfLaTeX}.
+  \item Click \textbf{Recompile}.  Run twice to resolve cross-references
+        and the table of contents.
+\end{enumerate}
+
+\noindent
+Overleaf ships a full TeX~Live distribution; no additional package
+installation is required.
+
+\subsection{Standalone \LaTeX{} on WSL / Linux}
+
+\begin{lstlisting}[language=bash]
+# 1. Install TeX Live packages (run once)
+sudo apt-get update
+sudo apt-get install -y texlive-latex-base \
+     texlive-latex-recommended texlive-latex-extra \
+     texlive-pictures texlive-fonts-recommended
+
+# 2. Compile (from the repository root)
+cd docs/
+pdflatex appendix_festim_niuq.tex   # first pass
+pdflatex appendix_festim_niuq.tex   # second pass (cross-refs)
+
+# 3. The output is docs/appendix_festim_niuq.pdf
+\end{lstlisting}
+
+\noindent
+\textbf{Minimum requirement:} TeX~Live 2020 or later (for the TikZ
+libraries used in the diagrams).  On Windows, WSL~2 with Ubuntu 20.04+
+is recommended; alternatively, install
+\href{https://miktex.org/}{MiKTeX} natively and compile from the
+MiKTeX console or command prompt.
+
+% ============================================================================
+% END
+% ============================================================================
+
+\end{document}

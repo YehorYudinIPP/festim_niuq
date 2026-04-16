@@ -1,16 +1,17 @@
-
 # A class to compute qualities of interest using FESTIM results
 
-import numpy as np
-import pandas as pd
+import csv
+import logging
 import os
 import sys
 
-import csv
+import numpy as np
+import pandas as pd
 
 # Configure matplotlib backend before importing pyplot
 import matplotlib
-matplotlib.use('Agg')  # Use non-GUI backend for headless environments
+
+matplotlib.use("Agg")  # Use non-GUI backend for headless environments
 import matplotlib.pyplot as plt
 
 import festim as F
@@ -18,44 +19,59 @@ import festim as F
 from dolfinx import io
 from adios2 import Stream
 
+logger = logging.getLogger(__name__)
+
+
 class Diagnostics:
 
-    def __init__(self, model=None, results=None, qoi_names=None, result_folder=None, derived_quantities_flag=True, result_format='txt'):
+    def __init__(
+        self,
+        model=None,
+        results=None,
+        qoi_names=None,
+        result_folder=None,
+        derived_quantities_flag=True,
+        result_format="txt",
+    ):
         """
         Initialize Diagnostics with FESTIM results.
-        
+
         :param results: Results from the FESTIM simulation.
         """
         self.model = model
         self.results = results
-        self.result_folder = result_folder if result_folder else './results' # TODO by default, try to read results from the model attribute
+        self.result_folder = (
+            result_folder
+            if result_folder
+            else (getattr(model, "result_folder", None) or "./results")
+        )
         self.mesh = {}  # Dictionary to store mesh coordinates for each quantity of interest
-        self.times = [] # List to store all the timstamps of the simulation
+        self.times = []  # List to store all the timstamps of the simulation
 
         if self.results is None:
             # If result is none, read from the result folder
             print(f"Diagnostics: No results provided, trying to read from {self.result_folder}/")
             self.results = {}
 
-            #print(f">>> Diagnostics.model.quantities_of_interest: {self.model.quantities_of_interest}")  ###DEBUG print available quantities of interest
+            # print(f">>> Diagnostics.model.quantities_of_interest: {self.model.quantities_of_interest}")
 
             if model is not None:
                 qoi_dict = self.model.quantities_of_interest
             else:
                 # raise NotImplemented("Diagnostics: reading results without (1) passed result obejct and (2) passed model object is not implemented!")
-                qoi_dict = {qoi_name:None for qoi_name in qoi_names}
+                qoi_dict = {qoi_name: None for qoi_name in qoi_names}
 
             # Read results for each quantity of interest
-            for qoi,_ in qoi_dict.items():
+            for qoi, _ in qoi_dict.items():
                 # Read results from the file if available
                 print(f"Reading results for {qoi} from {self.result_folder}")
 
                 # This path assumes you results folder should have a "results_[qoi_name].txt" file for every QoI of the output
 
-                if result_format == 'txt':
-                    result_file = os.path.join(self.result_folder, f'results_{qoi}.{result_format}')
-                elif result_format == 'bp':
-                    result_file = os.path.join(self.result_folder, f'{qoi}.{result_format}')
+                if result_format == "txt":
+                    result_file = os.path.join(self.result_folder, f"results_{qoi}.{result_format}")
+                elif result_format == "bp":
+                    result_file = os.path.join(self.result_folder, f"{qoi}.{result_format}")
                 else:
                     raise NotImplemented(f"Reading {result_format} file is not supported!")
 
@@ -63,15 +79,17 @@ class Diagnostics:
                 if os.path.exists(result_file):
                     print(f" > Result file {result_file} found!")
 
-                    if result_format == 'txt':
+                    if result_format == "txt":
                         print(f" >> Reading a {result_format} file")
                         # Read result from a TXT file (CSV format)
-                        self.results[qoi] = np.genfromtxt(result_file, skip_header=True, delimiter=',')
-                        # Separately, get a mesh/vertice data 
+                        self.results[qoi] = np.genfromtxt(result_file, skip_header=True, delimiter=",")
+                        # Separately, get a mesh/vertice data
                         self.mesh[qoi] = self.results[qoi][:, 0]  # Assuming the first column is the mesh coordinates
                         # Leave everything else as the qoi data
-                        self.results[qoi] = self.results[qoi][:, 1:]  # Keep only the results data (excluding mesh coordinates)
-                    elif result_format == 'bp':
+                        self.results[qoi] = self.results[qoi][
+                            :, 1:
+                        ]  # Keep only the results data (excluding mesh coordinates)
+                    elif result_format == "bp":
                         print(f" >> Reading a {result_format} file")
                         # Read resuls from BP files (VTX format from ADIOS)
                         self.results[qoi], self.mesh[qoi], self.times = self.read_vtx(result_file)
@@ -83,38 +101,38 @@ class Diagnostics:
                     # TODO (1) read using pandas (2) keep only the last column of the results, which is the time series
 
         else:
-            #print(f"Warning: No results for {qoi} file found in {self.result_folder}. Please run the simulation first.")
-            #self.results[qoi] = None
+            # print(f"Warning: No results for {qoi} file found in {self.result_folder}. Please run the simulation first.")
+            # self.results[qoi] = None
             print("Results provided directly after the simulation, skipping file reading.")
-            print(f">>> Diagnostics.results: {self.results}")  ###DEBUG print results
+            logger.debug(f">>> Diagnostics.results: {self.results}")
 
         # Additionally, read results from derived quantities file if available
         if derived_quantities_flag:
-            derived_quantities_file = os.path.join(self.result_folder, 'derived_quantities.csv')
+            derived_quantities_file = os.path.join(self.result_folder, "derived_quantities.csv")
 
             alternative_names = {
-                'Average solute volume 1 (H m-3)': 'tritium_inventory',
+                "Average solute volume 1 (H m-3)": "tritium_inventory",
             }
 
             if os.path.exists(derived_quantities_file):
                 print(f"Reading derived quantities from {derived_quantities_file}")
 
                 # Read entire derived quantities file
-                derived_quantities = np.genfromtxt(derived_quantities_file, delimiter=',', skip_header=1)
-                #print(f" >> Derived quantities shape: {derived_quantities.shape}")  ###DEBUG print shape of derived quantities
+                derived_quantities = np.genfromtxt(derived_quantities_file, delimiter=",", skip_header=1)
+                # print(f" >> Derived quantities shape: {derived_quantities.shape}")
 
                 # If the resulting numpy array is 1D, reshape it to 2D
                 if derived_quantities.ndim == 1:
                     derived_quantities = derived_quantities.reshape(-1, 1)
 
                 # Read header to get column names - TODO replace with pandas for better handling
-                with open(derived_quantities_file, 'r') as f:
-                    header = f.readline().strip().split(',')
-                
+                with open(derived_quantities_file, "r") as f:
+                    header = f.readline().strip().split(",")
+
                 # Add each column of derived_quantities to the results dictionary
                 for i, qoi in enumerate(header):
                     # Check if the quantity name is in the alternative names mapping and replace it
-                    print(f" >> Processing derived quantity: {qoi}") ###DEBUG
+                    logger.debug(f" >> Processing derived quantity: {qoi}")
                     if qoi in alternative_names:
                         qoi = alternative_names[qoi]
                         # ATTENTION: so far, only the quantities specified in the alternative_names mapping are added
@@ -124,47 +142,41 @@ class Diagnostics:
 
                 # Store the times for derived quantities separately
                 self.derived_quantities_times = derived_quantities[:, 0] if derived_quantities.shape[1] > 0 else []
-                print(f" > Derived quantities times: {self.derived_quantities_times}") ###DEBUG print derived quantities times
+                logger.debug(
+                    f" > Derived quantities times: {self.derived_quantities_times}"
+                )
 
             else:
                 print(f"No derived quantities file found at {derived_quantities_file}.")
                 self.derived_quantities = None
 
-        # Check if results are now present
-        # TODO think if the flag is needed
-        # self.result_flag = None  # Flag to check if results are available
-        # if self.results is not None:   
-        #     self.result_flag = True
-        # else:
-        #     self.result_flag = False
-
         # Make a list of milestone/checkpoint times
         self.milestone_times = []
         # Read the milestone times from the configuration
         if model is not None:
-            self.milestone_times = self.model.config.get('simulation', {}).get('milestone_times', [])
+            self.milestone_times = self.model.config.get("simulation", {}).get("milestone_times", [])
         if not self.milestone_times:
             print("Warning: No milestone times found in configuration. Using the times variable.")
-            
+
             # Option A - hardcoded values
             # self.milestone_times = [1., 2., 3., 4., 5.]  # Default values for milestone times
-            
+
             # Option B - all times read from the output
             # self.milestone_times = self.times
 
             # Option C - every N-th of the read output times
             n_plot_frequency = 20
             self.milestone_times = self.times[0:-1:n_plot_frequency]
-            
+
             # TODO read milestones from input files
 
         # Option 2) for milestone times: read from result file if available
         if self.milestone_times is None and self.results is not None and self.results.shape[1] > 1:
-            # They are in the header of the results file 
-            self.milestone_times = np.genfromtxt(result_file, max_rows=1, delimiter=',')[1:].tolist()
+            # They are in the header of the results file
+            self.milestone_times = np.genfromtxt(result_file, max_rows=1, delimiter=",")[1:].tolist()
 
         # n_elem_print = 3
-        # print(f">>> Diagnostics.__init__: Printing last {n_elem_print} elements of the results for last time of {self.milestone_times[-1]}: {self.results[-n_elem_print:, -1]}")  # Print last n elements of the results for the last time step ###DEBUG
+        # print(f">>> Diagnostics.__init__: Printing last {n_elem_print} elements of the results for last time of {self.milestone_times[-1]}: {self.results[-n_elem_print:, -1]}")  # Print last n elements of the results for the last time step
 
         # ATTENTION: this is a workaround; TODO: make work for both reading from file and from object
         # self.milestone_times = ['final']
@@ -182,39 +194,37 @@ class Diagnostics:
         # Define transient simulation
         if model is not None:
             self.transeint_flag = self.model.transient
-        else:   
+        else:
             # TODO make a better mechanist to define type of simulation from result files
             self.transeint_flag = True
 
         # Define data structure (dict) to keep naming, units etc. for quantities of interest
         self.quantities_of_interest_descriptor = {
-            'tritium_inventory': {
-                'name': 'Tritium Inventory',
-                'unit': 'T',
-                'dimensionality': '0d',
-                'description': 'Total tritium inventory in the sample'
+            "tritium_inventory": {
+                "name": "Tritium Inventory",
+                "unit": "T",
+                "dimensionality": "0d",
+                "description": "Total tritium inventory in the sample",
             },
-            'tritium_concentration': {
-                'name': 'Tritium Concentration',
-                'unit': 'm^-3',
-                'dimensionality': '1d',
-                'description': 'Tritium concentration in the volume'
+            "tritium_concentration": {
+                "name": "Tritium Concentration",
+                "unit": "m^-3",
+                "dimensionality": "1d",
+                "description": "Tritium concentration in the volume",
             },
-            'temperature': {
-                'name': 'Temperature',
-                'unit': 'K',
-                'dimensionality': '1d',
-                'description': 'Temperature distribution at a point'
+            "temperature": {
+                "name": "Temperature",
+                "unit": "K",
+                "dimensionality": "1d",
+                "description": "Temperature distribution at a point",
             },
         }
-
-        #TODO: put all the descriptors like naming mapping here
 
     def read_vtx(self, filename, qoi_name="T_values"):
         """
         Read FESTIM simulation results from VTX files
         TODO: Make output in format : {qoi_name: dataframe(times x coordinates)}
-        
+
         Returns:
             dictionary with the array results
         """
@@ -232,37 +242,37 @@ class Diagnostics:
                 # Read general data and create data structures on the zero-th step
                 if f.current_step() == 0:
                     # Read the mesh data
-                    mesh = f.read('Points')
+                    mesh = f.read("Points")
 
-                    print(f" >> Read VTX mesh points: {mesh}") ###DEBUG
+                    logger.debug(f" >> Read VTX mesh points: {mesh}")
 
                 # Read general data and create data structures on the first step
                 if f.current_step() == 1:
                     # read the time points data
-                    time_first = f.read('T_time')
-                    # print(f" > T_time={time_first}") ###DEBUG
+                    time_first = f.read("T_time")
+                    # print(f" > T_time={time_first}")
                     times.append(time_first[0])
 
-                    # n_timesteps = len(time_first)    
-                    n_timesteps = int(f.available_variables()['T_time']['AvailableStepsCount'])
-                    print(f" >> Read VTX timesteps #: {n_timesteps}") ###DEBUG
+                    # n_timesteps = len(time_first)
+                    n_timesteps = int(f.available_variables()["T_time"]["AvailableStepsCount"])
+                    logger.debug(f" >> Read VTX timesteps #: {n_timesteps}")
 
                     # read the qoi data
                     data_first = f.read(qoi_name)
                     n_points = len(data_first)
-                    print(f" >> Read VTX vertex #: {n_points}") ###DEBUG
+                    logger.debug(f" >> Read VTX vertex #: {n_points}")
 
                     data_total = np.zeros((n_points, n_timesteps))
-                    data_total[:, i_step-1] = data_first
+                    data_total[:, i_step - 1] = data_first
                     # TODO ideally get rid of the both if statements for 0th and 1st iteration
 
                 if f.current_step() > 1:
                     # Read the data on QoI from this step
                     data = f.read(qoi_name)
-                    data_total[:, i_step-1] = data
+                    data_total[:, i_step - 1] = data
 
                     # Read the timestamp
-                    times.append(f.read('T_time')[0])
+                    times.append(f.read("T_time")[0])
 
         # qoi_names = [qoi_name]
 
@@ -276,7 +286,7 @@ class Diagnostics:
 
         # results[qoi_name] = data
 
-        # print(f" > Finished reading VTX results: {results}") ###DEBUG
+        # print(f" > Finished reading VTX results: {results}")
 
         return results, mesh, times
 
@@ -304,16 +314,16 @@ class Diagnostics:
 
         derived_quantity_types = [
             F.TotalVolume(
-                field="retention", 
+                field="retention",
                 volume=1,
-                #name='tritium_inventory', 
-                #description='Total tritium inventory in the volume'
+                # name='tritium_inventory',
+                # description='Total tritium inventory in the volume'
             ),
             F.HydrogenFlux(
-                surface=1, 
+                surface=1,
             ),
             F.HydrogenFlux(
-                surface=2, 
+                surface=2,
             ),
             F.TotalVolume(
                 field="solute",
@@ -329,11 +339,11 @@ class Diagnostics:
         derived_quantities = F.DerivedQuantities(
             derived_quantity_types,
             show_units=True,
-            filename=result_folder+'/derived_quantities.csv',
+            filename=result_folder + "/derived_quantities.csv",
         )
-        
+
         # Append the new exports
-        #model.exports.append(derived_quantities)
+        # model.exports.append(derived_quantities)
 
         return derived_quantities
 
@@ -354,28 +364,30 @@ class Diagnostics:
 
         # Plot the quantity of interest over time
         ax.plot(
-                times, 
-                qoi_values, 
-                label=qoi_name,
-                )
+            times,
+            qoi_values,
+            label=qoi_name,
+        )
 
         # Set plot labels and title
-        ax.set_xlabel('Time [s]')
-        ax.set_ylabel(f"{self.quantities_of_interest_descriptor[qoi_name]['name']} [{self.quantities_of_interest_descriptor[qoi_name]['unit']}]")
+        ax.set_xlabel("Time [s]")
+        ax.set_ylabel(
+            f"{self.quantities_of_interest_descriptor[qoi_name]['name']} [{self.quantities_of_interest_descriptor[qoi_name]['unit']}]"
+        )
         ax.set_title(f"{self.quantities_of_interest_descriptor[qoi_name]['name']} vs Time")
 
-        ax.grid('both')
-        ax.legend(loc='best')
+        ax.grid("both")
+        ax.legend(loc="best")
 
         # Save the plot to the result folder
-        file_format = 'pdf'
+        file_format = "pdf"
         fig.savefig(f"{self.result_folder}/results_{qoi_name}.{file_format}")
-        plt.close('all')
+        plt.close("all")
 
     def _visualise_transient_1d_quantity(self, qoi_name, qoi_values):
         """
         Visualize a specific quantity of interest resolved as a function of a single spatial coordinate (1D).
-        
+
         :param qoi_name: Name of the quantity to visualize.
         :param quantity: The quantity data to visualize: numpy array
         """
@@ -387,29 +399,29 @@ class Diagnostics:
         # Check the numpy array dimensionality of the passed data: assumes data to be [num_elements, num_times] array
         if qoi_values.ndim == 1:
             qoi_values = qoi_values.reshape(-1, 1)  # Reshape to 2D if it's 1D
-            
-        print(f" >> Visualizing transient 1D quantity: {qoi_name}") ###DEBUG
-        print(f" >>> Visualizing transient values: \n{qoi_values}") ###DEBUG
+
+        logger.debug(f" >> Visualizing transient 1D quantity: {qoi_name}")
+        logger.debug(f" >>> Visualizing transient values: \n{qoi_values}")
 
         # Making an array of plot for different axis scales
-        plot_types = ['plot', 'semilogy']  # Add more plot types if needed
+        plot_types = ["plot", "semilogy"]  # Add more plot types if needed
         n_plots = len(plot_types)
 
         fig, axs = plt.subplots(1, n_plots, figsize=(n_plots * 8, 6))
 
         # Iterate over the milestone times and plot each
-        for (i,time) in enumerate(self.milestone_times):
+        for i, time in enumerate(self.milestone_times):
             # The first column is the radial coordinate values
             # TODO: read file as a CSV file
             # TODO: consider that there might be no result data for a given milestone time
-            
+
             # Make a string time label (if it is a number)
             if not isinstance(time, str):
-                time = f"{time:.2f}" 
+                time = f"{time:.2f}"
 
             print(f"> Plotting results for time: {time} [s]")
 
-            for j, plot_func_name in enumerate(plot_types): 
+            for j, plot_func_name in enumerate(plot_types):
 
                 # Chosing the plotting function based on the plot_func_name (axis scale)
                 plot_func = getattr(axs[j], plot_func_name, None)
@@ -417,22 +429,24 @@ class Diagnostics:
                     raise ValueError(f"Plot function '{plot_func_name}' is not supported. Use 'plot' or 'semilogy'.")
 
                 plot_func(
-                    #self.model.vertices[:], 
+                    # self.model.vertices[:],
                     self.mesh[qoi_name],
-                    qoi_values[:, i], 
-                    label=f"t={time} s", 
-                    marker='.',
+                    qoi_values[:, i],
+                    label=f"t={time} s",
+                    marker=".",
                     markersize=1.0,
                 )
 
             # n_el_print = 3
-            # print(f"Last {n_el_print} elements at time {time} s: {self.results[-n_el_print:, i+1]}") ### DEBUG
+            # print(f"Last {n_el_print} elements at time {time} s: {self.results[-n_el_print:, i+1]}")
 
         # Set plot labels and title
-        for j, plot_func_name in enumerate(plot_types): 
+        for j, plot_func_name in enumerate(plot_types):
 
-            axs[j].set_xlabel('Radial Coordinate [m]')
-            axs[j].set_ylabel(f"{self.quantities_of_interest_descriptor[qoi_name]['name']} [{self.quantities_of_interest_descriptor[qoi_name]['unit']}]") # Use the name and unit from the descriptor
+            axs[j].set_xlabel("Radial Coordinate [m]")
+            axs[j].set_ylabel(
+                f"{self.quantities_of_interest_descriptor[qoi_name]['name']} [{self.quantities_of_interest_descriptor[qoi_name]['unit']}]"
+            )  # Use the name and unit from the descriptor
 
             title_string = f"{self.quantities_of_interest_descriptor[qoi_name]['name']} vs Radius (at different times) in {plot_func_name} scale"
 
@@ -441,15 +455,15 @@ class Diagnostics:
 
             axs[j].set_title(title_string)
 
-            axs[j].grid('both')
-            axs[j].legend(loc='best')
-            #plt.legend([f"t={time}" for time in self.milestone_times])
+            axs[j].grid("both")
+            axs[j].legend(loc="best")
+            # plt.legend([f"t={time}" for time in self.milestone_times])
 
-        #plt.show()
-        file_format = 'png'
+        # plt.show()
+        file_format = "png"
         fig.savefig(f"{self.result_folder}/results_{qoi_name}.{file_format}")
-        plt.close('all')  # Close all figures after plotting
-            
+        plt.close("all")  # Close all figures after plotting
+
     def _visualise_steady_1d_quantity(self, qoi_name, qoi_values):
         """
         Visualize a specific steady-state quantity of interest resolved as a function of a single spatial coordinate (1D).
@@ -467,65 +481,67 @@ class Diagnostics:
 
         # Plot the steady-state results
         ax.plot(
-            # self.model.vertices[:], 
+            # self.model.vertices[:],
             self.mesh[qoi_name],
             qoi_values,
-            label=f"{self.quantities_of_interest_descriptor[qoi_name]['name']} in Steady State", 
-            marker='.',
-            )
+            label=f"{self.quantities_of_interest_descriptor[qoi_name]['name']} in Steady State",
+            marker=".",
+        )
 
         # Set plot labels and title
-        ax.set_xlabel('Radial Coordinate [m]')
-        ax.set_ylabel(f"{self.quantities_of_interest_descriptor[qoi_name]['name']} [{self.quantities_of_interest_descriptor[qoi_name]['unit']}]")  # Use the name and unit from the descriptor
+        ax.set_xlabel("Radial Coordinate [m]")
+        ax.set_ylabel(
+            f"{self.quantities_of_interest_descriptor[qoi_name]['name']} [{self.quantities_of_interest_descriptor[qoi_name]['unit']}]"
+        )  # Use the name and unit from the descriptor
 
         title_string = f"{self.quantities_of_interest_descriptor[qoi_name]['name']} vs Radius (in Steady State)"
         # TODO make more flexible w.r.t. changes in config and specification of varied parameters
         # title_string += f"\n Param-s: T={self.model.config['model_parameters']['T_0']:.2f} [K], G={float(self.model.config['source_terms']['concentration']['source_value']):.2e} [m^-3s^-1], C(a)={float(self.model.config['boundary_conditions']['concentration']['right']['value']):.2e} [m^-3]"
         ax.set_title(title_string)
 
-        ax.grid('both')
-        ax.legend(loc='best')
+        ax.grid("both")
+        ax.legend(loc="best")
 
-        #plt.show()
-        file_format = 'png'
+        # plt.show()
+        file_format = "png"
         fig.savefig(f"{self.result_folder}/results_{qoi_name}_steady.{file_format}")
-        plt.close('all')
+        plt.close("all")
 
-    def visualise(self):
+    def visualise(self, qoi_filter=None):
         """
         Visualize the results of the FESTIM simulation.
-        This method can be extended to include specific visualization logic.
+
+        Parameters:
+            qoi_filter: optional list of QoI names to visualise.
+                        If None, all available QoIs are visualised.
         """
         print("Visualizing results...")
-
-        # if self.result_flag is not True:
-        #     # Attempt to fall back and read from results.txt
-        #     print("No results found in the object during visualisation, reading from file...")
-        #     print(f">>> Diagnostics.visualise: Reading results from {self.result_folder}/results.txt")
-        #     self.results = np.genfromtxt(self.result_folder+"/results.txt", skip_header=True, delimiter=',')
 
         if self.results is not None:
 
             print("> Visualizing results")
 
-            # TODO possibility to specify subset of quantities to visualise
-            #  - For now, we assume the first column is radial coordinates and the rest are concentrations at different times
-            
-            # Example: for basic temperature visualization at the last time step
-            # from fenics import plot
-            # plot(model.T.T, title="Temperature Distribution", mode='color', interactive=True)
+            qois_to_plot = {
+                k: v for k, v in self.results.items()
+                if qoi_filter is None or k in qoi_filter
+            }
+
+            if qoi_filter is not None:
+                unmatched = set(qoi_filter) - set(self.results.keys())
+                if unmatched:
+                    logger.warning(f"QoI filter contains unknown quantities: {unmatched}")
 
             if self.transeint_flag:
                 print("Transient simulation detected, plotting results over time.")
 
                 # Iterate over each quantity of interest in the results dictionary and plot
-                for qoi_name, qoi_values in self.results.items():
+                for qoi_name, qoi_values in qois_to_plot.items():
                     print(f"Visualising quantity of interest: {qoi_name}")
 
                     if qoi_values is not None:
-                        if self.quantities_of_interest_descriptor[qoi_name]['dimensionality'] == '1d':
+                        if self.quantities_of_interest_descriptor[qoi_name]["dimensionality"] == "1d":
                             self._visualise_transient_1d_quantity(qoi_name, qoi_values)
-                        elif self.quantities_of_interest_descriptor[qoi_name]['dimensionality'] == '0d':
+                        elif self.quantities_of_interest_descriptor[qoi_name]["dimensionality"] == "0d":
                             self._visualise_transient_0d_quantity(qoi_name, qoi_values, self.derived_quantities_times)
                         else:
                             print(f"Quantity {qoi_name} is not 1D or 0D, or unspecified, skipping visualisation.")
@@ -535,12 +551,12 @@ class Diagnostics:
             else:
                 print("Steady-state simulation detected, only single entry plotted.")
                 # Plot the single plot (t=steady)
-                for qoi_name, qoi_values in self.results.items():
+                for qoi_name, qoi_values in qois_to_plot.items():
                     print(f"Visualising quantity of interest: {qoi_name}")
 
                     # Check if the results for this quantity are available
                     if qoi_values is not None:
-                        if self.quantities_of_interest_descriptor[qoi_name]['dimensionality'] == '1d':
+                        if self.quantities_of_interest_descriptor[qoi_name]["dimensionality"] == "1d":
                             # Visualise as a 1D quantity
                             self._visualise_steady_1d_quantity(qoi_name, qoi_values)
                         else:
@@ -549,8 +565,8 @@ class Diagnostics:
                     else:
                         print(f"No results available for {qoi_name}. Skipping visualization.")
 
-                    #plt.plot(self.model.vertices[:], self.results[:, -1], label=f"t=steady")
-                    #plt.semilogy(self.model.vertices[:], self.results[:, -1], label=f"t=steady")
+                    # plt.plot(self.model.vertices[:], self.results[:, -1], label=f"t=steady")
+                    # plt.semilogy(self.model.vertices[:], self.results[:, -1], label=f"t=steady")
 
         else:
             print("No results to visualize. Please run the simulation first.")
