@@ -1,0 +1,101 @@
+# FESTIM Model Configuration - Bayesian Inverse UQ (Steady State)
+# Three uncertain parameters: E_D (activation energy), E_k (trapping energy), E_kr (surface reaction energy)
+# Two scalar QoIs: total_tritium_release, total_tritium_trapping
+
+model_parameters:
+  transient: False
+  problems:
+    tritium_transport:
+      species:
+        - "Tritium"
+      domains:
+        - id: 1
+
+geometry:
+  dimensionality: 1
+  coordinate_system: "cartesian"
+  domains:
+    - id: 1
+      length: 1.0e-3
+      material: 1
+
+materials:
+  - material_id: 1
+    material_name: "tungsten"
+    D_0:
+      mean: 4.1e-7
+    E_D:
+      mean: 0.39
+      relative_stdev: 0.2
+      pdf: 'uniform'
+    E_k:
+      mean: 0.87
+      relative_stdev: 0.2
+      pdf: 'uniform'
+    thermal_conductivity:
+      mean: 150.0
+    rho:
+      mean: 19300.0
+    heat_capacity:
+      mean: 130.0
+
+simulation:
+  mesh_type: "regular"
+  n_elements: 128
+
+  tolerances:
+    absolute_tolerance:
+      tritium_transport: 1.0e+10
+    relative_tolerance: 1.0e-10
+
+  log_level: 20
+  output_directory: "results"
+
+  quantities_of_interest:
+    - tritium_concentration
+
+boundary_conditions:
+  concentration:
+    left:
+      type: "dirichlet"
+      species: "Tritium"
+      value:
+        mean: 1.0e+20
+    right:
+      type: "surface_reaction"
+      species: "Tritium"
+      k_r0:
+        mean: 3.2e-27
+      E_kr:
+        mean: 1.16
+        relative_stdev: 0.2
+        pdf: 'uniform'
+      k_d0:
+        mean: 8.96e+12
+      E_kd:
+        mean: 1.0
+      P_g:
+        mean: 0.0
+
+initial_conditions:
+  concentration:
+    type: "constant"
+    domain_id: 1
+    value:
+      mean: 0.0
+
+  temperature:
+    type: "constant"
+    domain_id: 1
+    value:
+      mean: 600.0
+
+source_terms:
+  concentration:
+    domain_id: 1
+    species: "Tritium"
+    type: "constant"
+    value:
+      mean: 1.0e+18
+
+# END OF CONFIGURATION FILE

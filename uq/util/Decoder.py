@@ -1,30 +1,32 @@
 """
-Custom CSV Decoder for EasyVVUQ.
+Custom decoder for scalar QoIs written by the FESTIM model.
 
-Provides a :class:`ScalarCSVDecoder` that reads single-row CSV files
-produced by the FESTIM model wrapper (``output.csv``).  Each column in
-the CSV corresponds to a scalar quantity of interest (QoI), for example
-``total_tritium_release`` and ``total_tritium_trapping``.
-
-This decoder is intended for steady-state UQ campaigns where the QoI is
-a single scalar value per simulation, as opposed to the built-in
-``SimpleCSV`` decoder which reads spatially-resolved profile data.
-
-Example
--------
->>> decoder = ScalarCSVDecoder(
-...     target_filename="output.csv",
-...     output_columns=["total_tritium_release", "total_tritium_trapping"],
-... )
+Reads ``summary.csv`` (or ``output.csv``) produced by the forward model and
+returns a dictionary of scalar quantities of interest suitable for EasyVVUQ
+analysis.  This avoids the need for the profile-based ``SimpleCSV`` decoder
+when only scalar QoIs are required (e.g. total tritium release and trapping).
 """
-
-import csv
 import os
+import csv
 
 
 class ScalarCSVDecoder:
-    """
-    Decoder for single-row CSV files with scalar QoIs.
+    """Decoder that reads a single-row CSV with scalar QoIs.
+
+    The CSV is expected to have a header row with column names and a single
+    data row.  Example::
+
+        total_tritium_release,total_tritium_trapping
+        1.234e+15,5.678e+14
+
+    Provides a :class:`ScalarCSVDecoder` that reads single-row CSV files
+    produced by the FESTIM model wrapper (``output.csv``).  Each column in
+    the CSV corresponds to a scalar quantity of interest (QoI), for example
+    ``total_tritium_release`` and ``total_tritium_trapping``.
+
+    This decoder is intended for steady-state UQ campaigns where the QoI is
+    a single scalar value per simulation, as opposed to the built-in
+    ``SimpleCSV`` decoder which reads spatially-resolved profile data.
 
     Parameters
     ----------
@@ -32,6 +34,13 @@ class ScalarCSVDecoder:
         Name of the CSV file to read (relative to the run directory).
     output_columns : list of str
         Column names to extract from the CSV.
+
+    Example
+    -------
+    >>> decoder = ScalarCSVDecoder(
+    ...     target_filename="output.csv",
+    ...     output_columns=["total_tritium_release", "total_tritium_trapping"],
+    ... )
 
     Notes
     -----
@@ -64,32 +73,58 @@ class ScalarCSVDecoder:
         Returns
         -------
         dict
-            Mapping of column name -> float value for each requested QoI.
-            Missing columns are returned as ``None``.
+            Mapping from column name to scalar float value.
         """
-        filepath = os.path.join(run_dir or ".", self.target_filename)
+        if run_info is not None:
+            run_dir = run_info.get("run_dir", run_dir or ".")
+        elif run_dir is None:
+            run_dir = "."
+
+        filepath = os.path.join(run_dir, self.target_filename)
+
+        none_result = {col: None for col in self.output_columns}
 
         if not os.path.isfile(filepath):
-            return {col: None for col in self.output_columns}
+            return none_result
 
-        try:
-            with open(filepath, "r", newline="") as fh:
-                reader = csv.DictReader(fh)
-                row = next(reader)
-            return {col: float(row[col]) if col in row else None for col in self.output_columns}
-        except (StopIteration, KeyError, ValueError):
-            return {col: None for col in self.output_columns}
+        with open(filepath, "r", newline="") as fh:
+            reader = csv.DictReader(fh)
+            rows = list(reader)
+
+        if len(rows) == 0:
+            return none_result
+
+        row = rows[0]  # single-row CSV
+
+        result = {}
+        for col in self.output_columns:
+            raw = row.get(col, None)
+            if raw is None:
+                result[col] = None
+            else:
+                try:
+                    result[col] = float(raw)
+                except (ValueError, TypeError):
+                    result[col] = None
+
+        return result
 
     # ------------------------------------------------------------------
-    # EasyVVUQ restart / serialisation interface
+    # Serialisation helpers (needed by EasyVVUQ restart)
     # ------------------------------------------------------------------
-
     def get_restart_dict(self):
-        """Return a dictionary sufficient to reconstruct this decoder."""
         return {
             "target_filename": self.target_filename,
             "output_columns": self.output_columns,
         }
+
+    @staticmethod
+    def element_version():
+        return "0.1"
+
+    @staticmethod
+    def element_name():
+        return "ScalarCSVDecoder"
 
     @classmethod
     def deserialize(cls, data):

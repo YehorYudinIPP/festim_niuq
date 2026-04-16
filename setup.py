@@ -21,6 +21,9 @@ setup(
         "easyvvuq>=1.3",
         "chaospy>=4.3.13",
         "joblib",
+        "emcee>=3.0",
+        "arviz>=0.12",
+        "corner>=2.2",
     ],
     extras_require={
         "dev": [
