@@ -82,19 +82,17 @@ class ScalarCSVDecoder:
 
         filepath = os.path.join(run_dir, self.target_filename)
 
+        none_result = {col: None for col in self.output_columns}
+
         if not os.path.isfile(filepath):
-            raise FileNotFoundError(
-                f"ScalarCSVDecoder: output file not found: {filepath}"
-            )
+            return none_result
 
         with open(filepath, "r", newline="") as fh:
             reader = csv.DictReader(fh)
             rows = list(reader)
 
         if len(rows) == 0:
-            raise ValueError(
-                f"ScalarCSVDecoder: no data rows in {filepath}"
-            )
+            return none_result
 
         row = rows[0]  # single-row CSV
 
@@ -102,11 +100,12 @@ class ScalarCSVDecoder:
         for col in self.output_columns:
             raw = row.get(col, None)
             if raw is None:
-                raise KeyError(
-                    f"ScalarCSVDecoder: column '{col}' not found in "
-                    f"{filepath}. Available: {list(row.keys())}"
-                )
-            result[col] = float(raw)
+                result[col] = None
+            else:
+                try:
+                    result[col] = float(raw)
+                except (ValueError, TypeError):
+                    result[col] = None
 
         return result
 

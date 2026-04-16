@@ -168,7 +168,11 @@ def save_results_for_uq(results, model):
     milestone_times = getattr(model, "milestone_times", []) or []
 
     for qoi_name, qoi_values in results.items():
-        if qoi_name in ("total_tritium_release", "total_tritium_trapping"):
+        # Skip scalar QoIs — only save spatially-resolved profiles.
+        # total_tritium_trapping *can* be a profile in some configurations,
+        # so we check the actual shape rather than the name.
+        qoi_arr = np.asarray(qoi_values)
+        if qoi_arr.ndim == 0:
             continue
 
         profile_folder_name = model.result_folder
