@@ -11,48 +11,45 @@ import csv
 
 
 class ScalarCSVDecoder:
-  """
-  Decoder that reads a single-row CSV with scalar QoIs.
+    """Decoder that reads a single-row CSV with scalar QoIs.
 
-  The CSV is expected to have a header row with column names and a single
-  data row.  Example:
+    The CSV is expected to have a header row with column names and a single
+    data row.  Example::
 
-          total_tritium_release,total_tritium_trapping
-          1.234e+15,5.678e+14
-          
-  Custom CSV Decoder for EasyVVUQ.
+        total_tritium_release,total_tritium_trapping
+        1.234e+15,5.678e+14
 
-  Provides a :class:`ScalarCSVDecoder` that reads single-row CSV files
-  produced by the FESTIM model wrapper (``output.csv``).  Each column in
-  the CSV corresponds to a scalar quantity of interest (QoI), for example
-  ``total_tritium_release`` and ``total_tritium_trapping``.
+    Provides a :class:`ScalarCSVDecoder` that reads single-row CSV files
+    produced by the FESTIM model wrapper (``output.csv``).  Each column in
+    the CSV corresponds to a scalar quantity of interest (QoI), for example
+    ``total_tritium_release`` and ``total_tritium_trapping``.
 
-  This decoder is intended for steady-state UQ campaigns where the QoI is
-  a single scalar value per simulation, as opposed to the built-in
-  ``SimpleCSV`` decoder which reads spatially-resolved profile data.
+    This decoder is intended for steady-state UQ campaigns where the QoI is
+    a single scalar value per simulation, as opposed to the built-in
+    ``SimpleCSV`` decoder which reads spatially-resolved profile data.
 
-  Parameters
-  ----------
+    Parameters
+    ----------
     target_filename : str
         Name of the CSV file to read (relative to the run directory).
     output_columns : list of str
         Column names to extract from the CSV.
-  
-  Example
-  -------
-  >>> decoder = ScalarCSVDecoder(
-  ...     target_filename="output.csv",
-  ...     output_columns=["total_tritium_release", "total_tritium_trapping"],
+
+    Example
+    -------
+    >>> decoder = ScalarCSVDecoder(
+    ...     target_filename="output.csv",
+    ...     output_columns=["total_tritium_release", "total_tritium_trapping"],
     ... )
 
-  Notes
-  -----
-  The CSV file is expected to have a header row followed by exactly
-  one data row.  If the file is missing or malformed the decoder
-  returns ``None`` values for every requested column so that the
-  EasyVVUQ collation step can flag the run as failed rather than
-  crashing the entire campaign.
-  """
+    Notes
+    -----
+    The CSV file is expected to have a header row followed by exactly
+    one data row.  If the file is missing or malformed the decoder
+    returns ``None`` values for every requested column so that the
+    EasyVVUQ collation step can flag the run as failed rather than
+    crashing the entire campaign.
+    """
 
     def __init__(self, target_filename="output.csv", output_columns=None):
         self.target_filename = target_filename
@@ -78,10 +75,10 @@ class ScalarCSVDecoder:
         dict
             Mapping from column name to scalar float value.
         """
-        if run_info is None:
+        if run_info is not None:
+            run_dir = run_info.get("run_dir", run_dir or ".")
+        elif run_dir is None:
             run_dir = "."
-        else:
-            run_dir = run_info.get("run_dir", ".")
 
         filepath = os.path.join(run_dir, self.target_filename)
 
@@ -129,7 +126,7 @@ class ScalarCSVDecoder:
     @staticmethod
     def element_name():
         return "ScalarCSVDecoder"
-      
+
     @classmethod
     def deserialize(cls, data):
         """Reconstruct a :class:`ScalarCSVDecoder` from a restart dict."""

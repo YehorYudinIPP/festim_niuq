@@ -168,7 +168,7 @@ def save_results_for_uq(results, model):
     milestone_times = getattr(model, "milestone_times", []) or []
 
     for qoi_name, qoi_values in results.items():
-        if qoi_name == "total_tritium_release":
+        if qoi_name in ("total_tritium_release", "total_tritium_trapping"):
             continue
 
         profile_folder_name = model.result_folder
