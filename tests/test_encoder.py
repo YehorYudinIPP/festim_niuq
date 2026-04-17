@@ -8,7 +8,7 @@ import tempfile
 import pytest
 import yaml
 
-from uq.util.Encoder import YAMLEncoder, AdvancedYAMLEncoder, create_yaml_encoder
+from festim_niuq.uq.util.Encoder import YAMLEncoder, AdvancedYAMLEncoder, create_yaml_encoder
 
 
 @pytest.fixture

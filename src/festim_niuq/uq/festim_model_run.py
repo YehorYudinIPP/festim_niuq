@@ -21,14 +21,8 @@ import yaml
 import argparse
 from pathlib import Path
 
-# Add parent directory to Python path to import festim_model
-parent_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-if parent_dir not in sys.path:
-    sys.path.insert(0, parent_dir)
-
-# Now we can import festim_model from parent directory
-from festim_model import Model, Model_legacy
-from festim_model.diagnostics import Diagnostics
+from ..festim_model import Model, Model_legacy
+from ..festim_model.diagnostics import Diagnostics
 
 logger = logging.getLogger(__name__)
 

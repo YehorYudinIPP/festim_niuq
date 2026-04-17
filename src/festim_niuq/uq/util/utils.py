@@ -17,11 +17,6 @@ import numpy as np
 
 from datetime import datetime
 
-# Add project root to Python path for imports
-project_root = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
-if project_root not in sys.path:
-    sys.path.insert(0, project_root)
-
 from joblib import dump, load
 
 
@@ -493,7 +488,7 @@ def compute_absolute_tolerance(default_atol, orig_params, new_params):
                 print(f" >>>> Computing tolerance for {key}: exp_factor={exp_factor:.3E}")
 
             else:
-                raise NotImplemented(f"The tolerance sensitivity rule for {key} is not implemented!")
+                raise NotImplementedError(f"The tolerance sensitivity rule for {key} is not implemented!")
 
             # This is done not as a sum first because different rules can be applied to different parameters
             multiplier *= 10**exp_factor

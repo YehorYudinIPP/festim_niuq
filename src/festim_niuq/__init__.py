@@ -1,12 +1,11 @@
 """
-UQ orchestration package.
+FESTIM-NIUQ — Non-Intrusive Uncertainty Quantification for FESTIM.
 
-Contains the EasyVVUQ campaign scripts, FESTIM model runner, parameter
-scanning utilities, Bayesian inverse UQ, postprocessing, and the
-``util`` sub-package with encoders, decoders, and plotting helpers.
+This is the top-level package.  It re-exports selected utilities from
+the :mod:`festim_niuq.uq.util` sub-package for convenience.
 """
 
-from .util import (
+from .uq.util.utils import (
     load_config,
     add_timestamp_to_filename,
     get_festim_python,
@@ -17,6 +16,7 @@ from .util import (
     get_sobol_total,
     get_stat,
     integrate_statistics,
+    compute_absolute_tolerance,
 )
 
 __all__ = [
@@ -31,5 +31,4 @@ __all__ = [
     "get_stat",
     "integrate_statistics",
     "compute_absolute_tolerance",
-    "UQPlotter",
 ]

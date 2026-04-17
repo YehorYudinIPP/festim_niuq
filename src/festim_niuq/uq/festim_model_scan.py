@@ -16,7 +16,7 @@ import sys
 import os
 import logging
 
-from util.utils import compute_absolute_tolerance
+from .util.utils import compute_absolute_tolerance
 
 # Set environment variables to suppress Qt warnings
 os.environ["QT_LOGGING_RULES"] = "*.debug=false;qt.qpa.*=false"
@@ -27,19 +27,13 @@ import yaml
 import argparse
 from pathlib import Path
 
-from festim_model_run import load_config  # Import the load_config function from festim_model_run
+from .festim_model_run import load_config  # Import the load_config function from festim_model_run
 
-# Add parent directory to Python path to import festim_model
-parent_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-if parent_dir not in sys.path:
-    sys.path.insert(0, parent_dir)
-
-# Now we can import festim_model from parent directory
-from festim_model import Model
-from festim_model.diagnostics import Diagnostics
+from ..festim_model import Model
+from ..festim_model.diagnostics import Diagnostics
 
 # Import UQ functions from easyvvuq_festim
-from easyvvuq_festim import perform_uq_festim, run_uq_campaign, analyse_uq_results, visualisation_of_results
+from .easyvvuq_festim import perform_uq_festim, run_uq_campaign, analyse_uq_results, visualisation_of_results
 
 logger = logging.getLogger(__name__)
 

@@ -33,11 +33,6 @@ import matplotlib
 matplotlib.use("Agg")
 import matplotlib.pyplot as plt
 
-# Add parent directory to path for custom encoder
-parent_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-if parent_dir not in sys.path:
-    sys.path.insert(0, parent_dir)
-
 import chaospy as cp
 import easyvvuq as uq
 
@@ -45,9 +40,9 @@ from easyvvuq.actions import Encode, Decode, ExecuteLocal, Actions, CreateRunDir
 from easyvvuq.actions import QCGPJPool
 
 # local imports
-from util.utils import load_config, add_timestamp_to_filename
-from util.Encoder import AdvancedYAMLEncoder
-from easyvvuq_festim_correlated import (
+from .util.utils import load_config, add_timestamp_to_filename
+from .util.Encoder import AdvancedYAMLEncoder
+from .easyvvuq_festim_correlated import (
     define_parameter_uncertainty,
     define_festim_model_parameters,
     prepare_execution_command,

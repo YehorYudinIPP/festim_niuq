@@ -2,16 +2,7 @@
 Pytest configuration and shared fixtures for FESTIM-NIUQ tests.
 """
 
-import os
-import sys
 import pytest
-
-# Ensure the repository root is on the Python path so that
-# ``import uq.*`` and ``import festim_model.*`` work in tests
-# regardless of where pytest is invoked from.
-ROOT_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-if ROOT_DIR not in sys.path:
-    sys.path.insert(0, ROOT_DIR)
 
 
 def pytest_addoption(parser):

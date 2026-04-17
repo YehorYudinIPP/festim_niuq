@@ -5,7 +5,7 @@ Tests for the ScalarCSVDecoder class from uq/util/Decoder.py.
 import os
 import pytest
 
-from uq.util.Decoder import ScalarCSVDecoder
+from festim_niuq.uq.util.Decoder import ScalarCSVDecoder
 
 
 class TestScalarCSVDecoder:

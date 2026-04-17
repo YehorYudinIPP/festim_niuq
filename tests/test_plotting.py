@@ -12,7 +12,7 @@ import matplotlib
 
 matplotlib.use("Agg")
 
-from uq.util.plotting import UQPlotter
+from festim_niuq.uq.util.plotting import UQPlotter
 
 
 @pytest.fixture
