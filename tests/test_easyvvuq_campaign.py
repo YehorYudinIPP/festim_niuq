@@ -13,12 +13,8 @@ import numpy as np
 from unittest.mock import MagicMock, patch
 import yaml
 
-# The easyvvuq_festim module uses relative imports (from util.Encoder ...)
-# that assume the working directory is uq/. We need to add uq/ to sys.path
-# so these imports resolve correctly when running from the repo root.
-_uq_dir = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "uq")
-if _uq_dir not in sys.path:
-    sys.path.insert(0, _uq_dir)
+# The easyvvuq_festim module uses relative imports within the festim_niuq package.
+# When the package is installed (or src/ is on the path), these resolve correctly.
 
 # Mock heavy/unavailable imports before importing the module under test
 import unittest.mock as _mock
@@ -35,7 +31,7 @@ except (ImportError, ModuleNotFoundError):
 
 if not _easyvvuq_available:
     # Mock the entire chaospy / easyvvuq module tree so that
-    # ``from uq.easyvvuq_festim import …`` can be executed.
+    # ``from festim_niuq.uq.easyvvuq_festim import …`` can be executed.
     for mod_name in (
         "chaospy",
         "easyvvuq",
@@ -59,7 +55,7 @@ else:
     if not hasattr(_ea, "EasyVVUQParallelTemplate"):
         _ea.EasyVVUQParallelTemplate = MagicMock()
 
-from uq.easyvvuq_festim import (
+from festim_niuq.uq.easyvvuq_festim import (
     define_festim_model_parameters,
     define_parameter_uncertainty,
     save_statistics_log,

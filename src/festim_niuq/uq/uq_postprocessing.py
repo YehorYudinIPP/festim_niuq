@@ -32,18 +32,8 @@ import matplotlib
 matplotlib.use("Agg")  # Use non-interactive backend to avoid display connection issues
 import matplotlib.pyplot as plt
 
-# Add parent directory to path for custom imports
-parent_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-if parent_dir not in sys.path:
-    sys.path.insert(0, parent_dir)
-
-# Add uq directory to path for local imports
-uq_dir = os.path.dirname(os.path.abspath(__file__))
-if uq_dir not in sys.path:
-    sys.path.insert(0, uq_dir)
-
-from util.utils import load_config, add_timestamp_to_filename
-from util.plotting import UQPlotter
+from .util.utils import load_config, add_timestamp_to_filename
+from .util.plotting import UQPlotter
 
 
 def setup_logging(log_folder, timestamp):

@@ -10,7 +10,7 @@ import yaml
 import numpy as np
 from unittest.mock import MagicMock
 
-from uq.util.utils import (
+from festim_niuq.uq.util.utils import (
     load_config,
     add_timestamp_to_filename,
     compute_absolute_tolerance,

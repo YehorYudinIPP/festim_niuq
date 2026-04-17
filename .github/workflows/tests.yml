@@ -29,6 +29,7 @@ jobs:
         python -m pip install --upgrade pip setuptools
         pip install pytest pytest-cov
         pip install pyyaml numpy matplotlib chaospy>=4.3.13 easyvvuq>=1.3 joblib
+        pip install -e .
 
     - name: Run tests
       run: |
@@ -37,4 +38,4 @@ jobs:
     - name: Run tests with coverage
       if: matrix.python-version == '3.11'
       run: |
-        pytest tests/ --cov=uq --cov=festim_model --cov-report=term-missing
+        pytest tests/ --cov=festim_niuq --cov-report=term-missing

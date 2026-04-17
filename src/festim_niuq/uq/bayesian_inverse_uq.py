@@ -41,18 +41,11 @@ import matplotlib
 matplotlib.use('Agg')  # Use non-interactive backend for headless servers
 import matplotlib.pyplot as plt
 
-# ---------------------------------------------------------------------------
-# Path setup
-# ---------------------------------------------------------------------------
-parent_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-if parent_dir not in sys.path:
-    sys.path.insert(0, parent_dir)
-
 # Local imports
-from util.utils import load_config, add_timestamp_to_filename
-from util.Encoder import AdvancedYAMLEncoder
-from util.Decoder import ScalarCSVDecoder
-from util.plotting import UQPlotter
+from .util.utils import load_config, add_timestamp_to_filename
+from .util.Encoder import AdvancedYAMLEncoder
+from .util.Decoder import ScalarCSVDecoder
+from .util.plotting import UQPlotter
 
 import chaospy as cp
 import easyvvuq as uq
