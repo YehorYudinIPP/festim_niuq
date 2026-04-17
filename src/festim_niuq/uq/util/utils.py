@@ -488,7 +488,7 @@ def compute_absolute_tolerance(default_atol, orig_params, new_params):
                 print(f" >>>> Computing tolerance for {key}: exp_factor={exp_factor:.3E}")
 
             else:
-                raise NotImplemented(f"The tolerance sensitivity rule for {key} is not implemented!")
+                raise NotImplementedError(f"The tolerance sensitivity rule for {key} is not implemented!")
 
             # This is done not as a sum first because different rules can be applied to different parameters
             multiplier *= 10**exp_factor
