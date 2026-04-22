@@ -3,6 +3,7 @@
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 [![Python 3.9+](https://img.shields.io/badge/python-3.9+-blue.svg)](https://www.python.org/downloads/)
 [![Tests](https://github.com/YehorYudinIPP/festim_niuq/actions/workflows/tests.yml/badge.svg)](https://github.com/YehorYudinIPP/festim_niuq/actions/workflows/tests.yml)
+[![DOI](https://zenodo.org/badge/1021648513.svg)](https://zenodo.org/badge/latestdoi/1021648513)
 
 **FESTIM-NIUQ** is a Python package for **Non-Intrusive Uncertainty Quantification** of tritium transport simulations using the [FESTIM](https://github.com/festim-dev/FESTIM) finite-element framework.
 
