@@ -5,6 +5,8 @@ This is the top-level package.  It re-exports selected utilities from
 the :mod:`festim_niuq.uq.util` sub-package for convenience.
 """
 
+__version__ = "0.2.0"
+
 from .uq.util.utils import (
     load_config,
     add_timestamp_to_filename,
