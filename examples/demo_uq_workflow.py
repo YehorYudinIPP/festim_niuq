@@ -138,7 +138,7 @@ ax.set_ylim(0, 1)
 ax.legend()
 
 plt.tight_layout()
-output_path = os.path.join(os.path.dirname(__file__), "demo_results.png")
+output_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), "demo_results.png")
 plt.savefig(output_path, dpi=150)
 print(f"\nPlot saved to: {output_path}")
 plt.close(fig)
