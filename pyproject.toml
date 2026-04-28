@@ -45,6 +45,7 @@ bayesian = [
 [project.urls]
 Homepage = "https://github.com/YehorYudinIPP/festim_niuq"
 Repository = "https://github.com/YehorYudinIPP/festim_niuq"
+Documentation = "https://github.com/YehorYudinIPP/festim_niuq#readme"
 Issues = "https://github.com/YehorYudinIPP/festim_niuq/issues"
 
 [project.scripts]
