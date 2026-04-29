@@ -549,8 +549,6 @@ def extract_scalar_qoi(results_or_array, qoi, mode="point", x_values=None, x_ind
     TypeError
         If the input type cannot be handled.
     """
-    _trapz = getattr(np, "trapezoid", None) or np.trapz
-
     # ------------------------------------------------------------------ #
     # 1. Extract raw 2-D array (n_runs, n_spatial)                        #
     # ------------------------------------------------------------------ #
@@ -627,6 +625,8 @@ def extract_scalar_qoi(results_or_array, qoi, mode="point", x_values=None, x_ind
         if x_values is None:
             raise ValueError("x_values must be provided when mode='trapz'.")
         x_arr = np.asarray(x_values, dtype=float)
+        # np.trapezoid was introduced in NumPy 2.0; fall back to np.trapz for older releases.
+        _trapz = getattr(np, "trapezoid", None) or np.trapz
         return np.array([_trapz(row, x=x_arr) for row in raw])
 
     raise ValueError(f"Unknown mode '{mode}'. Choose from 'point', 'mean', 'trapz'.")
