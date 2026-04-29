@@ -20,6 +20,7 @@ from festim_niuq.uq.util.utils import (
     get_sobol_total,
     get_stat,
     integrate_statistics,
+    extract_scalar_qoi,
 )
 
 
@@ -302,3 +303,98 @@ class TestIntegrateStatistics:
         results = _make_mock_results(qoi_names=["x", "qoi1"])
         out = integrate_statistics(results, qois=["qoi1"])
         assert out == {}
+
+
+# ---------------------------------------------------------------------------
+# Tests for extract_scalar_qoi
+# ---------------------------------------------------------------------------
+
+
+class TestExtractScalarQoi:
+    """Tests for extract_scalar_qoi."""
+
+    # ------------------------------------------------------------------
+    # numpy array inputs
+    # ------------------------------------------------------------------
+
+    def test_numpy_1d_passthrough(self):
+        """A 1-D array is returned as-is regardless of mode."""
+        arr = np.array([1.0, 2.0, 3.0])
+        out = extract_scalar_qoi(arr, qoi="ignored")
+        np.testing.assert_array_equal(out, arr)
+
+    def test_numpy_2d_point_default(self):
+        """mode='point', x_index=0 returns the first spatial value per run."""
+        arr = np.arange(12, dtype=float).reshape(4, 3)  # 4 runs, 3 spatial points
+        out = extract_scalar_qoi(arr, qoi="ignored", mode="point", x_index=0)
+        assert out.shape == (4,)
+        np.testing.assert_array_equal(out, arr[:, 0])
+
+    def test_numpy_2d_point_index(self):
+        """mode='point' with x_index=-1 returns the last spatial value."""
+        arr = np.arange(12, dtype=float).reshape(4, 3)
+        out = extract_scalar_qoi(arr, qoi="ignored", mode="point", x_index=-1)
+        np.testing.assert_array_equal(out, arr[:, -1])
+
+    def test_numpy_2d_mean(self):
+        """mode='mean' returns the spatial mean per run."""
+        arr = np.array([[1.0, 3.0], [2.0, 4.0]])  # means: 2.0, 3.0
+        out = extract_scalar_qoi(arr, qoi="ignored", mode="mean")
+        np.testing.assert_array_almost_equal(out, [2.0, 3.0])
+
+    def test_numpy_2d_trapz(self):
+        """mode='trapz' integrates each row over x_values."""
+        arr = np.array([[1.0, 1.0, 1.0], [2.0, 2.0, 2.0]])
+        x = np.array([0.0, 0.5, 1.0])
+        out = extract_scalar_qoi(arr, qoi="ignored", mode="trapz", x_values=x)
+        # integral of constant 1.0 over [0,1] = 1.0; constant 2.0 = 2.0
+        np.testing.assert_array_almost_equal(out, [1.0, 2.0])
+
+    def test_trapz_requires_x_values(self):
+        """mode='trapz' without x_values raises ValueError."""
+        arr = np.ones((3, 5))
+        with pytest.raises(ValueError, match="x_values"):
+            extract_scalar_qoi(arr, qoi="q", mode="trapz")
+
+    def test_unknown_mode_raises(self):
+        """An unsupported mode string raises ValueError."""
+        arr = np.ones((3, 5))
+        with pytest.raises(ValueError, match="Unknown mode"):
+            extract_scalar_qoi(arr, qoi="q", mode="invalid")
+
+    # ------------------------------------------------------------------
+    # pandas DataFrame inputs
+    # ------------------------------------------------------------------
+
+    def test_dataframe_scalar_column(self):
+        """DataFrame with a scalar QoI column returns a 1-D array."""
+        pd = pytest.importorskip("pandas")
+        df = pd.DataFrame({"qoi1": [1.0, 2.0, 3.0], "x": [0.0, 0.5, 1.0]})
+        out = extract_scalar_qoi(df, qoi="qoi1")
+        np.testing.assert_array_almost_equal(out, [1.0, 2.0, 3.0])
+
+    def test_dataframe_missing_column_raises(self):
+        """Requesting a missing column raises ValueError."""
+        pd = pytest.importorskip("pandas")
+        df = pd.DataFrame({"other": [1.0, 2.0]})
+        with pytest.raises(ValueError, match="not found"):
+            extract_scalar_qoi(df, qoi="missing_qoi")
+
+    # ------------------------------------------------------------------
+    # EasyVVUQ-like results object
+    # ------------------------------------------------------------------
+
+    def test_results_object_with_samples(self):
+        """Extracts scalar QoI from an object with a .samples DataFrame."""
+        pd = pytest.importorskip("pandas")
+
+        class FakeResults:
+            samples = pd.DataFrame({"t=steady": [10.0, 20.0, 30.0]})
+
+        out = extract_scalar_qoi(FakeResults(), qoi="t=steady")
+        np.testing.assert_array_almost_equal(out, [10.0, 20.0, 30.0])
+
+    def test_unsupported_input_raises(self):
+        """Passing an unsupported type without a .samples attribute raises TypeError."""
+        with pytest.raises(TypeError):
+            extract_scalar_qoi("not_an_array", qoi="q")

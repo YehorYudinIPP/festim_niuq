@@ -19,6 +19,7 @@ from .uq.util.utils import (
     get_stat,
     integrate_statistics,
     compute_absolute_tolerance,
+    extract_scalar_qoi,
 )
 
 __all__ = [
@@ -33,4 +34,5 @@ __all__ = [
     "get_stat",
     "integrate_statistics",
     "compute_absolute_tolerance",
+    "extract_scalar_qoi",
 ]
