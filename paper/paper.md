@@ -44,16 +44,16 @@ The package couples FESTIM with EasyVVUQ [@richardson2020easyvvuq] and ChaosPy [
 Given user-specified probability distributions on input parameters — such as the diffusion pre-exponential factor, thermal conductivity, volumetric generation rate, and surface recombination energy — FESTIM-NIUQ automatically generates parameter samples, executes FESTIM simulations in parallel, and computes statistical moments and Sobol sensitivity indices [@sobol1993sensitivity] of quantities of interest, including spatially resolved concentration profiles and integral tritium inventories.  
 The entire workflow is controlled by a single YAML configuration file, which specifies model equations and tehire terms, geometry and boundary conditions, as well as parameter values - bother determenistic and unecertain - making it accessible to fusion materials scientists who have no prior UQ expertise.
 
-The \textit{0.2.0} version of the package is available as source code at \textit{github.com}, installable from \textit{PyPI} repository, and is archived at \textit{ZENODO}.
+The *0.2.0* version of the package is available as source code at *github.com*, installable from *PyPI* repository, and is archived at *ZENODO*.
 The repository covers basic functionality with unit tests, provides several verification cases, and allows users to adapt it to specific needs via permissive licensing.
 
 # Statement of Need
 
 Fusion reactor components, such as tungsten first walls and beryllium covers, interact with tritium over long operational periods.
 Tritium must be carefully inventoried and managed in fusion reactor components because of its radioactivity, scarcity, and role as fuel.
-Tritium transport is governed by a coupled diffusion–reaction system with Arrhenius-type coefficients whose values are often measured with uncertainties of tens of percent [@causey2012tritium]. 
+Tritium transport is governed by a coupled diffusion–reaction system with Arrhenius-type coefficients whose values are often measured with uncertainties of tens of percent [@causey2012tritium].
 Reliable safety assessments and design decisions require an understanding of how theseinput uncertainties propagate to predicted tritium inventories and release rates [@humrickhouse2011verification].
-Design-basis analyses require not just best-estimate simulations but also confidence intervals on tritium inventory and release rates, since these directly affect safety licensing [{todo_ref1].
+Design-basis analyses require not just best-estimate simulations but also confidence intervals on tritium inventory and release rates, since these directly affect safety licensing [todo_ref1].
 
 ## Gap in Existing Tools
 
@@ -85,78 +85,138 @@ Contributing a generic FESTIM integration upstream to EasyVVUQ was considered bu
 
 # Software Design
 
-FESTIM-NIUQ adopts a non-intrusive architecture in which the FESTIM
-solver is treated as a black box.  This design decouples the UQ layer
-from the solver internals, allowing users to upgrade FESTIM independently
-and to apply the same UQ machinery to different transport models without
-code changes.
+FESTIM-NIUQ adopts a non-intrusive architecture in which the FESTIM solver is treated as a black box.
+This design decouples the UQ layer from the solver internals, allowing users to upgrade FESTIM independently and to apply the same UQ machinery to different transport models without code changes.
 
 The package consists of three layers:
 
-1. **Model wrapper** (`festim_model/`): Encapsulates FESTIM
-   [@delaporte2024festim] model configuration, execution, and result
-   export for both FESTIM 2.0 (DOLFINx-based) and the legacy FESTIM 1.x
-   API.
-2. **UQ orchestration** (`uq/`): Manages parameter sampling, campaign
-   execution, and analysis using EasyVVUQ and ChaosPy.  Supports
-   Polynomial Chaos Expansion (PCE), Quasi-Monte Carlo (QMC), and
-   Bayesian inverse UQ via PCE surrogate and MCMC.
-3. **Utilities** (`uq/util/`): Custom YAML encoders that perform deep
-   nested parameter substitution via dot-notation paths, CSV decoders,
-   and publication-quality plotting routines for Sobol indices and
-   statistical profile bands.
+1. **Model wrapper** (`festim_model/`): Encapsulates FESTIM [@delaporte2024festim] model configuration, execution, and result export for both FESTIM 2.0 (DOLFINx-based) and the legacy FESTIM 1.x API.
+Constructs the model: geometry, mesh, material properties, boundary conditions, solver settings.
+2. **UQ orchestration** (`uq/`): Manages parameter sampling, campaign execution, and analysis using EasyVVUQ and ChaosPy.
+Contains encoder/decoder classed to access generic FESTIM models.
+Supports Polynomial Chaos Expansion (PCE), Quasi-Monte Carlo (QMC), and Bayesian inverse UQ via PCE surrogate and MCMC.
+3. **Utilities** (`uq/util/`): Custom YAML encoders that perform deep nested parameter substitution via dot-notation paths, CSV decoders, and publication-quality plotting routines for Sobol indices and statistical profile bands.
 
-The `AdvancedYAMLEncoder` replaces parameter values at arbitrary nesting
-depths in YAML configuration files without requiring Jinja templates,
-which simplifies the workflow and reduces the risk of template syntax
-errors.  Support for correlated parameters is provided via Cholesky
-decomposition of user-specified covariance matrices.
+The `AdvancedYAMLEncoder` replaces parameter values at arbitrary nesting depths in YAML configuration files without requiring Jinja templates, which simplifies the workflow and reduces the risk of template syntax errors.
+Support for correlated parameters is provided via Cholesky decomposition of user-specified covariance matrices.
 
-For high-performance computing environments, FESTIM-NIUQ integrates with
-QCG-PilotJob for embarrassingly parallel sample evaluation on cluster
-resources, and SLURM submission scripts are included for common HPC
-platforms.  On workstations the same campaign runs locally using
-`joblib` multiprocessing without any configuration changes, ensuring
-reproducibility across environments.
+For high-performance computing environments, FESTIM-NIUQ integrates with QCG-PilotJob for embarrassingly parallel sample evaluation on cluster resources, and SLURM submission scripts are included for common HPC platforms.  
+On workstations the same campaign runs locally using `joblib` multiprocessing without any configuration changes, ensuring reproducibility across environments.
+
+## Configuration Interface
+
+All UQ settings are controlled through a YAML configuration file \autoref{lst:yaml}:
+
+```python [Example UQ configuration (*config.uq.yaml*).]{#lst:yaml}
+parameters:
+  D:
+    type: Uniform
+    lower: 1.5e-8
+    upper: 3.5e-8     # m^2/s - diffusion coefficient
+  G:
+    type: Uniform
+    lower: 8.0e19
+    upper: 1.2e20     # /m^3/s - volumetric generation rate
+  C_boundary:
+    type: Uniform
+    lower: 1.0e20
+    upper: 5.0e20     # /m^3 - boundary concentration
+
+uq:
+  method: pce         # pce | qmc
+  polynomial_order: 3
+  qoi: tritium_inventory
+
+festim:
+  script: festim_model/model.py
+```
+
+# Supported UQ Methods
+
+A number of non-intrusive parametric uncertainty quantification methods implemented in EasyVVUQ is supported by the package.
+
+  - **Polynomial Chaos Expansion (PCE)**: Requires $\mathcal{O}(p^d)$ model evaluations for polynomial order $p$ and $d$ uncertain parameters (there is a $\mathcal{O}((p+d)!\\(p!n!))$ method for sparse version).
+  Yields analytical Sobol decomposition from the PCE coefficients [@saltelli_sobol].
+  - **Quasi-Monte Carlo (qMC)**: Uses Sobol sequences for low-discrepancy sampling. 
+  Suitable for high-dimensional or computationally inexpensive models.
+
+## Testing and Continuous Integration
+
+[Describe the GitHub Actions CI pipeline, unit test coverage fraction, and any regression/verification tests. 
+Reference the *github/workflows* directory.]
 
 # Overall Workflow
 
 Figure \autoref{fig:workflow} illustrates the end-to-end UQ pipeline.
 At a high level, FESTIM-NIUQ performs five steps:
 
-  1. 'Campaign setup': Parse a YAML configuration file
-        specifying uncertain parameters, their probability
-        distributions, the sampling strategy, and the \festim{} model
-        entry point.
-  2. Ensemble generation: Use \easyvvuq{} to build a
-        parameter ensemble; instantiate one \festim{} input deck per
-        sample.
-  3. Simulation execution: Run the ensemble sequentially
-        (laptop) or in parallel on an HPC cluster via the SEAVEA
-        Toolkit~\cite{seavea}.
-  4. Post-processing: Collect outputs, compute statistical
-        moments (mean, variance) and Sobol sensitivity indices for the
-        selected quantity of interest (QoI).
-  5. Reporting: Print moments to the CLI and write
-        publication-ready Sobol-index figures.
+  1. **Campaign setup**': Parse a YAML configuration file specifying uncertain parameters, their probability distributions, the sampling strategy, and the FESTIM model entry point.
+  2. **Ensemble generation**: Use EasyVVUQ to build a parameter ensemble. Instantiate one FESTIM input deck per sample and populate the individual run directories with veried files and links to shared files, with mapping to the original sampling plan.
+  3. **Simulation execution**: Run the ensemble sequentially (PC) or in parallel on an HPC cluster via the SEAVEA Toolkit [@groen2021vecmatk].
+  4. **Post-processing**: Collect outputs, compute statistical moments (mean, variance) and Sobol sensitivity indices for the selected quantity of interest (QoI). 
+  Save the results of the campaign as a SQLite database of runs and a Pickle file of uncertianty analysis results.
+  5. **Reporting**: Print moments to the CLI and write publication-ready Sobol-index figures.
 
 ![Schematic of the FESTIM-NIUQ uncertainty quantification pipeline.
 Dashed lines indicate EasyVVUQ data flow. Solid lines indicate
 FESTIM-NIUQ process calls.](figures/flowchart_v1_light.png){#fig:workflow}
 
+# Example Application
+
+## Test Case: Tritium Inventory in a 1-D Slab
+
+We consider a 1-D tungsten slab of thickness $L = 2\,\mathrm{mm}$ subject to a volumetric tritium source $G$ and a fixed concentration boundary condition at $r = a$. The governing transport equation is:
+
+$$
+  \frac{\partial c}{\partial t}
+  = \nabla\cdot(D\,\nabla c)
+    + G
+    - \sum_i k_i^+\,c\,(n_i - c_{t,i})
+    + \sum_i k_i^-\,c_{t,i},
+$${eq:transport}
+
+where $c$ is the mobile hydrogen concentration, $D$ the diffusion coefficient, $G$ the generation rate, and $c_{t,i}$, $k_i^\pm$ are trap occupancy and rate constants for trap site $i$.
+
+Three parameters are treated as uncertain (uniform distributions): $D$, $G$, and $C(r=a)$.
+A PCE of order 3 requires $\binom{3+3}{3} = 20$ FESTIM evaluations to resolve.
+
+## Results
+
+Figure \autoref{fig:results} shows the first-order and total-order Sobol indices and the probability density function of the tritium inventory.
+Table \autoref{tab:moments} summarises the statistical moments.
+
+  ![First-order (S1) and total-order (ST) Sobol sensitivity indices for the tritium inventory.](figures/sobol_indices.png){#fig:sobol}
+
+  ![Probability density of the tritium inventory obtained from the PCE surrogate.](figures/qoi_distribution.png){#fig:pdf}
+
+  ![UQ results for the 1-D tungsten slab test case. [TODO: Update captions with actual quantitative findings]](figures:a.png){#fig:results}
+
+: Statistical moments of the tritium inventory (QoI). \label{tab:moments}
+| Statistic  | Value | Units    |
+|----------- |-------|----------|
+| Mean $\mu$ | todo  | m$^{-3}$ |
+| Std. deviation, $\sigma$ | todo | m$^{-3} |
+| Coefficient of variation | todo |  |
+
+# Research Impact Statement
+
+FESTIM-NIUQ was developed as part of ongoing fusion materials research at Nuclear Futures Institute at Bangir University, and is a part of UKAEA LIBRTI programme on breeder blanket technology.
+It has been presented at Nuclea Institute Digital SIG 2026 conference [@nidigsig2026], Open Source Software for Fusion Energy 2026 conference [@ossfe2026], and SEAVEA summer hackathon 2026 [@seaveahack2026].
+It forms the basis for uncertainty-aware studies of tritium trapping and release in Lithium ceramics irradiation experiments at High Flux Accelerator-Driven Neutron Facility [@] at University of Birmingham, a partner project of UKAEA.
+[TODO: future publications]
+[TODO: GitHub activity]
+
 # AI Usage Disclosure
 
-Agentic AI tools (GitHub Copilot, including the copilot-swe-agent) were
-used during the development of FESTIM-NIUQ.  AI assistance was employed
-to implement additional functionality, automated testing, documentation,
-and project scaffolding after the initial core software was developed by
-the authors.  All AI-generated code and documentation were reviewed and
-validated by the human authors for correctness and scientific accuracy.
+Agentic AI tools (GitHub Copilot, including the copilot-swe-agent) were used during the development of FESTIM-NIUQ.
+AI assistance was employed to implement additional functionality, automated testing, documentation, nd project scaffolding after the initial core software was developed by the authors.  
+All AI-generated code and documentation were reviewed and alidated by the human authors for correctness and scientific accuracy.
+AI tools (Claude Sonet and Opus 4.7) were used for preparing, brainstorming, drafting, and reviewing the text of the manuscript.
 
 # Acknowledgements
 
-This work was carried out at the Nuclear Futures Institute, Bangor
-University.  The authors thank the FESTIM development team for their
-open-source solver and responsive support.
+This work was carried out at the Nuclear Futures Institute, Bangor University.  
+The work is funded by the UKAEA LIBRTI programme grant [TODO number/name?].
+The authors thank the FESTIM development team for their open-source solver and responsive support, as well as members of SEAVEA concortium for maintaining the VVUQ toolkit used in the work.
 
 # References
