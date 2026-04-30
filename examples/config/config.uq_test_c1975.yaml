@@ -36,22 +36,7 @@ materials:
       relative_stdev: 0.05
       pdf: 'uniform'
     E_D:
-      mean: 0.0
-
-simulation:
-  mesh_type: "regular"
-  n_elements: 1024
-
-  time_step:
-    default_value: 0.01
-    time_stepping_type: "fixed"
-    max_stepsize: 0.1 
-    stepsize_change_ratio: 1.1
-
-  tolerances:
-    absolute_tolerance: 
-      tritium_transport: 1.0e+6 
-    relative_tolerance: 1.0e-6
+      mean: 1.0
 
   log_level: 20
 
