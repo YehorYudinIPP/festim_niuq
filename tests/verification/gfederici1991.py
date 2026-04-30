@@ -1,0 +1,127 @@
+import numpy as np
+import math
+
+def CarlsJaeger1959(t, D=1.0, G=1.0, a=1.0, n=32, m=128):
+    """
+    /**
+     * @brief Solution for non-stationary 1D gas diffusion with spherical symmetry.
+     *
+     * This function implements the analytical solution presented in Carlslaw and Jaeger (1959)
+     * for a non-stationary 1D gas diffusion problem with spherical symmetry.
+     * 
+     * The boundary and initial conditions are:
+     *      C(r,0) = 0
+     *      C(a,t) = 0
+     *      dC(r,t)/dr @r=0 = 0
+     *      G = const
+     *
+     * @param D Diffusion coefficient (default: 1.0)
+     * @param G Source term (default: 1.0)
+     * @param a Sphere radius (default: 1.0)
+     * @param n Number of terms in the series (default: 32)
+     * @param m Number of points in the radial grid (default: 128)
+     * @param t Time variable
+     * @return Solution value at time t
+     */
+    """
+
+    if t <= 0:
+        raise ValueError("Time t must be greater than 0")
+
+    r = np.linspace(0, a, m)
+    sum_terms = np.zeros_like(r)
+
+    sum_terms = (G / (6 * D)) * (a**2 - r**2) # Initialize sum_terms to accumulate the series with the first term
+
+    for k in range(1, n + 1):
+        term = (math.pow(-1, k)/k**3) * np.exp(-k**2 * np.pi**2 * D * t / a**2) * np.sin(k * np.pi * r / a)
+        sum_terms += ((2 * G) * a**3 / (D * np.pi * r)) * term
+
+    # Avoid division by zero for r = 0
+    sum_terms[r == 0] = (G / (6 * D)) * a**2    
+
+    solution = sum_terms
+    return solution
+
+def Crank1975(t, D=1.0, G=1.0, a=1.0, n=32, m=128):
+    """
+    /**
+     * @brief Solution for non-stationary 1D gas diffusion with spherical symmetry.
+     *
+     * This function implements the analytical solution presented in Carnk (1975)
+     * for a non-stationary 1D gas diffusion problem with spherical symmetry.
+     * 
+     * The boundary and initial conditions are:
+     *      C(r,0) = C_0
+     *      C(a,t) = 0
+     *      dC(r,t)/dr @r=0 = 0
+     *      G = 0
+     *
+     * @param D Diffusion coefficient (default: 1.0)
+     * @param G Source term (default: 1.0)
+     * @param a Sphere radius (default: 1.0)
+     * @param n Number of terms in the series (default: 32)
+     * @param m Number of points in the radial grid (default: 128)
+     * @param t Time variable
+     * @return Solution value at time t
+     */
+    """
+
+    if t <= 0:
+        raise ValueError("Time t must be greater than 0")
+
+    r = np.linspace(0, a, m)
+    sum_terms = np.zeros_like(r)
+
+    sum_terms = 0 # Initialize sum_terms to accumulate the series with the first term
+
+    for k in range(1, n + 1):
+        term = math.pow(-1, k) * np.exp(-k**2 * np.pi**2 * D * t / a**2) * np.sin(k * np.pi * r / a)
+        sum_terms += (-2 * a / (np.pi * r)) * term
+
+    solution = sum_terms
+    return solution
+
+def PlotResults(test_function):
+    """
+    Plot the results of a function
+    """
+    import matplotlib.pyplot as plt
+
+    t = 1.0  # Example time value
+    r = np.linspace(0, 1, 128)
+
+    # Calculate solutions
+    y = test_function(t=t)
+
+    # Plotting
+    plt.figure(figsize=(12, 6))
+    plt.plot(r, y, label=test_function.__name__, color='blue')
+    plt.title('Gas Diffusion Solutions')
+    plt.xlabel('Radius (r)')
+    plt.ylabel('Concentration (C)')
+    plt.legend(loc='best')
+    plt.grid()
+    plt.show()
+
+def RunTestOfTests():
+    """
+    Run a test of the CarlsJaeger91 function with a sample time value.
+    """
+    for test_function in [CarlsJaeger1959, Crank1975]:
+
+        print(f"Running test for {test_function.__name__}")
+        try:
+            t = 1.0  # Example time value
+            result = test_function(t=t)
+            print(f"Test passed for {test_function.__name__}, result:", result)
+
+            PlotResults(test_function)
+
+        except ValueError as e:
+            print(f"Test failed for {test_function.__name__}:", e)
+
+    print("All tests completed.")
+
+if __name__ == "__main__":
+    RunTestOfTests()
