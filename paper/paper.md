@@ -39,9 +39,9 @@ Tritium is a radioactive isotope of hydrogen that will be both the fuel and a sa
 Accurate predictions of tritium transport through fusion reactor component, such as lithium-ceramic breeder blankets and plasma-facing components, are essential for assuring performance of the fuel cycle, as well as assessing safety and reactor design.
 Yet the material transport coefficients that govern these predictions carry substantial experimental uncertainty, and their *ab initio* estiamtes might contain uncertainties that ahs to be accounted as well.
 
-FESTIM-NIUQ is a Python package that automates non-intrusive uncertainty quantification (UQ) for tritium transport simulations performed with the FESTIM finite-element framework [@delaporte2019festim; @delaporte2024festim].
+FESTIM-NIUQ is a Python package that automates non-intrusive uncertainty quantification (UQ) for tritium transport simulations performed with the FESTIM finite-element framework [@delaporte2019festim; @dark2026festim].
 The package couples FESTIM with EasyVVUQ [@richardson2020easyvvuq] and ChaosPy [@feinberg2015chaospy] to propagate parametric uncertainties through diffusion–reaction models of tritium behaviour in fusion-relevant materials.
-Given user-specified probability distributions on input parameters — such as the diffusion pre-exponential factor, thermal conductivity, volumetric generation rate, and surface recombination energy — FESTIM-NIUQ automatically generates parameter samples, executes FESTIM simulations in parallel, and computes statistical moments and Sobol sensitivity indices [@sobol1993sensitivity] of quantities of interest, including spatially resolved concentration profiles and integral tritium inventories.  
+Given user-specified probability distributions on input parameters — such as the diffusion pre-exponential factor, thermal conductivity, volumetric generation rate, and surface recombination energy — FESTIM-NIUQ automatically generates parameter samples, executes FESTIM simulations in parallel, and computes statistical moments and Sobol sensitivity indices [@sobol1993sensitivity; @sobol2001global] of quantities of interest, including spatially resolved concentration profiles and integral tritium inventories.  
 The entire workflow is controlled by a single YAML configuration file, which specifies model equations and tehire terms, geometry and boundary conditions, as well as parameter values - bother determenistic and unecertain - making it accessible to fusion materials scientists who have no prior UQ expertise.
 
 The *0.2.0* version of the package is available as source code at *github.com*, installable from *PyPI* repository, and is archived at *ZENODO*.
@@ -52,7 +52,7 @@ The repository covers basic functionality with unit tests, provides several veri
 Fusion reactor components, such as tungsten first walls and beryllium covers, interact with tritium over long operational periods.
 Tritium must be carefully inventoried and managed in fusion reactor components because of its radioactivity, scarcity, and role as fuel.
 Tritium transport is governed by a coupled diffusion–reaction system with Arrhenius-type coefficients whose values are often measured with uncertainties of tens of percent [@causey2012tritium].
-Reliable safety assessments and design decisions require an understanding of how theseinput uncertainties propagate to predicted tritium inventories and release rates [@humrickhouse2011verification].
+Reliable safety assessments and design decisions require an understanding of how theseinput uncertainties propagate to predicted tritium inventories and release rates [@longhurst2011verification].
 Design-basis analyses require not just best-estimate simulations but also confidence intervals on tritium inventory and release rates, since these directly affect safety licensing [todo_ref1].
 
 ## Gap in Existing Tools
