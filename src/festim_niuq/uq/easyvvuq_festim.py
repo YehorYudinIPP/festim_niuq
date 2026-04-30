@@ -588,13 +588,19 @@ def prepare_uq_campaign(config, config_file, fixed_params=None, uq_params=None):
                 if "p_order" in uq_params:
                     p_order = uq_params["p_order"]
                 else:
-                    p_order = 1
+                    p_order = 3  # default: maximal order 3
 
-                logger.debug(f"Using UQ scheme: {uq_params['uq_scheme']} with polynomial order: {p_order}")
+                # Sparse quadrature reduces the number of model evaluations
+                # significantly for high-dimensional problems while retaining
+                # accuracy for total-degree truncated polynomial bases.
+                sparse = uq_params.get("sparse", True)
+
+                logger.debug(f"Using UQ scheme: {uq_params['uq_scheme']} with polynomial order: {p_order}, sparse: {sparse}")
 
                 sampler = uq.sampling.PCESampler(
                     vary=distributions,
                     polynomial_order=p_order,
+                    sparse=sparse,
                 )
 
             elif uq_params["uq_scheme"] == "qmc":
@@ -621,11 +627,12 @@ def prepare_uq_campaign(config, config_file, fixed_params=None, uq_params=None):
                 "UQ scheme not specified in uq_params. Please provide 'uq_scheme' as either 'pce' or 'qmc'."
             )
     else:
-        # Default to PCE sampler with polynomial order 1 if no UQ parameters are provided
-        print("No UQ parameters provided, defaulting to PCE sampler with polynomial order 1.")
+        # Default to sparse PCE sampler with polynomial order 3
+        print("No UQ parameters provided, defaulting to sparse PCE sampler with polynomial order 3.")
         sampler = uq.sampling.PCESampler(
             vary=distributions,
-            polynomial_order=1,
+            polynomial_order=3,
+            sparse=True,
         )
 
     campaign.set_sampler(sampler)
@@ -635,47 +642,72 @@ def prepare_uq_campaign(config, config_file, fixed_params=None, uq_params=None):
     return campaign, qois, distributions, campaign_timestamp, sampler
 
 
-def run_uq_campaign(campaign, resource_pool=None):
+def run_uq_campaign(campaign, resource_pool=None, local=True):
     """
-    Run the UQ campaign using the specified resource pool.
-    If no resource pool is provided, it will use the default QCGPJPool.
+    Run the UQ campaign.
+
+    Parameters
+    ----------
+    campaign : easyvvuq.Campaign
+        Prepared EasyVVUQ campaign object.
+    resource_pool : optional
+        A QCGPJPool (or compatible) resource pool for HPC execution.
+        When *None* and *local* is ``True`` (the default), the campaign is
+        executed directly on the local machine without any scheduler.
+    local : bool
+        If ``True`` (default) and no *resource_pool* is provided, run
+        sequentially on the local machine using ``campaign.execute()``.
+        Set to ``False`` to fall back to the QCGPJPool scheduler.
     """
-    # If no pool is generated priorly and passed - create a new one
-    if resource_pool is None:
-
-        # Make sure the right parameters are passed to the pool: virtual environment, working directory, etc.
-        template = EasyVVUQBasicTemplate()
-        template_params = {
-            "venv": os.environ.get("CONDA_PREFIX", sys.prefix),
-        }
-
-        # By default, run with resource pool by QCG-PJ
-        resource_pool = QCGPJPool(
-            template=template,
-            template_params=template_params,
-        )
-
-    print(f" >> Prepared the resource pool to run the campaign: {resource_pool}")
-    # Execute the campaign
-    with resource_pool as pool:
-
-        print(f">>> Running the campaign with resource pool: {pool}")
-
-        campaign_results = campaign.execute(pool=pool)
-
-        print(">>> Execution completed! Collating the results...")
-
+    if resource_pool is None and local:
+        # Local execution — no scheduler, no pool required.
+        print(" >> Running campaign locally (no HPC scheduler)…")
+        campaign_results = campaign.execute()
+        print(">>> Local execution completed! Collating results…")
         campaign_results.collate()
+    else:
+        # HPC execution via QCGPJPool (or a user-provided pool)
+        if resource_pool is None:
+            # Make sure the right parameters are passed to the pool: virtual environment, working directory, etc.
+            template = EasyVVUQBasicTemplate()
+            template_params = {
+                "venv": os.environ.get("CONDA_PREFIX", sys.prefix),
+            }
 
-    # Get results from the campaign
-    # results = campaign_results.get_collation_results()
+            # By default, run with resource pool by QCG-PJ
+            resource_pool = QCGPJPool(
+                template=template,
+                template_params=template_params,
+            )
+
+        print(f" >> Prepared the resource pool to run the campaign: {resource_pool}")
+        # Execute the campaign
+        with resource_pool as pool:
+
+            print(f">>> Running the campaign with resource pool: {pool}")
+
+            campaign_results = campaign.execute(pool=pool)
+
+            print(">>> Execution completed! Collating the results...")
+
+            campaign_results.collate()
 
     return campaign, campaign_results
 
 
-def analyse_uq_results(campaign, qois, sampler, uq_params=None):
+def analyse_uq_results(campaign, qois, sampler, uq_params=None, output_folder=None):
     """
     Perform analysis on the UQ results.
+
+    Parameters
+    ----------
+    campaign : easyvvuq.Campaign
+    qois : list of str
+    sampler : easyvvuq sampler
+    uq_params : dict, optional
+    output_folder : str, optional
+        Directory where the analysis results pickle will be saved.
+        Defaults to the current working directory.
     """
     if uq_params is not None:
         if "uq_scheme" in uq_params:
@@ -702,23 +734,24 @@ def analyse_uq_results(campaign, qois, sampler, uq_params=None):
 
     logger.debug(f"\n >>> Analysis completed. Results:\n{results}")
 
-    # Save the analysis results to a file
+    # Save the analysis results to a file in output_folder (or CWD)
     result_filename_base = "analysis_results_uq_campaign.pickle"
-    results_filename = add_timestamp_to_filename(result_filename_base)
+    results_basename = add_timestamp_to_filename(result_filename_base)
+    if output_folder:
+        os.makedirs(output_folder, exist_ok=True)
+        results_filename = os.path.join(output_folder, results_basename)
+    else:
+        results_filename = results_basename
     logger.debug(f">> Saving the campaign results into {results_filename}")
-    pickle.dump(results, open(results_filename, "wb"))
+    with open(results_filename, "wb") as _fh:
+        pickle.dump(results, _fh)
+    print(f"✓ Analysis results saved: {results_filename}")
 
     # Display the results of the analysis
     for qoi in qois[1:]:
         print(f"Results for {qoi}:")
         print(results.describe(qoi))
         print("\n")
-
-    # TODO extract more data, in particular, on the individual trajectories of the QoI
-
-    # TODO: specify the results filename in the campaign or save it in a specific folder
-    # TODO: save the results of a campaign
-    # TODO: add config files and parameters distriubtions to the saved results
 
     return results
 
@@ -727,6 +760,11 @@ def perform_uq_festim(config=None, fixed_params=None):
     """
     Main function to perform the UQ campaign for FESTIM.
     This function orchestrates the preparation, execution, and analysis of the UQ campaign.
+
+    The campaign runs **locally** (no HPC scheduler) by default, using a
+    **sparse PCE sampler** with polynomial order 3 and a total-degree truncated
+    polynomial basis.  Both the campaign database state file and the analysis
+    results pickle are written to a timestamped output folder.
     """
     # EasyVVUQ script to be executed as a function
     print(" \n ! Starting FESTIM UQ campaign !.. \n")
@@ -735,7 +773,7 @@ def perform_uq_festim(config=None, fixed_params=None):
     # Prepare the UQ campaign
     # This includes defining parameters, encoders, decoders, and actions
 
-    # Check if config exsists
+    # Check if config exists
     if config is None:
 
         print("No config file provided, reading from arguments")
@@ -761,58 +799,66 @@ def perform_uq_festim(config=None, fixed_params=None):
 
     logger.debug(f" >> Passing parameters fixed to the campaign: {fixed_params}")
 
-    # Define UQ parameters for the campaign
+    # Define UQ parameters — sparse PCE, polynomial order 3
     uq_params = {
-        "uq_scheme": "pce",  # 'pce' or 'qmc'
-        "p_order": 1,  # for PCE
-        "n_samples": 8,  # for QMC
+        "uq_scheme": "pce",   # 'pce' or 'qmc'
+        "p_order": 3,         # maximal polynomial order (total-degree truncation)
+        "sparse": True,       # sparse Smolyak quadrature grid
+        "n_samples": 8,       # only used for QMC fallback
     }
 
     campaign, qois, distributions, campaign_timestamp, sampler = prepare_uq_campaign(
         config, config_file=args.config, fixed_params=fixed_params, uq_params=uq_params
     )
 
-    # TODO: add more parameter for Arrhenious law (+)
-    # TODO: try higher BC concentration values - does it even make sense to have such low BC (+)
-    # TODO: run with higher polynomial degree (+: now 2)
-    # TODO: check if there are actually negative concentrations, if yes - check model and specify correct params ranges - work out expressions for quantiles for unfiorm distribution based on PCE(p=2) (+)
+    # Create a dedicated output folder for this campaign run
+    output_folder = f"festim_uq_results_{campaign_timestamp}"
+    os.makedirs(output_folder, exist_ok=True)
+    print(f" >> Output folder: {output_folder}")
 
-    # Run the campaign
-    print(f" >> Now running the UQ campaign...")
-    campaign, campaign_results = run_uq_campaign(campaign)
+    # Run the campaign locally (no HPC scheduler)
+    print(f" >> Now running the UQ campaign locally…")
+    campaign, campaign_results = run_uq_campaign(campaign, local=True)
     logger.debug(f" >> Campaign run completed. Campaign results: {campaign_results}")
 
-    # campaign.campaign_db.save(results_filename)
-    campaign.campaign_db.dump()
-    logger.debug(f" >> Campaign database dumped. Database: {campaign.campaign_db}.\nNow performing analysis...")
+    # Persist the campaign database state to a portable JSON file
+    campaign_state_filename = os.path.join(output_folder, f"campaign_state_{campaign_timestamp}.json")
+    try:
+        campaign.save_state(campaign_state_filename)
+        print(f"✓ Campaign state saved: {campaign_state_filename}")
+    except Exception as _e:
+        logger.warning(f"Could not save campaign state via save_state(): {_e}")
+        # Fallback: dump the raw DB
+        campaign.campaign_db.dump()
+        logger.debug(f" >> Campaign database dumped (fallback). Database: {campaign.campaign_db}")
 
-    # Perform the analysis - also saves a Pickle file with results
-    results = analyse_uq_results(campaign, qois, sampler, uq_params=uq_params)
+    # Perform the analysis — saves analysis_results pickle to output_folder
+    results = analyse_uq_results(campaign, qois, sampler, uq_params=uq_params, output_folder=output_folder)
     logger.debug(f" >> Analysis of results completed. Results: {results}")
 
-    # Save campaign configuration and parameters distributions to a YAML file
-    config_filename = add_timestamp_to_filename("uq_campaign_config.pickle")
-    pickle.dump(config, open(config_filename, "wb"))
-    print(f" >> Campaign configuration saved to: {config_filename}")
+    # Save campaign configuration and parameter distributions to output_folder
+    config_filename = os.path.join(output_folder, add_timestamp_to_filename("uq_campaign_config.pickle", campaign_timestamp))
+    with open(config_filename, "wb") as _fh:
+        pickle.dump(config, _fh)
+    print(f"✓ Campaign configuration saved: {config_filename}")
 
     # Get the individual results from the campaign
     runs = campaign.campaign_db.runs()  # return an iterator over runs in the campaign
 
-    # print(f">> Iterating over runs in the campaign DB")
-    # for run in runs:
-    #     print(f" >> Runs: {run}")
-
     # Visualize the results
+    plot_folder = os.path.join(output_folder, "plots")
+    os.makedirs(plot_folder, exist_ok=True)
     visualisation_of_results(
         results,
         distributions,
         qois,
-        "plots_festim_uq_" + campaign_timestamp,
+        plot_folder,
         plot_timestamp=campaign_timestamp,
         runs_info=runs,
     )
 
-    print("FESTIM UQ campaign completed successfully!")
+    print(f"\nFESTIM UQ campaign completed successfully!")
+    print(f"✓ All outputs in: {output_folder}")
     return 0
 
 
