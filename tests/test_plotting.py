@@ -152,19 +152,24 @@ class TestPlotQoiDistribution:
         """PCE mode with a simple chaospy surrogate writes a file."""
         cp = pytest.importorskip("chaospy")
 
-        # Build a tiny 2-param PCE surrogate
+        # Build a tiny 2-param PCE surrogate using regression (avoids
+        # cp.generate_quadrature whose behaviour varies across chaospy/numpy
+        # version combinations).
+        rng = np.random.default_rng(seed=42)
         D0_dist = cp.Uniform(1e-7, 3e-7)
         G_dist = cp.Uniform(1e18, 3e18)
         joint = cp.J(D0_dist, G_dist)
 
         order = 2
         expansion = cp.generate_expansion(order, joint)
-        nodes, weights = cp.generate_quadrature(order, joint, rule="gaussian")
-        # QoI = G / (6 * D0) at r=0 (sphere centre)
-        evaluations = nodes[1] / (6.0 * nodes[0]) * (1e-3) ** 2
-        surrogate = cp.fit_quadrature(expansion, nodes, weights, evaluations)
 
-        qoi_values = evaluations  # use quadrature evaluations as raw samples
+        # Draw regression samples and evaluate a trivial QoI: G / D0
+        n_samples = 50
+        samples = joint.sample(n_samples, seed=0)  # shape (2, n_samples)
+        evaluations = samples[1] / samples[0]
+
+        surrogate = cp.fit_regression(expansion, samples, evaluations)
+        qoi_values = evaluations  # raw evaluations as the "measured" samples
 
         out = plotter.plot_qoi_distribution(
             qoi_values,
