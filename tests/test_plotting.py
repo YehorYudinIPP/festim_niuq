@@ -152,10 +152,9 @@ class TestPlotQoiDistribution:
         """PCE mode with a simple chaospy surrogate writes a file."""
         cp = pytest.importorskip("chaospy")
 
-        # Build a tiny 2-param PCE surrogate using regression (avoids
-        # cp.generate_quadrature whose behaviour varies across chaospy/numpy
-        # version combinations).
-        rng = np.random.default_rng(seed=42)
+        # Build a tiny 2-param PCE surrogate using regression.
+        # Samples are drawn with numpy directly (not chaospy's .sample()) to
+        # guarantee reproducible, finite values across all runtime environments.
         D0_dist = cp.Uniform(1e-7, 3e-7)
         G_dist = cp.Uniform(1e18, 3e18)
         joint = cp.J(D0_dist, G_dist)
@@ -163,10 +162,13 @@ class TestPlotQoiDistribution:
         order = 2
         expansion = cp.generate_expansion(order, joint)
 
-        # Draw regression samples and evaluate a trivial QoI: G / D0
+        # Draw regression samples using numpy RNG directly
+        rng = np.random.default_rng(42)
         n_samples = 50
-        samples = joint.sample(n_samples, seed=0)  # shape (2, n_samples)
-        evaluations = samples[1] / samples[0]
+        d0_vals = rng.uniform(1e-7, 3e-7, size=n_samples)
+        g_vals = rng.uniform(1e18, 3e18, size=n_samples)
+        samples = np.vstack([d0_vals, g_vals])   # shape (2, n_samples)
+        evaluations = g_vals / d0_vals           # all finite, no chaospy RNG dependency
 
         surrogate = cp.fit_regression(expansion, samples, evaluations)
         qoi_values = evaluations  # raw evaluations as the "measured" samples
