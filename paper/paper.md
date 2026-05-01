@@ -132,7 +132,7 @@ festim:
   script: festim_model/model.py
 ```
 
-[Example UQ configuration (*config.uq.yaml*).]{#lst:yaml}
+: Example UQ configuration (*config.uq.yaml*). \label{lst:yaml}
 
 # Supported UQ Methods
 
@@ -185,14 +185,16 @@ A PCE of order 3 requires $\binom{3+3}{3} = 20$ FESTIM evaluations to resolve.
 
 ## Results
 
-Figure \autoref{fig:results} shows the first-order and total-order Sobol indices and the probability density function of the tritium inventory.
+Figure \autoref{fig:results_uncertainty} shows the first-order and total-order Sobol indices and the probability density function of the tritium inventory.
 Table \autoref{tab:moments} summarises the statistical moments.
+
+  ![Mean value, standard deviation, confidence intervals, as well as default and analytic verification values of tritium inventory.](figures/sobol_indices.png){#fig:results_uncertainty}
 
   ![First-order (S1) and total-order (ST) Sobol sensitivity indices for the tritium inventory.](figures/sobol_indices.png){#fig:sobol}
 
   ![Probability density of the tritium inventory obtained from the PCE surrogate.](figures/qoi_distribution.png){#fig:pdf}
 
-  ![UQ results for the 1-D tungsten slab test case. [TODO: Update captions with actual quantitative findings]](figures:a.png){#fig:results}
+  <!-- ![UQ results for the 1-D tungsten slab test case. [TODO: Update captions with actual quantitative findings]](figures:a.png){#fig:results} -->
 
 : Statistical moments of the tritium inventory (QoI). \label{tab:moments}
 
