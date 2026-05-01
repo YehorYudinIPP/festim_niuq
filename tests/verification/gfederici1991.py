@@ -43,26 +43,26 @@ def CarlsJaeger1959(t, D=1.0, G=1.0, a=1.0, n=32, m=128):
     solution = sum_terms
     return solution
 
-def Crank1975(t, D=1.0, G=1.0, a=1.0, n=32, m=128):
+def Crank1975(t, D=1.0, c_0=1.0, a=1.0, n=32, m=128):
     """
     /**
      * @brief Solution for non-stationary 1D gas diffusion with spherical symmetry.
      *
-     * This function implements the analytical solution presented in Carnk (1975)
+     * This function implements the analytical solution presented in Crank (1975)
      * for a non-stationary 1D gas diffusion problem with spherical symmetry.
      * 
      * The boundary and initial conditions are:
-     *      C(r,0) = C_0
+     *      C(r,0) = c_0
      *      C(a,t) = 0
      *      dC(r,t)/dr @r=0 = 0
      *      G = 0
      *
-     * @param D Diffusion coefficient (default: 1.0)
-     * @param G Source term (default: 1.0)
-     * @param a Sphere radius (default: 1.0)
-     * @param n Number of terms in the series (default: 32)
-     * @param m Number of points in the radial grid (default: 128)
-     * @param t Time variable
+     * @param D   Diffusion coefficient (default: 1.0)
+     * @param c_0 Uniform initial concentration (default: 1.0)
+     * @param a   Sphere radius (default: 1.0)
+     * @param n   Number of terms in the series (default: 32)
+     * @param m   Number of points in the radial grid (default: 128)
+     * @param t   Time variable
      * @return Solution value at time t
      */
     """
@@ -73,11 +73,18 @@ def Crank1975(t, D=1.0, G=1.0, a=1.0, n=32, m=128):
     r = np.linspace(0, a, m)
     sum_terms = np.zeros_like(r)
 
-    sum_terms = 0 # Initialize sum_terms to accumulate the series with the first term
-
     for k in range(1, n + 1):
         term = math.pow(-1, k) * np.exp(-k**2 * np.pi**2 * D * t / a**2) * np.sin(k * np.pi * r / a)
         sum_terms += (-2 * a / (np.pi * r)) * term
+
+    sum_terms *= c_0
+
+    # Avoid division by zero at r = 0: apply L'Hôpital's rule limit
+    # lim_{r->0} sum_k (-1)^k exp(...) sin(k pi r / a) / r = sum_k (-1)^k exp(...) * k pi / a
+    limit_r0 = 0.0
+    for k in range(1, n + 1):
+        limit_r0 += math.pow(-1, k) * np.exp(-k**2 * np.pi**2 * D * t / a**2) * (k * np.pi / a)
+    sum_terms[r == 0] = c_0 * (-2 * a / np.pi) * limit_r0
 
     solution = sum_terms
     return solution

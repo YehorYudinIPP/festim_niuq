@@ -37,17 +37,6 @@ materials:
       pdf: 'uniform'
     E_D:
       mean: 1.0
-      relative_stdev: 0.1
-      abs_stdev: 0.1
-      pdf: 'uniform'
-    thermal_conductivity: 
-      mean: 1.0
-      relative_stdev: 0.1
-      pdf: 'uniform'
-    rho: 
-      mean: 1000.0 
-    heat_capacity:
-      mean: 10000.0
 
 simulation:
   mesh_type: "regular"
@@ -86,7 +75,6 @@ simulation:
 
   quantities_of_interest:
     - tritium_concentration
-    - heat_flux
 
 boundary_conditions:
 
@@ -111,6 +99,8 @@ initial_conditions:
     domain_id: 1
     value:
       mean: 1.0e+15
+      relative_stdev: 0.10
+      pdf: 'uniform'
 
 source_terms:
 
