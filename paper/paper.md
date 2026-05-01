@@ -60,7 +60,7 @@ Design-basis analyses require not just best-estimate simulations but also confid
 Although general-purpose UQ frameworks exist (see *State of the Field* below), coupling any of them to a finite-element tritium transport solver requires non-trivial engineering: writing a solver-specific parameter encoder, an output decoder, a subprocess execution harness, and post-processing and plotting utilities.
 This barrier is high enough that most published tritium transport studies report only deterministic results at nominal parameter values, forgoing systematic UQ entirely.
 
-[Cite UQ studies on hydrogen transport that used manual/ad-hoc methods to further motivate automation.]
+[TODO: Cite UQ studies on hydrogen transport that used manual/ad-hoc methods to further motivate automation.]
 
 FESTIM-NIUQ removes this barrier for the FESTIM user community [@delaporte2024festim] by providing a ready-to-use pipeline that handles every step between a YAML configuration file and publication-quality sensitivity-index plots.
 The package is designed to be extended: new uncertain parameters, boundary conditions, or coordinate geometries are added by editing the configuration file rather than modifying Python source code.
@@ -139,7 +139,7 @@ festim:
 A number of non-intrusive parametric uncertainty quantification methods implemented in EasyVVUQ is supported by the package.
 
   - **Polynomial Chaos Expansion (PCE)**: Requires $\mathcal{O}(p^d)$ model evaluations for polynomial order $p$ and $d$ uncertain parameters (there is a $\binom{p+d}{d}$ method for sparse version).
-  Yields analytical Sobol decomposition from the PCE coefficients [@saltelli_sobol].
+  Yields analytical Sobol decomposition from the PCE coefficients [@saltelli1995about].
   - **Quasi-Monte Carlo (qMC)**: Uses Sobol sequences for low-discrepancy sampling. 
   Suitable for high-dimensional or computationally inexpensive models.
 
@@ -153,7 +153,7 @@ Reference the *github/workflows* directory.]
 Figure \autoref{fig:workflow} illustrates the end-to-end UQ pipeline.
 At a high level, FESTIM-NIUQ performs five steps:
 
-  1. **Campaign setup**': Parse a YAML configuration file specifying uncertain parameters, their probability distributions, the sampling strategy, and the FESTIM model entry point.
+  1. **Campaign setup**: Parse a YAML configuration file specifying uncertain parameters, their probability distributions, the sampling strategy, and the FESTIM model entry point.
   2. **Ensemble generation**: Use EasyVVUQ to build a parameter ensemble. Instantiate one FESTIM input deck per sample and populate the individual run directories with veried files and links to shared files, with mapping to the original sampling plan.
   3. **Simulation execution**: Run the ensemble sequentially (PC) or in parallel on an HPC cluster via the SEAVEA Toolkit [@groen2021vecmatk].
   4. **Post-processing**: Collect outputs, compute statistical moments (mean, variance) and Sobol sensitivity indices for the selected quantity of interest (QoI). 
@@ -176,7 +176,7 @@ $$
     + G
     - \sum_i k_i^+\,c\,(n_i - c_{t,i})
     + \sum_i k_i^-\,c_{t,i},
-$${eq:transport}
+  \label{eq:transport}$$
 
 where $c$ is the mobile hydrogen concentration, $D$ the diffusion coefficient, $G$ the generation rate, and $c_{t,i}$, $k_i^\pm$ are trap occupancy and rate constants for trap site $i$.
 
@@ -200,8 +200,8 @@ Table \autoref{tab:moments} summarises the statistical moments.
 
 | Statistic                | Value | Units     |
 |--------------------------|:-----:|:---------:|
-| Mean $\mu$               | todo  | m$^{-3}$  |
-| Std. deviation, $\sigma$ | todo  | m$^{-3}   |
+| Mean $\mu$               | todo  | $m^{-3}  |
+| Std. deviation, $\sigma$ | todo  | $m^{-3}$   |
 | Coefficient of variation | todo  |           |
 
 # Research Impact Statement
