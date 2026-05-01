@@ -25,7 +25,7 @@ The script:
        - ``statistics_<timestamp>.csv``            (human-readable statistics)
        - ``concentration_stats_vs_r_<timestamp>.pdf``
        - ``sobol_indices_vs_r_<timestamp>.pdf``
-       - ``qoi_histogram_inventory_<timestamp>.pdf``
+       - ``qoi_histogram_inventory_<timestamp>.pdf``   (density histogram; KDE and PCE marginal PDF added when scipy is installed)
 """
 
 import argparse
@@ -60,6 +60,7 @@ except ImportError:
     raise ImportError("Install chaospy:  pip install chaospy")
 
 from verification.gfederici1991 import CarlsJaeger1959, Crank1975
+from festim_niuq.uq.util.plotting import UQPlotter
 
 # ---------------------------------------------------------------------------
 # Helpers
@@ -381,23 +382,36 @@ def plot_sobol_indices(out_dir, timestamp, radius, stats, param_names, case):
     return path
 
 
-def plot_inventory_histogram(out_dir, timestamp, inventories, case):
-    """Plot 3 — histogram of total tritium inventory across MC samples."""
-    fig, ax = plt.subplots(figsize=(7, 5))
-    ax.hist(inventories, bins=60, color="steelblue", edgecolor="white", alpha=0.8)
-    ax.axvline(np.mean(inventories), color="tomato", lw=2, label=f"Mean = {np.mean(inventories):.3e}")
-    ax.axvline(np.percentile(inventories, 5), color="orange", lw=1.5, ls="--", label="5th percentile")
-    ax.axvline(np.percentile(inventories, 95), color="orange", lw=1.5, ls="--", label="95th percentile")
-    ax.set_xlabel("Total tritium inventory [m⁻³·m³ = #]")
-    ax.set_ylabel("Count")
-    ax.set_title(f"Inventory distribution (50 000 MC samples from PCE surrogate)\n{_CASES[case]['label']}")
-    ax.legend(fontsize=9)
-    ax.grid(True, alpha=0.4)
-    plt.tight_layout()
+def plot_inventory_histogram(out_dir, timestamp, inventories, case, surrogate=None, joint_dist=None):
+    """
+    Plot the distribution of total tritium inventory using ``UQPlotter.plot_qoi_distribution``.
 
-    path = os.path.join(out_dir, f"qoi_histogram_inventory_{timestamp}.pdf")
-    fig.savefig(path)
-    plt.close(fig)
+    Combines a normalised histogram of the raw quadrature-node inventories,
+    an optional KDE curve (requires *scipy*), and — when *surrogate* and
+    *joint_dist* are provided — a high-fidelity PCE marginal PDF computed
+    from 10 000 Monte-Carlo samples of the scalar inventory surrogate.
+    """
+    uqplotter = UQPlotter()
+    # Register inventory as a known quantity so axis labels are informative
+    uqplotter.quantities_descriptor.setdefault(
+        "tritium_inventory",
+        {
+            "name": "Total tritium inventory",
+            "unit": "m⁻³·m³",
+            "dimensionality": "0d",
+            "description": "Total tritium inventory integrated over the sphere volume",
+        },
+    )
+    filename = f"qoi_histogram_inventory_{timestamp}.pdf"
+    path = uqplotter.plot_qoi_distribution(
+        qoi_values=inventories,
+        qoi_name="tritium_inventory",
+        foldername=out_dir,
+        filename=filename,
+        pce_surrogate=surrogate,
+        joint_dist=joint_dist,
+        timestamp=timestamp,
+    )
     print(f"✓ Plot saved: {path}")
     return path
 
@@ -486,14 +500,11 @@ def run(case="cj1959", output_dir=None):
         print(f"   S1({name:6s})     : {stats['sobol_first'][name][0]:.4f}")
 
     # ------------------------------------------------------------------
-    # 6. Compute inventory histogram from PCE surrogate (MC)
+    # 6. Compute inventory at quadrature nodes and fit scalar PCE surrogate
     # ------------------------------------------------------------------
-    print("\n Drawing 50 000 MC samples from PCE surrogate for inventory …")
-    n_mc = 50_000
-    mc_samples = joint_dist.sample(n_mc, rule="latin_hypercube")
-    mc_profiles = surrogate(*mc_samples)  # (N_RADIAL, n_mc)
-    integrand = (radius**2)[:, np.newaxis] * mc_profiles
-    inventories = 4.0 * np.pi * _TRAPZ(integrand, x=radius, axis=0)
+    print("\n Computing inventory at quadrature nodes and fitting scalar surrogate …")
+    inventory_at_nodes = compute_inventory(evaluations, radius)  # (n_quad,)
+    inventory_surrogate = cp.fit_quadrature(expansion, nodes, weights, inventory_at_nodes)
 
     # ------------------------------------------------------------------
     # 7. Persist results
@@ -513,10 +524,11 @@ def run(case="cj1959", output_dir=None):
         "evaluations": evaluations,
         "expansion": expansion,
         "surrogate": surrogate,
+        "inventory_surrogate": inventory_surrogate,
+        "inventory_at_nodes": inventory_at_nodes,
         "joint_dist": joint_dist,
         "dist_info": dist_info,
         "stats": stats,
-        "inventories": inventories,
     }
     save_campaign_pickle(out_dir, timestamp, campaign_data)
     save_analysis_pickle(out_dir, timestamp, stats, nodes, weights, evaluations, radius, param_names)
@@ -528,7 +540,10 @@ def run(case="cj1959", output_dir=None):
     print("\n Generating plots …")
     plot_concentration_stats(out_dir, timestamp, radius, stats, case)
     plot_sobol_indices(out_dir, timestamp, radius, stats, param_names, case)
-    plot_inventory_histogram(out_dir, timestamp, inventories, case)
+    plot_inventory_histogram(
+        out_dir, timestamp, inventory_at_nodes, case,
+        surrogate=inventory_surrogate, joint_dist=joint_dist,
+    )
 
     print(f"\n{'='*65}")
     print(f" Done!  All outputs in: {out_dir}")

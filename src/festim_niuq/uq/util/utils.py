@@ -2,8 +2,8 @@
 Shared utility functions for the FESTIM-NIUQ UQ pipeline.
 
 Provides configuration loading, file-name helpers, Python-environment
-detection, execution validation, sensitivity-analysis persistence, and
-heuristic absolute-tolerance estimation.
+detection, execution validation, sensitivity-analysis persistence,
+heuristic absolute-tolerance estimation, and QoI scalar extraction.
 """
 
 import csv
@@ -501,3 +501,132 @@ def compute_absolute_tolerance(default_atol, orig_params, new_params):
     print(f" >>>  Computing tolerance: new_atol={new_atol:.3E}")
 
     return new_atol
+
+
+def extract_scalar_qoi(results_or_array, qoi, mode="point", x_values=None, x_index=0):
+    """
+    Reduce a spatially-resolved QoI to a scalar value per model run.
+
+    Accepts three input forms:
+
+    * **EasyVVUQ** ``AnalysisResults`` object — raw per-run samples are read
+      from ``results_or_array.samples`` (a pandas DataFrame whose columns
+      are the QoI names).
+    * **pandas ``DataFrame``** — columns are QoI names, rows are runs.
+    * **NumPy array** of shape ``(n_runs, n_spatial)`` or ``(n_runs,)`` —
+      already the raw model output; *qoi* is ignored in this case.
+
+    Parameters
+    ----------
+    results_or_array : AnalysisResults | pandas.DataFrame | numpy.ndarray
+        Source of raw per-run QoI values.
+    qoi : str
+        Name of the quantity of interest column to extract.  Ignored when
+        *results_or_array* is a plain NumPy array.
+    mode : {'point', 'mean', 'trapz'}
+        How to collapse the spatial axis to a single scalar per run:
+
+        - ``'point'`` – take the value at position ``x_index`` (default 0).
+        - ``'mean'`` – arithmetic mean over the spatial axis.
+        - ``'trapz'`` – trapezoidal integral over the spatial axis
+          (requires *x_values*).
+    x_values : array-like, optional
+        1-D coordinate array matching the spatial dimension.  Required when
+        ``mode='trapz'``.
+    x_index : int, optional
+        Spatial index used when ``mode='point'``.  Default is ``0``.
+
+    Returns
+    -------
+    numpy.ndarray
+        1-D array of shape ``(n_runs,)`` with one scalar per run.
+
+    Raises
+    ------
+    ValueError
+        If ``mode='trapz'`` but *x_values* is not supplied, or if an
+        unrecognised *mode* is given.
+    TypeError
+        If the input type cannot be handled.
+    """
+    # ------------------------------------------------------------------ #
+    # 1. Extract raw 2-D array (n_runs, n_spatial)                        #
+    # ------------------------------------------------------------------ #
+    raw = None
+
+    # NumPy array passed directly
+    if isinstance(results_or_array, np.ndarray):
+        raw = results_or_array
+
+    # pandas DataFrame (or anything with column-based indexing)
+    else:
+        try:
+            import pandas as pd  # optional; only needed for DataFrame path
+
+            if isinstance(results_or_array, pd.DataFrame):
+                if qoi not in results_or_array.columns:
+                    raise ValueError(f"Column '{qoi}' not found in DataFrame. Available: {list(results_or_array.columns)}")
+                col_data = results_or_array[qoi]
+                # Each cell may be a scalar or a list/array (spatially resolved)
+                first_val = col_data.iloc[0]
+                if hasattr(first_val, "__len__"):
+                    raw = np.array([np.asarray(v) for v in col_data])
+                else:
+                    raw = col_data.to_numpy().astype(float)
+        except ImportError:
+            pass
+
+    # EasyVVUQ AnalysisResults — try .samples attribute
+    if raw is None:
+        samples = getattr(results_or_array, "samples", None)
+        if samples is not None:
+            try:
+                import pandas as pd
+
+                if isinstance(samples, pd.DataFrame):
+                    if qoi not in samples.columns:
+                        raise ValueError(
+                            f"QoI '{qoi}' not found in results.samples. "
+                            f"Available columns: {list(samples.columns)}"
+                        )
+                    col_data = samples[qoi]
+                    first_val = col_data.iloc[0]
+                    if hasattr(first_val, "__len__"):
+                        raw = np.array([np.asarray(v) for v in col_data])
+                    else:
+                        raw = col_data.to_numpy().astype(float)
+            except ImportError:
+                # pandas not available; fall through to generic approach
+                pass
+
+        if raw is None:
+            raise TypeError(
+                "Could not extract QoI values from the provided input. "
+                "Expected a numpy array, pandas DataFrame, or an EasyVVUQ "
+                "AnalysisResults object with a '.samples' DataFrame attribute."
+            )
+
+    raw = np.asarray(raw, dtype=float)
+
+    # Already 1-D — nothing to reduce
+    if raw.ndim == 1:
+        return raw
+
+    # ------------------------------------------------------------------ #
+    # 2. Reduce spatial dimension                                          #
+    # ------------------------------------------------------------------ #
+    if mode == "point":
+        return raw[:, x_index]
+
+    if mode == "mean":
+        return raw.mean(axis=1)
+
+    if mode == "trapz":
+        if x_values is None:
+            raise ValueError("x_values must be provided when mode='trapz'.")
+        x_arr = np.asarray(x_values, dtype=float)
+        # np.trapezoid was introduced in NumPy 2.0; fall back to np.trapz for older releases.
+        _trapz = getattr(np, "trapezoid", None) or np.trapz
+        return np.array([_trapz(row, x=x_arr) for row in raw])
+
+    raise ValueError(f"Unknown mode '{mode}'. Choose from 'point', 'mean', 'trapz'.")

@@ -26,6 +26,7 @@ from .utils import (
     get_sobol_total,
     get_stat,
     integrate_statistics,
+    extract_scalar_qoi,
 )
 
 # Make encoder classes and utility functions available at package level
@@ -43,4 +44,5 @@ __all__ = [
     "get_sobol_total",
     "get_stat",
     "integrate_statistics",
+    "extract_scalar_qoi",
 ]

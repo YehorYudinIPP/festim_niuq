@@ -17,6 +17,7 @@ import numpy as np
 import itertools
 import json
 import logging
+import os
 
 from .utils import add_timestamp_to_filename
 
@@ -349,7 +350,18 @@ class UQPlotter:
         return 0
 
     def plot_stats_vs_r(
-        self, results, qois: list[str], plot_folder_name: str, plot_timestamp: str, rs=None, runs_info=None
+        self,
+        results,
+        qois: list[str],
+        plot_folder_name: str,
+        plot_timestamp: str,
+        rs=None,
+        runs_info=None,
+        show_distribution=False,
+        dist_x_index=0,
+        dist_mode="point",
+        pce_surrogate=None,
+        joint_dist=None,
     ):
         """
         Plot statistics of the results as a function of radius (spatial coordinates).
@@ -360,6 +372,11 @@ class UQPlotter:
         - plot_timestamp: timestamp to append to the filenames
         - rs: array of radius values (optional, if not provided, will be generated)
         - runs_info: information about individual runs, if available (optional); should be a list of dictionaries, with 'id' and 'results'
+        - show_distribution: if True, also generate a marginal distribution plot per QoI
+        - dist_x_index: spatial index used when reducing profiles to scalars for distribution plots
+        - dist_mode: reduction mode for scalar extraction ('point', 'mean', 'trapz')
+        - pce_surrogate: fitted chaospy PCE polynomial (used for PCE marginal PDF)
+        - joint_dist: chaospy joint distribution of uncertain inputs (used with pce_surrogate)
         """
 
         # Specific for common boxplot for QoIs
@@ -461,6 +478,28 @@ class UQPlotter:
             print(
                 f"Plots (for spatially resolved functions) saved: {moments_vsr_filename}, {sobols_treemap_filename}, {sobols_filename}"
             )
+
+            # ---- optional: marginal distribution plot for this QoI ----
+            if show_distribution:
+                try:
+                    from .utils import extract_scalar_qoi
+
+                    qoi_scalars = extract_scalar_qoi(
+                        results, qoi, mode=dist_mode, x_values=rs, x_index=dist_x_index
+                    )
+                    dist_filename = add_timestamp_to_filename(f"{qoi}_distribution.pdf", plot_timestamp)
+                    self.plot_qoi_distribution(
+                        qoi_scalars,
+                        qoi_name=qoi,
+                        foldername=plot_folder_name,
+                        filename=dist_filename,
+                        pce_surrogate=pce_surrogate,
+                        joint_dist=joint_dist,
+                        timestamp=plot_timestamp,
+                    )
+                    print(f" >>> Distribution plot saved for QoI: {qoi}")
+                except Exception as exc:
+                    logger.warning(f"Distribution plot failed for '{qoi}': {exc}")
 
         # Save plot common for QoIs: specific for bespoke QoI uncertainty plotting
         #  - bespoke plotting of uncertainty in QoI (at selected radius)
@@ -776,7 +815,18 @@ class UQPlotter:
 
         return 0
 
-    def plot_stats_correlated(self, results, distributions, qois, plot_folder_name, plot_timestamp, rs=None):
+    def plot_stats_correlated(
+        self,
+        results,
+        distributions,
+        qois,
+        plot_folder_name,
+        plot_timestamp,
+        rs=None,
+        show_distribution=False,
+        dist_x_index=0,
+        dist_mode="point",
+    ):
         """
         Plot statistics from a correlated FD (finite-difference) UQ analysis.
 
@@ -801,6 +851,9 @@ class UQPlotter:
         - plot_folder_name: folder to save the plots
         - plot_timestamp: timestamp to append to filenames
         - rs: array of radius values (optional)
+        - show_distribution: if True, also generate a marginal distribution plot per QoI
+        - dist_x_index: spatial index used when reducing profiles to scalars for distribution plots
+        - dist_mode: reduction mode for scalar extraction ('point', 'mean', 'trapz')
 
         Note:
             For future improvements, consider:
@@ -843,6 +896,26 @@ class UQPlotter:
             )
 
             print(f" >>> Spatial plots saved for QoI: {qoi}")
+
+            # ---- optional: marginal distribution plot for this QoI ----
+            if show_distribution:
+                try:
+                    from .utils import extract_scalar_qoi
+
+                    qoi_scalars = extract_scalar_qoi(
+                        results, qoi, mode=dist_mode, x_values=rs, x_index=dist_x_index
+                    )
+                    dist_filename = add_timestamp_to_filename(f"{qoi}_distribution.pdf", plot_timestamp)
+                    self.plot_qoi_distribution(
+                        qoi_scalars,
+                        qoi_name=qoi,
+                        foldername=plot_folder_name,
+                        filename=dist_filename,
+                        timestamp=plot_timestamp,
+                    )
+                    print(f" >>> Distribution plot saved for QoI: {qoi}")
+                except Exception as exc:
+                    logger.warning(f"Distribution plot failed for '{qoi}': {exc}")
 
         # ---- Part 2: Derivative-based sensitivity (vs radius) ----
 
@@ -906,6 +979,224 @@ class UQPlotter:
             print(f" >>> Temporal plots saved at r_ind={r_ind}")
 
         return 0
+
+    # ------------------------------------------------------------------
+    # QoI distribution plots
+    # ------------------------------------------------------------------
+
+    def plot_qoi_distribution(
+        self,
+        qoi_values,
+        qoi_name,
+        foldername="",
+        filename=None,
+        prior_dist=None,
+        pce_surrogate=None,
+        joint_dist=None,
+        show_histogram=True,
+        show_kde=True,
+        show_pce_pdf=True,
+        n_mc_samples=10_000,
+        timestamp=None,
+    ):
+        """
+        Plot the marginal distribution of a scalar QoI.
+
+        Three optional layers can be overlaid on the same axis:
+
+        * **Histogram** — normalised to a probability density, built from the
+          raw quadrature/sample evaluations in *qoi_values*.
+        * **KDE** — a kernel-density estimate computed with
+          ``scipy.stats.gaussian_kde`` (requires *scipy*; silently skipped if
+          not installed).
+        * **PCE marginal PDF** — *n_mc_samples* points are drawn from
+          *joint_dist* (a ``chaospy`` joint distribution), the fitted
+          *pce_surrogate* polynomial is evaluated at each, and the resulting
+          empirical density is plotted as a smooth curve.  Requires both
+          *pce_surrogate* and *joint_dist*.
+
+        Additionally, vertical reference lines mark the mean, ±1 σ, and the
+        10th / 90th percentiles.  When *prior_dist* is provided (a
+        ``chaospy`` or ``scipy.stats`` frozen distribution), its PDF is drawn
+        on a twin axis as a dashed line.
+
+        Parameters
+        ----------
+        qoi_values : array-like
+            1-D array of scalar QoI evaluations (one per model run /
+            quadrature node).
+        qoi_name : str
+            Label used in axis titles and the output filename.
+        foldername : str, optional
+            Directory where the plot file is saved.  Current directory if
+            empty.
+        filename : str, optional
+            Output filename (including extension).  Defaults to
+            ``"{qoi_name}_distribution_{timestamp}.pdf"``.
+        prior_dist : chaospy.Dist or scipy.stats rv_frozen, optional
+            Prior distribution of the *output* QoI to overlay as a reference
+            PDF.  Typically the push-forward of the joint input prior through
+            the PCE surrogate.
+        pce_surrogate : chaospy polynomial, optional
+            Fitted PCE polynomial evaluated over *joint_dist* to produce a
+            high-fidelity empirical output distribution.  Must be paired with
+            *joint_dist*.
+        joint_dist : chaospy.Dist, optional
+            Joint distribution of the uncertain *input* parameters used to
+            draw Monte-Carlo samples for the PCE marginal PDF.
+        show_histogram : bool, optional
+            Whether to plot the raw-sample histogram.  Default ``True``.
+        show_kde : bool, optional
+            Whether to overlay a KDE curve.  Default ``True``.
+        show_pce_pdf : bool, optional
+            Whether to draw the PCE-derived marginal PDF.  Default ``True``.
+        n_mc_samples : int, optional
+            Number of Monte-Carlo samples drawn from *joint_dist* for the PCE
+            marginal PDF.  Default 10 000.
+        timestamp : str, optional
+            Timestamp appended to the auto-generated filename.
+
+        Returns
+        -------
+        str
+            Path to the saved figure.
+        """
+        qoi_values = np.asarray(qoi_values, dtype=float)
+        qoi_values = qoi_values[np.isfinite(qoi_values)]
+
+        if len(qoi_values) == 0:
+            logger.warning(f"plot_qoi_distribution: no finite values for QoI '{qoi_name}', skipping.")
+            return ""
+
+        # ---- statistics ------------------------------------------------
+        mean_val = float(np.mean(qoi_values))
+        std_val = float(np.std(qoi_values))
+        p10 = float(np.percentile(qoi_values, 10))
+        p90 = float(np.percentile(qoi_values, 90))
+
+        # ---- figure setup -----------------------------------------------
+        fig, ax = plt.subplots(figsize=(8, 5))
+
+        x_min = min(qoi_values.min(), mean_val - 3.5 * std_val) if std_val > 0 else qoi_values.min() - 1
+        x_max = max(qoi_values.max(), mean_val + 3.5 * std_val) if std_val > 0 else qoi_values.max() + 1
+        x_grid = np.linspace(x_min, x_max, 500)
+
+        # ---- PCE marginal PDF (highest fidelity) -------------------------
+        if show_pce_pdf and pce_surrogate is not None and joint_dist is not None:
+            try:
+                mc_inputs = joint_dist.sample(n_mc_samples, rule="random")
+                mc_outputs = np.asarray(pce_surrogate(*mc_inputs), dtype=float)
+                mc_outputs = mc_outputs[np.isfinite(mc_outputs)]
+                if len(mc_outputs) > 1:
+                    try:
+                        from scipy.stats import gaussian_kde as _kde
+
+                        pce_kde = _kde(mc_outputs)
+                        ax.plot(
+                            x_grid,
+                            pce_kde(x_grid),
+                            color="steelblue",
+                            lw=2,
+                            label=f"PCE marginal PDF (N={n_mc_samples})",
+                        )
+                    except ImportError:
+                        # Fall back to normalised histogram for PCE samples
+                        ax.hist(
+                            mc_outputs,
+                            bins=60,
+                            density=True,
+                            alpha=0.25,
+                            color="steelblue",
+                            label=f"PCE marginal (N={n_mc_samples})",
+                        )
+            except Exception as exc:
+                logger.warning(f"PCE marginal PDF could not be computed for '{qoi_name}': {exc}")
+
+        # ---- raw-sample histogram ----------------------------------------
+        if show_histogram:
+            n_bins = max(5, min(int(np.sqrt(len(qoi_values))), 30))
+            ax.hist(
+                qoi_values,
+                bins=n_bins,
+                density=True,
+                alpha=0.35,
+                color="orange",
+                edgecolor="darkorange",
+                label=f"Samples histogram (N={len(qoi_values)})",
+            )
+
+        # ---- KDE of raw samples ------------------------------------------
+        if show_kde and len(qoi_values) >= 2:
+            try:
+                from scipy.stats import gaussian_kde as _kde
+
+                raw_kde = _kde(qoi_values)
+                ax.plot(x_grid, raw_kde(x_grid), color="tomato", lw=1.5, ls="--", label="KDE (raw samples)")
+            except ImportError:
+                logger.warning(
+                    "scipy is not installed; KDE curve skipped. "
+                    "Install scipy to enable: pip install scipy"
+                )
+            except Exception as exc:
+                logger.warning(f"KDE could not be computed for '{qoi_name}': {exc}")
+
+        # ---- prior / reference distribution overlay ----------------------
+        twin_ax = None
+        if prior_dist is not None:
+            try:
+                # chaospy distribution
+                if hasattr(prior_dist, "pdf"):
+                    prior_pdf = np.asarray(prior_dist.pdf(x_grid), dtype=float)
+                    prior_pdf = np.where(np.isfinite(prior_pdf), prior_pdf, 0.0)
+                    twin_ax = ax.twinx()
+                    twin_ax.plot(
+                        x_grid, prior_pdf, color="purple", lw=1.5, ls=":", label="Prior PDF (reference)"
+                    )
+                    twin_ax.set_ylabel("Prior PDF", color="purple")
+                    twin_ax.tick_params(axis="y", labelcolor="purple")
+            except Exception as exc:
+                logger.warning(f"Prior PDF could not be plotted for '{qoi_name}': {exc}")
+
+        # ---- reference lines (mean, ±1σ, percentiles) --------------------
+        ax.axvline(mean_val, color="black", lw=1.5, ls="-", label=f"Mean = {mean_val:.3g}")
+        ax.axvline(mean_val + std_val, color="grey", lw=1.0, ls="--", label=f"+1σ = {mean_val + std_val:.3g}")
+        ax.axvline(mean_val - std_val, color="grey", lw=1.0, ls="--", label=f"−1σ = {mean_val - std_val:.3g}")
+        ax.axvline(p10, color="darkorange", lw=1.0, ls="-.", label=f"10th pct = {p10:.3g}")
+        ax.axvline(p90, color="darkorange", lw=1.0, ls="-.", label=f"90th pct = {p90:.3g}")
+
+        # ---- labels & legend --------------------------------------------
+        qty_info = self.quantities_descriptor.get(qoi_name, {})
+        qty_label = qty_info.get("name", qoi_name)
+        qty_unit = qty_info.get("unit", "")
+        xlabel = f"{qty_label} [{qty_unit}]" if qty_unit else qty_label
+        ax.set_xlabel(xlabel)
+        ax.set_ylabel("Probability density")
+        ax.set_title(f"Marginal distribution of '{qoi_name}'")
+        ax.legend(loc="upper right", fontsize=8)
+        ax.grid(True, alpha=0.3)
+
+        # Combine legends when twin axis is used
+        if twin_ax is not None:
+            lines1, labels1 = ax.get_legend_handles_labels()
+            lines2, labels2 = twin_ax.get_legend_handles_labels()
+            ax.legend(lines1 + lines2, labels1 + labels2, loc="upper right", fontsize=8)
+
+        fig.tight_layout()
+
+        # ---- save -------------------------------------------------------
+        if filename is None:
+            raw_name = f"{qoi_name}_distribution"
+            if timestamp:
+                raw_name = add_timestamp_to_filename(raw_name + ".pdf", timestamp)
+            else:
+                raw_name = raw_name + ".pdf"
+            filename = raw_name
+
+        save_path = os.path.join(foldername, filename) if foldername else filename
+        fig.savefig(save_path)
+        plt.close(fig)
+        logger.info(f"Distribution plot saved: {save_path}")
+        return save_path
 
     def plot_scan_results(self, scan_results, foldername, timestamp):
         """

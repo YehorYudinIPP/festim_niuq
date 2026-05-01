@@ -17,6 +17,7 @@ from .util import (
     get_sobol_total,
     get_stat,
     integrate_statistics,
+    extract_scalar_qoi,
 )
 from .util.utils import compute_absolute_tolerance
 
@@ -32,4 +33,5 @@ __all__ = [
     "get_stat",
     "integrate_statistics",
     "compute_absolute_tolerance",
+    "extract_scalar_qoi",
 ]
