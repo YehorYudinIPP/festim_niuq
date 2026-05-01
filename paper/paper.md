@@ -53,7 +53,7 @@ Fusion reactor components, such as tungsten first walls and beryllium covers, in
 Tritium must be carefully inventoried and managed in fusion reactor components because of its radioactivity, scarcity, and role as fuel.
 Tritium transport is governed by a coupled diffusion–reaction system with Arrhenius-type coefficients whose values are often measured with uncertainties of tens of percent [@causey2012tritium].
 Reliable safety assessments and design decisions require an understanding of how theseinput uncertainties propagate to predicted tritium inventories and release rates [@longhurst2011verification].
-Design-basis analyses require not just best-estimate simulations but also confidence intervals on tritium inventory and release rates, since these directly affect safety licensing [todo_ref1].
+Design-basis analyses require not just best-estimate simulations but also confidence intervals on tritium inventory and release rates, since these directly affect safety licensing [@mirallesdolz2024uncertainty].
 
 ## Gap in Existing Tools
 
@@ -107,7 +107,6 @@ On workstations the same campaign runs locally using `joblib` multiprocessing wi
 ## Configuration Interface
 
 All UQ settings are controlled through a YAML configuration file \autoref{lst:yaml}:
-
 
 ```python
 parameters:
