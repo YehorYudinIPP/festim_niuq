@@ -169,13 +169,15 @@ def log_statistics_from_results(logger, results, qois):
     logger.info("=" * 70)
 
 
-def postprocess_from_db(db_path, timestamp):
+def postprocess_from_db(db_path, timestamp, dist_mode=None):
     """
     Postprocess UQ results from an EasyVVUQ campaign database.
 
     Args:
         db_path (str): Path to the campaign database file.
         timestamp (str): Timestamp for output naming.
+        dist_mode (str or None): Distribution plot mode ('histogram', 'kde', 'pce', 'all').
+            None or empty string disables distribution plots.
 
     Returns:
         int: 0 on success.
@@ -231,12 +233,22 @@ def postprocess_from_db(db_path, timestamp):
     except Exception:
         runs_info = None
 
+    show_dist = bool(dist_mode)
+
     # Plot results
     logger.info(f"Generating plots in folder: {output_folder}")
     uqplotter = UQPlotter()
 
     try:
-        uqplotter.plot_stats_vs_r(results, plot_qois, output_folder, timestamp, rs=rs, runs_info=runs_info)
+        uqplotter.plot_stats_vs_r(
+            results,
+            plot_qois,
+            output_folder,
+            timestamp,
+            rs=rs,
+            runs_info=runs_info,
+            show_distribution=show_dist,
+        )
         logger.info("Statistical plots generated successfully.")
     except Exception as e:
         logger.warning(f"Could not generate standard plots: {e}")
@@ -244,22 +256,38 @@ def postprocess_from_db(db_path, timestamp):
         try:
             distributions_keys = list(results.sobols_first(plot_qois[0]).keys()) if plot_qois else []
             distributions = {k: None for k in distributions_keys}
-            uqplotter.plot_stats_correlated(results, distributions, plot_qois, output_folder, timestamp, rs=rs)
+            uqplotter.plot_stats_correlated(
+                results,
+                distributions,
+                plot_qois,
+                output_folder,
+                timestamp,
+                rs=rs,
+                show_distribution=show_dist,
+            )
             logger.info("Correlated statistical plots generated successfully.")
         except Exception as e2:
             logger.error(f"Could not generate correlated plots either: {e2}")
+
+    # Standalone distribution plots (without spatial context) when dist_mode is set
+    if show_dist:
+        _generate_standalone_distribution_plots(
+            results, plot_qois, output_folder, timestamp, dist_mode, logger, uqplotter
+        )
 
     logger.info(f"Postprocessing completed. Output folder: {output_folder}")
     return 0
 
 
-def postprocess_from_pickle(pickle_path, timestamp):
+def postprocess_from_pickle(pickle_path, timestamp, dist_mode=None):
     """
     Postprocess UQ results from a saved pickle file of analysis results.
 
     Args:
         pickle_path (str): Path to the pickled analysis results.
         timestamp (str): Timestamp for output naming.
+        dist_mode (str or None): Distribution plot mode ('histogram', 'kde', 'pce', 'all').
+            None or empty string disables distribution plots.
 
     Returns:
         int: 0 on success.
@@ -305,28 +333,51 @@ def postprocess_from_pickle(pickle_path, timestamp):
     # Log all statistics
     log_statistics_from_results(logger, results, plot_qois)
 
+    show_dist = bool(dist_mode)
+
     # Plot results
     logger.info(f"Generating plots in folder: {output_folder}")
     uqplotter = UQPlotter()
 
     try:
-        uqplotter.plot_stats_vs_r(results, plot_qois, output_folder, timestamp, rs=rs, runs_info=None)
+        uqplotter.plot_stats_vs_r(
+            results,
+            plot_qois,
+            output_folder,
+            timestamp,
+            rs=rs,
+            runs_info=None,
+            show_distribution=show_dist,
+        )
         logger.info("Statistical plots generated successfully.")
     except Exception as e:
         logger.warning(f"Could not generate standard plots: {e}")
         try:
             distributions_keys = list(results.sobols_first(plot_qois[0]).keys()) if plot_qois else []
             distributions = {k: None for k in distributions_keys}
-            uqplotter.plot_stats_correlated(results, distributions, plot_qois, output_folder, timestamp, rs=rs)
+            uqplotter.plot_stats_correlated(
+                results,
+                distributions,
+                plot_qois,
+                output_folder,
+                timestamp,
+                rs=rs,
+                show_distribution=show_dist,
+            )
             logger.info("Correlated statistical plots generated successfully.")
         except Exception as e2:
             logger.error(f"Could not generate correlated plots either: {e2}")
+
+    if show_dist:
+        _generate_standalone_distribution_plots(
+            results, plot_qois, output_folder, timestamp, dist_mode, logger, uqplotter
+        )
 
     logger.info(f"Postprocessing completed. Output folder: {output_folder}")
     return 0
 
 
-def postprocess_from_runs_dir(runs_dir, config_path, timestamp):
+def postprocess_from_runs_dir(runs_dir, config_path, timestamp, dist_mode=None):
     """
     Postprocess UQ results from a directory of individual run outputs.
 
@@ -338,6 +389,8 @@ def postprocess_from_runs_dir(runs_dir, config_path, timestamp):
         runs_dir (str): Path to folder containing individual run directories.
         config_path (str): Path to the YAML config file (for QoI definitions).
         timestamp (str): Timestamp for output naming.
+        dist_mode (str or None): Distribution plot mode ('histogram', 'kde', 'pce', 'all').
+            None or empty string disables distribution plots.
 
     Returns:
         int: 0 on success.
@@ -488,11 +541,82 @@ def postprocess_from_runs_dir(runs_dir, config_path, timestamp):
             plt.close()
             logger.info(f"  Plot saved: {plot_filename}")
 
+            # Optional: marginal distribution plot for this column
+            if dist_mode:
+                # stacked shape: (n_runs, n_rows, n_cols) or (n_runs, n_rows)
+                col_runs = stacked[:, :, col_idx] if stacked.ndim == 3 else stacked
+                # Reduce each run to a scalar via spatial mean
+                qoi_scalars = col_runs.mean(axis=1) if col_runs.ndim == 2 else col_runs
+                show_hist = dist_mode in ("histogram", "all")
+                show_kde = dist_mode in ("kde", "all")
+                dist_plot_filename = add_timestamp_to_filename(
+                    f"{name_stem}_col{col_idx}_distribution.pdf", timestamp
+                )
+                try:
+                    uqplotter.plot_qoi_distribution(
+                        qoi_scalars,
+                        qoi_name=f"{name_stem}_col{col_idx}",
+                        foldername=output_folder,
+                        filename=dist_plot_filename,
+                        show_histogram=show_hist,
+                        show_kde=show_kde,
+                        show_pce_pdf=False,
+                        timestamp=timestamp,
+                    )
+                    logger.info(f"  Distribution plot saved: {dist_plot_filename}")
+                except Exception as exc:
+                    logger.warning(f"  Distribution plot failed for {name_stem} col {col_idx}: {exc}")
+
     logger.info("=" * 70)
     logger.info("END OF STATISTICS SUMMARY")
     logger.info("=" * 70)
     logger.info(f"Postprocessing completed. Output folder: {output_folder}")
     return 0
+
+
+def _generate_standalone_distribution_plots(results, plot_qois, output_folder, timestamp, dist_mode, logger, uqplotter):
+    """
+    Generate standalone marginal distribution plots for each QoI from
+    an EasyVVUQ results object.
+
+    Extracts raw per-run samples from ``results.samples``, collapses
+    spatially-resolved QoIs to a scalar via spatial mean, and calls
+    :meth:`UQPlotter.plot_qoi_distribution` with flags derived from
+    *dist_mode*.
+
+    Args:
+        results: EasyVVUQ analysis results object with a ``.samples``
+            DataFrame attribute.
+        plot_qois (list[str]): QoI names to process.
+        output_folder (str): Directory where plots are saved.
+        timestamp (str): Timestamp string for file naming.
+        dist_mode (str): One of 'histogram', 'kde', 'pce', 'all'.
+        logger (logging.Logger): Logger instance.
+        uqplotter (UQPlotter): Plotter instance.
+    """
+    from .util.utils import extract_scalar_qoi
+
+    show_hist = dist_mode in ("histogram", "all")
+    show_kde = dist_mode in ("kde", "all")
+    show_pce = dist_mode in ("pce", "all")
+
+    for qoi in plot_qois:
+        try:
+            qoi_scalars = extract_scalar_qoi(results, qoi, mode="mean")
+            dist_filename = add_timestamp_to_filename(f"{qoi}_distribution.pdf", timestamp)
+            uqplotter.plot_qoi_distribution(
+                qoi_scalars,
+                qoi_name=qoi,
+                foldername=output_folder,
+                filename=dist_filename,
+                show_histogram=show_hist,
+                show_kde=show_kde,
+                show_pce_pdf=show_pce,
+                timestamp=timestamp,
+            )
+            logger.info(f"Standalone distribution plot saved for QoI '{qoi}': {dist_filename}")
+        except Exception as exc:
+            logger.warning(f"Standalone distribution plot failed for '{qoi}': {exc}")
 
 
 def main():
@@ -503,8 +627,9 @@ def main():
         epilog="""
 Examples:
   %(prog)s --db path/to/campaign_state.json
-  %(prog)s --results-pickle path/to/analysis_results.pickle
-  %(prog)s --runs-dir path/to/runs/ --config path/to/config.yaml
+  %(prog)s --db path/to/campaign_state.json --distribution all
+  %(prog)s --results-pickle path/to/analysis_results.pickle --distribution kde
+  %(prog)s --runs-dir path/to/runs/ --config path/to/config.yaml --distribution histogram
         """,
     )
 
@@ -518,19 +643,34 @@ Examples:
         "--config", "-c", type=str, default=None, help="Path to YAML config file (required with --runs-dir)."
     )
 
+    parser.add_argument(
+        "--distribution",
+        "--dist-mode",
+        dest="dist_mode",
+        type=str,
+        default=None,
+        choices=["histogram", "kde", "pce", "all"],
+        help=(
+            "Generate marginal distribution plots for each QoI. "
+            "Choose 'histogram' (raw-sample histogram), 'kde' (kernel density estimate), "
+            "'pce' (PCE surrogate-derived marginal PDF via Monte-Carlo), "
+            "or 'all' to enable all three layers."
+        ),
+    )
+
     args = parser.parse_args()
 
     # Generate a common timestamp for this postprocessing session
     timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
 
     if args.db:
-        return postprocess_from_db(args.db, timestamp)
+        return postprocess_from_db(args.db, timestamp, dist_mode=args.dist_mode)
     elif args.results_pickle:
-        return postprocess_from_pickle(args.results_pickle, timestamp)
+        return postprocess_from_pickle(args.results_pickle, timestamp, dist_mode=args.dist_mode)
     elif args.runs_dir:
         if not args.config:
             parser.error("--config is required when using --runs-dir")
-        return postprocess_from_runs_dir(args.runs_dir, args.config, timestamp)
+        return postprocess_from_runs_dir(args.runs_dir, args.config, timestamp, dist_mode=args.dist_mode)
 
     return 1
 

@@ -41,6 +41,9 @@ dev = [
 bayesian = [
     "emcee",
 ]
+kde = [
+    "scipy",
+]
 
 [project.urls]
 Homepage = "https://github.com/YehorYudinIPP/festim_niuq"

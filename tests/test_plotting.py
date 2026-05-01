@@ -94,3 +94,119 @@ class TestUQPlotterMethods:
         """Basic check that the plotter can be instantiated without errors."""
         assert plotter is not None
         assert hasattr(plotter, "plot_stats_vs_r")
+        assert hasattr(plotter, "plot_qoi_distribution")
+
+
+# ---------------------------------------------------------------------------
+# Tests for UQPlotter.plot_qoi_distribution
+# ---------------------------------------------------------------------------
+
+
+class TestPlotQoiDistribution:
+    """Tests for UQPlotter.plot_qoi_distribution."""
+
+    N_RUNS = 32  # enough for a reasonable KDE / histogram
+
+    @pytest.fixture
+    def qoi_values(self):
+        rng = np.random.default_rng(seed=0)
+        return rng.normal(loc=1e18, scale=1e16, size=self.N_RUNS)
+
+    def test_creates_pdf_file(self, plotter, qoi_values, tmp_path):
+        """Default call writes a PDF file."""
+        out = plotter.plot_qoi_distribution(
+            qoi_values,
+            qoi_name="tritium_concentration",
+            foldername=str(tmp_path),
+            filename="test_dist.pdf",
+        )
+        assert os.path.isfile(out)
+
+    def test_histogram_only(self, plotter, qoi_values, tmp_path):
+        """histogram-only mode writes a file without error."""
+        out = plotter.plot_qoi_distribution(
+            qoi_values,
+            qoi_name="c",
+            foldername=str(tmp_path),
+            filename="hist_only.pdf",
+            show_histogram=True,
+            show_kde=False,
+            show_pce_pdf=False,
+        )
+        assert os.path.isfile(out)
+
+    def test_kde_mode(self, plotter, qoi_values, tmp_path):
+        """KDE mode writes a file (scipy may be absent; must not crash)."""
+        out = plotter.plot_qoi_distribution(
+            qoi_values,
+            qoi_name="c",
+            foldername=str(tmp_path),
+            filename="kde_only.pdf",
+            show_histogram=False,
+            show_kde=True,
+            show_pce_pdf=False,
+        )
+        assert os.path.isfile(out)
+
+    def test_pce_mode_with_surrogate(self, plotter, tmp_path):
+        """PCE mode with a simple chaospy surrogate writes a file."""
+        cp = pytest.importorskip("chaospy")
+
+        # Build a tiny 2-param PCE surrogate using regression.
+        # Samples are drawn with numpy directly (not chaospy's .sample()) to
+        # guarantee reproducible, finite values across all runtime environments.
+        D0_dist = cp.Uniform(1e-7, 3e-7)
+        G_dist = cp.Uniform(1e18, 3e18)
+        joint = cp.J(D0_dist, G_dist)
+
+        order = 2
+        expansion = cp.generate_expansion(order, joint)
+
+        # Draw regression samples using numpy RNG directly
+        rng = np.random.default_rng(42)
+        n_samples = 50
+        d0_vals = rng.uniform(1e-7, 3e-7, size=n_samples)
+        g_vals = rng.uniform(1e18, 3e18, size=n_samples)
+        samples = np.vstack([d0_vals, g_vals])   # shape (2, n_samples)
+        evaluations = g_vals / d0_vals           # all finite, no chaospy RNG dependency
+
+        surrogate = cp.fit_regression(expansion, samples, evaluations)
+        qoi_values = evaluations  # raw evaluations as the "measured" samples
+
+        out = plotter.plot_qoi_distribution(
+            qoi_values,
+            qoi_name="c",
+            foldername=str(tmp_path),
+            filename="pce_dist.pdf",
+            show_histogram=True,
+            show_kde=False,
+            show_pce_pdf=True,
+            pce_surrogate=surrogate,
+            joint_dist=joint,
+            n_mc_samples=500,
+        )
+        assert os.path.isfile(out)
+
+    def test_empty_values_returns_empty_string(self, plotter, tmp_path):
+        """All-NaN input returns an empty string and writes nothing."""
+        values = np.full(10, np.nan)
+        out = plotter.plot_qoi_distribution(
+            values,
+            qoi_name="c",
+            foldername=str(tmp_path),
+            filename="should_not_exist.pdf",
+        )
+        assert out == ""
+        assert not os.path.isfile(os.path.join(str(tmp_path), "should_not_exist.pdf"))
+
+    def test_auto_filename_with_timestamp(self, plotter, qoi_values, tmp_path):
+        """When filename is None, a timestamped filename is auto-generated."""
+        out = plotter.plot_qoi_distribution(
+            qoi_values,
+            qoi_name="c",
+            foldername=str(tmp_path),
+            timestamp="20260101_000000",
+        )
+        assert os.path.isfile(out)
+        assert "distribution" in os.path.basename(out)
+        assert "20260101_000000" in os.path.basename(out)
