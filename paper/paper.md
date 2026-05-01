@@ -64,14 +64,15 @@ This barrier is high enough that most published tritium transport studies report
 
 FESTIM-NIUQ removes this barrier for the FESTIM user community [@delaporte2024festim] by providing a ready-to-use pipeline that handles every step between a YAML configuration file and publication-quality sensitivity-index plots.
 The package is designed to be extended: new uncertain parameters, boundary conditions, or coordinate geometries are added by editing the configuration file rather than modifying Python source code.
-FESTIM-NIUQ has been used in ongoing research at the Nuclear Futures Institute, Bangor University, to assess parametric uncertainties in lithium-ceramic breeder blanket tritium transport simulations, and it has been presented at the UKAEA Technical Meeting [@ukaea2026meeting] and the Open-Source Software for Fusion Energy Workshop (OSSFE 2026) [@ossfe2026].
+<!-- FESTIM-NIUQ has been used in ongoing research at the Nuclear Futures Institute, Bangor University, to assess parametric uncertainties in lithium-ceramic breeder blanket tritium transport simulations, and it has been presented at the UKAEA Technical Meeting [@ukaea2026meeting] and the Open-Source Software for Fusion Energy Workshop (OSSFE 2026) [@ossfe2026]. -->
 
-Verification of the solver wrapper has been performed against Carslaw and Jaeger's analytical solutions for diffusion in a sphere
-[@carslaw1959conduction], and convergence of the polynomial chaos expansion (PCE) surrogate has been confirmed with increasing polynomial order. [TODO: add PCE scaling study]
+Verification of the solver wrapper has been performed against Carslaw and Jaeger's analytical solutions for diffusion in a sphere [@carslaw1959conduction], and convergence of the polynomial chaos expansion (PCE) surrogate has been confirmed with increasing polynomial order.
+
+[TODO: add PCE scaling study]
 
 # State of the Field
 
-Several general-purpose UQ frameworks exist, including Dakota [@adams2014dakota], OpenTURNS [@baudin2017openturns], UQLab [@marelli2014uqlab], SALib [@herman2017salib], and ChaosPy [@feinberg2015chaospy].
+Several general-purpose UQ frameworks exist, including Dakota [@adams2021dakota], OpenTURNS [@baudin2017openturns], UQLab [@marelli2014uqlab], SALib [@herman2017salib], and ChaosPy [@feinberg2015chaospy].
 While powerful, these tools require users to write bespoke glue code, which includes parameter encoders, solver wrappers, output decoders, - for each specific solver, which is a significant effort for finite-element tritium transport problems involving nested YAML configurations, VTX result files, and subprocess execution.
 Each of the specific hydrogen and tritium transport frameworks, alternative codes including  TMAP8 [@simon2025tmap8], TESSIM-X [@schmid2012tessim], SAETTA [@hattab2025saetta] and HIIPC [@sanghiipc], each with different physical scope, model specifics and assumptions, numerical backend, and input formats.
 They would require adapting UQ tools for the specific use, however, the experience of applying generic UQ methods for hydrogen transport provides a pathway to adoption of these methods in the field.
@@ -90,7 +91,7 @@ This design decouples the UQ layer from the solver internals, allowing users to 
 
 The package consists of three layers:
 
-1. **Model wrapper** (`festim_model/`): Encapsulates FESTIM [@delaporte2024festim] model configuration, execution, and result export for both FESTIM 2.0 (DOLFINx-based) and the legacy FESTIM 1.x API.
+1. **Model wrapper** (`festim_model/`): Encapsulates FESTIM model configuration, execution, and result export for both FESTIM 2.0 (DOLFINx-based) and the legacy FESTIM 1.x API.
 Constructs the model: geometry, mesh, material properties, boundary conditions, solver settings.
 2. **UQ orchestration** (`uq/`): Manages parameter sampling, campaign execution, and analysis using EasyVVUQ and ChaosPy.
 Contains encoder/decoder classed to access generic FESTIM models.
@@ -107,7 +108,8 @@ On workstations the same campaign runs locally using `joblib` multiprocessing wi
 
 All UQ settings are controlled through a YAML configuration file \autoref{lst:yaml}:
 
-```python [Example UQ configuration (*config.uq.yaml*).]{#lst:yaml}
+
+```python
 parameters:
   D:
     type: Uniform
@@ -131,11 +133,13 @@ festim:
   script: festim_model/model.py
 ```
 
+[Example UQ configuration (*config.uq.yaml*).]{#lst:yaml}
+
 # Supported UQ Methods
 
 A number of non-intrusive parametric uncertainty quantification methods implemented in EasyVVUQ is supported by the package.
 
-  - **Polynomial Chaos Expansion (PCE)**: Requires $\mathcal{O}(p^d)$ model evaluations for polynomial order $p$ and $d$ uncertain parameters (there is a $\mathcal{O}((p+d)!\\(p!n!))$ method for sparse version).
+  - **Polynomial Chaos Expansion (PCE)**: Requires $\mathcal{O}(p^d)$ model evaluations for polynomial order $p$ and $d$ uncertain parameters (there is a $\binom{p+d}{d}$ method for sparse version).
   Yields analytical Sobol decomposition from the PCE coefficients [@saltelli_sobol].
   - **Quasi-Monte Carlo (qMC)**: Uses Sobol sequences for low-discrepancy sampling. 
   Suitable for high-dimensional or computationally inexpensive models.
@@ -192,17 +196,20 @@ Table \autoref{tab:moments} summarises the statistical moments.
   ![UQ results for the 1-D tungsten slab test case. [TODO: Update captions with actual quantitative findings]](figures:a.png){#fig:results}
 
 : Statistical moments of the tritium inventory (QoI). \label{tab:moments}
-| Statistic  | Value | Units    |
-|----------- |-------|----------|
-| Mean $\mu$ | todo  | m$^{-3}$ |
-| Std. deviation, $\sigma$ | todo | m$^{-3} |
-| Coefficient of variation | todo |  |
+
+| Statistic                | Value | Units     |
+|--------------------------|:-----:|:---------:|
+| Mean $\mu$               | todo  | m$^{-3}$  |
+| Std. deviation, $\sigma$ | todo  | m$^{-3}   |
+| Coefficient of variation | todo  |           |
 
 # Research Impact Statement
 
-FESTIM-NIUQ was developed as part of ongoing fusion materials research at Nuclear Futures Institute at Bangir University, and is a part of UKAEA LIBRTI programme on breeder blanket technology.
-It has been presented at Nuclea Institute Digital SIG 2026 conference [@nidigsig2026], Open Source Software for Fusion Energy 2026 conference [@ossfe2026], and SEAVEA summer hackathon 2026 [@seaveahack2026].
-It forms the basis for uncertainty-aware studies of tritium trapping and release in Lithium ceramics irradiation experiments at High Flux Accelerator-Driven Neutron Facility [@] at University of Birmingham, a partner project of UKAEA.
+FESTIM-NIUQ was developed as part of ongoing fusion materials research at Nuclear Futures Institute at Bangir University, where it is used to assess parametric uncertainties in lithium-ceramic breeder blanket tritium transport simulations, and is a part of UKAEA LIBRTI programme on breeder blanket technology.
+It has been presented at LIBRTI 2026 Conference on Breeder Blanket Technology [@yudin2026librti], Open Source Software for Fusion Energy 2026 conference [@yudin2026ossfe].
+<!-- and SEAVEA summer hackathon 2025 [@seaveahack2026] -->
+It forms the basis for uncertainty-aware studies of tritium trapping and release in Lithium ceramics irradiation experiments at High Flux Accelerator-Driven Neutron Facility [@bishop2024hfadnef] at University of Birmingham, a partner project of UKAEA.
+
 [TODO: future publications]
 [TODO: GitHub activity]
 
