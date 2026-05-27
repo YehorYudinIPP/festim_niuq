@@ -9,6 +9,10 @@ the decoder can parse.
 
 Usage (called automatically by EasyVVUQ)::
 
+    # Preferred: keep package context for relative imports
+    python -m festim_niuq.uq.festim_model_run --config config.yaml
+
+    # Also supported when run directly from the source tree
     python festim_model_run.py --config config.yaml
 """
 
@@ -21,8 +25,17 @@ import yaml
 import argparse
 from pathlib import Path
 
-from ..festim_model import Model, Model_legacy
-from ..festim_model.diagnostics import Diagnostics
+# Support both module execution (python -m festim_niuq.uq.festim_model_run)
+# and direct script execution (python festim_model_run.py).
+if __package__:
+    from ..festim_model import Model, Model_legacy
+    from ..festim_model.diagnostics import Diagnostics
+else:
+    src_root = Path(__file__).resolve().parents[2]
+    if str(src_root) not in sys.path:
+        sys.path.insert(0, str(src_root))
+    from festim_niuq.festim_model import Model, Model_legacy
+    from festim_niuq.festim_model.diagnostics import Diagnostics
 
 logger = logging.getLogger(__name__)
 
@@ -51,6 +64,11 @@ def main():
 
     parser.add_argument(
         "--config", "-c", default="config.yaml", help="Path to YAML configuration file (default: config.yaml)"
+    )
+    parser.add_argument(
+        "--campaign-mode",
+        action="store_true",
+        help="Lean execution mode for UQ campaigns (skip plotting and diagnostics visualisation).",
     )
 
     args = parser.parse_args()
@@ -101,34 +119,42 @@ def main():
     logger.debug(f" >> Model run completed, results:\n{results}")
 
     # Save results to a file (for EasyVVUQ integration)
-    save_results_for_uq(results, model)
+    save_results_for_uq(
+        results,
+        model,
+        write_profile_fallback=not args.campaign_mode,
+        make_plots=not args.campaign_mode,
+    )
     # print(f">>> festim_model_run: Print results to the console: {results}")
 
     # Visualise results
     # TODO make into a separate script such that if this fails, the model results are saved and run passes
     # TODO single out run and post-process scripts and run a single BASH script
 
-    try:
-        # Option 2 - read all the required information from results files
-        qoi_names = ["tritium_concentration"]
-        diagnostics = Diagnostics(
-            result_folder=config["simulation"]["output_directory"],
-            qoi_names=qoi_names,
-            derived_quantities_flag=False,
-            result_format="bp",
-        )
+    if not args.campaign_mode:
+        try:
+            # Option 2 - read all the required information from results files
+            qoi_names = ["tritium_concentration"]
+            diagnostics = Diagnostics(
+                result_folder=config["simulation"]["output_directory"],
+                qoi_names=qoi_names,
+                derived_quantities_flag=False,
+                result_format="bp",
+            )
 
-        diagnostics.visualise()
-    except Exception as e:
-        print(f"Warning: Diagnostics visualisation failed: {e}")
-        print("Results are saved; UQ pipeline can continue.")
+            diagnostics.visualise()
+        except Exception as e:
+            print(f"Warning: Diagnostics visualisation failed: {e}")
+            print("Results are saved; UQ pipeline can continue.")
+    else:
+        print("Campaign mode active: skipping diagnostics visualisation.")
 
     print("FESTIM simulation completed successfully!")
     return results
 
 
-def save_results_for_uq(results, model):
-    """Save scalar QoIs and preserve transient profile exports for EasyVVUQ."""
+def save_results_for_uq(results, model, write_profile_fallback=True, make_plots=True):
+    """Save scalar QoIs and optional profile/plot outputs for EasyVVUQ."""
     import csv
 
     # ---- scalar QoIs in output.csv ----
@@ -158,52 +184,82 @@ def save_results_for_uq(results, model):
     print(f"Total tritium release (final): {final_release:.2e}")
     print(f"Total tritium trapping (final): {final_trapping:.2e}")
 
-    # ---- profile CSV (should already exist from Model._export_results) ----
-    milestone_times = getattr(model, "milestone_times", []) or []
+    if write_profile_fallback:
+        # ---- profile CSV (should already exist from Model._export_results) ----
+        milestone_times = getattr(model, "milestone_times", []) or []
 
-    for qoi_name, qoi_values in results.items():
-        # Skip scalar QoIs — only save spatially-resolved profiles.
-        # total_tritium_trapping *can* be a profile in some configurations,
-        # so we check the actual shape rather than the name.
-        qoi_arr = np.asarray(qoi_values)
-        if qoi_arr.ndim == 0:
-            continue
+        for qoi_name, qoi_values in results.items():
+            # Skip scalar QoIs — only save spatially-resolved profiles.
+            # total_tritium_trapping *can* be a profile in some configurations,
+            # so we check the actual shape rather than the name.
+            qoi_arr = np.asarray(qoi_values)
+            if qoi_arr.ndim == 0:
+                continue
 
-        profile_folder_name = model.result_folder
-        profile_file_name = f"results_{qoi_name}.txt"
-        profile_file_path = os.path.join(profile_folder_name, profile_file_name)
+            profile_folder_name = model.result_folder
+            profile_file_name = f"results_{qoi_name}.txt"
+            profile_file_path = os.path.join(profile_folder_name, profile_file_name)
 
-        if os.path.exists(profile_file_path):
-            print(f" > Keeping existing profile export: {profile_file_path}")
-            continue
+            if os.path.exists(profile_file_path):
+                print(f" > Keeping existing profile export: {profile_file_path}")
+                continue
 
-        # Fallback: create profile file from in-memory results
-        grid_values = np.asarray(model.vertices)
-        qoi_array = np.asarray(qoi_values)
+            # Fallback: create profile file from in-memory results
+            grid_values = np.asarray(model.vertices)
+            qoi_array = np.asarray(qoi_values)
+            n_vertices = len(grid_values)
 
-        if qoi_array.ndim == 1:
-            qoi_array = qoi_array.reshape(-1, 1)
-        elif qoi_array.ndim > 2:
-            qoi_array = qoi_array.reshape(qoi_array.shape[0], -1)
+            if qoi_array.ndim == 1:
+                # 1D vectors that do not match spatial size are time-only/scalar traces.
+                if qoi_array.shape[0] != n_vertices:
+                    print(
+                        f" > Skipping non-spatial QoI '{qoi_name}' with shape {qoi_array.shape}; expected {n_vertices} spatial points."
+                    )
+                    continue
+                qoi_array = qoi_array.reshape(-1, 1)
+            elif qoi_array.ndim == 2:
+                # Accept either (n_vertices, n_times) or transposed (n_times, n_vertices).
+                if qoi_array.shape[0] != n_vertices and qoi_array.shape[1] == n_vertices:
+                    qoi_array = qoi_array.T
+                elif qoi_array.shape[0] != n_vertices and qoi_array.shape[1] != n_vertices:
+                    print(
+                        f" > Skipping QoI '{qoi_name}' with unsupported shape {qoi_array.shape}; no spatial axis matches {n_vertices}."
+                    )
+                    continue
+            elif qoi_array.ndim > 2:
+                qoi_array = qoi_array.reshape(qoi_array.shape[0], -1)
 
-        data = np.column_stack((grid_values, qoi_array))
+                if qoi_array.shape[0] != n_vertices and qoi_array.shape[1] == n_vertices:
+                    qoi_array = qoi_array.T
+                elif qoi_array.shape[0] != n_vertices and qoi_array.shape[1] != n_vertices:
+                    print(
+                        f" > Skipping QoI '{qoi_name}' with unsupported reshaped shape {qoi_array.shape}; no spatial axis matches {n_vertices}."
+                    )
+                    continue
 
-        if qoi_array.shape[1] == 1 and not milestone_times:
-            header = "x,t=steady"
-        else:
-            if len(milestone_times) == qoi_array.shape[1]:
-                time_headers = [f"t={float(t):.2e}s" for t in milestone_times]
+            data = np.column_stack((grid_values, qoi_array))
+
+            if qoi_array.shape[1] == 1 and not milestone_times:
+                header = "x,t=steady"
             else:
-                time_headers = [f"t_idx_{i}" for i in range(qoi_array.shape[1])]
-            header = "x," + ",".join(time_headers)
+                if len(milestone_times) == qoi_array.shape[1]:
+                    time_headers = [f"t={float(t):.2e}s" for t in milestone_times]
+                else:
+                    time_headers = [f"t_idx_{i}" for i in range(qoi_array.shape[1])]
+                header = "x," + ",".join(time_headers)
 
-        os.makedirs(profile_folder_name, exist_ok=True)
-        np.savetxt(profile_file_path, data, header=header, delimiter=",", comments="")
+            os.makedirs(profile_folder_name, exist_ok=True)
+            np.savetxt(profile_file_path, data, header=header, delimiter=",", comments="")
 
-        print(f" > Fallback profile {qoi_name} saved to {profile_file_path}")
+            print(f" > Fallback profile {qoi_name} saved to {profile_file_path}")
+    else:
+        print("Campaign mode active: skipping fallback profile exports.")
 
-    # ---- plot concentration vs time for this individual run ----
-    plot_concentration_vs_time(results, model)
+    if make_plots:
+        # ---- plot concentration vs time for this individual run ----
+        plot_concentration_vs_time(results, model)
+    else:
+        print("Campaign mode active: skipping per-run plots.")
 
 
 def plot_concentration_vs_time(results, model):
@@ -234,6 +290,15 @@ def plot_concentration_vs_time(results, model):
         return
 
     vertices = np.asarray(model.vertices)
+
+    # Handle both (n_vertices, n_times) and transposed (n_times, n_vertices) layouts.
+    if conc_array.ndim == 2 and conc_array.shape[0] != len(vertices) and conc_array.shape[1] == len(vertices):
+        conc_array = conc_array.T
+    elif conc_array.ndim != 2 or conc_array.shape[0] != len(vertices):
+        print(
+            f"Unexpected tritium_concentration shape {conc_array.shape}; expected first axis to match {len(vertices)} vertices."
+        )
+        return
 
     # Positions of interest along the sample axis
     r_indices = {
