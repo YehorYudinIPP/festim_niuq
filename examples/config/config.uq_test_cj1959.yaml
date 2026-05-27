@@ -18,7 +18,7 @@
 
 model_parameters:
   transient: True               # Run as transient; steady-state reached at large t
-  total_time: 1024.0            # [s] Long enough to approach steady state
+  total_time: 8.0            # [s] Long enough to approach steady state
   problems:
 
     tritium_transport:
@@ -78,13 +78,13 @@ simulation:
     2.0, 
     4.0,
     8.0,
-    16.0,
-    32.0,
-    64.0,
-    128.0,
-    256.0,
-    512.0,
-    1024.0,
+    # 16.0,
+    # 32.0,
+    # 64.0,
+    # 128.0,
+    # 256.0,
+    # 512.0,
+    # 1024.0,
     ]
 
   quantities_of_interest:
@@ -124,11 +124,11 @@ initial_conditions:
     value:
       mean: 0.0  
 
-  # temperature:
-  #   type: "constant"
-  #   domain_id: 1
-  #   value:
-  #     mean: 300.0  
+  temperature:
+    type: "constant"
+    domain_id: 1
+    value:
+      mean: 300.0  
 
 source_terms:
 
