@@ -115,11 +115,20 @@ def get_festim_python():
 def validate_execution_setup():
     """Validate that the execution environment is properly configured."""
     runnable_script = "festim_model_run.py"
-    script_path = os.path.join(os.getcwd(), runnable_script)
+
+    # Resolve candidate script locations robustly across working directories.
+    repo_root = Path(__file__).resolve().parents[4]
+    script_candidates = [
+        repo_root / "src" / "festim_niuq" / "uq" / runnable_script,
+        repo_root / runnable_script,
+        Path(os.getcwd()) / runnable_script,
+    ]
+    script_path = next((str(p) for p in script_candidates if p.exists()), None)
 
     # Check script exists
-    if not os.path.exists(script_path):
-        raise FileNotFoundError(f"Script not found: {script_path}")
+    if script_path is None:
+        searched = "\n".join(str(p) for p in script_candidates)
+        raise FileNotFoundError(f"Script not found. Searched:\n{searched}")
 
     # Check script is executable
     if not os.access(script_path, os.X_OK):

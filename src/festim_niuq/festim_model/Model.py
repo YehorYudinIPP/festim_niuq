@@ -822,6 +822,8 @@ class Model(BaseModel):
                 problem_instance["qoi_names"] = config_transport_problem.get(
                     "qoi_names", ["tritium_concentration"]
                 )
+                # Also set singular qoi_name for use in _specify_outputs
+                problem_instance["qoi_name"] = problem_instance["qoi_names"][0]
 
                 qoi_name_local = "concentration"
                 qoi_name_condition_local = "concentration"

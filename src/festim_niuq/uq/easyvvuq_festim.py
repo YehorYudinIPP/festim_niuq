@@ -202,126 +202,81 @@ def define_parameter_uncertainty(config, CoV=None, distribution=None):
     # Trial 2) Vary parameters for thermal conduction
     # parameters_used = ['thermal_conductivity']
 
-    # Trial 3) Vary parameters for coupled gas and heat transport: 2 problems x (1 tr. coefficients + 1 const source + 1 BC reaction parameter)
-    parameters_used = ["D_0", "kappa", "G", "Q", "E_kr", "h_conv"]
+    def _nested(node, *keys):
+        cur = node
+        for key in keys:
+            if not isinstance(cur, dict):
+                return None
+            cur = cur.get(key)
+            if cur is None:
+                return None
+        return cur
 
-    # Define default mean values for parameters
-    material_num = config.get("geometry", None).get("domains", None)[0].get("material", None)
+    # Resolve the material config using material_id (not list index).
+    materials = config.get("materials", []) or []
+    domain0 = (config.get("geometry", {}).get("domains", [{}]) or [{}])[0]
+    material_id = domain0.get("material", None)
+    material_cfg = next((m for m in materials if m.get("material_id", None) == material_id), materials[0] if materials else {})
 
-    # - These values can be adjusted based on the specific model requirements and the physical properties of the system being simulated.
-    means = {
-        "D_0": config.get("materials", None)[material_num - 1]
-        .get("D_0", None)
-        .get("mean", None),  # Diffusion coefficient base value
-        "kappa": config.get("materials", None)[material_num - 1]
-        .get("thermal_conductivity", None)
-        .get("mean", None),  # Thermal conductivity
-        "G": config.get("source_terms", None)
-        .get("concentration", None)
-        .get("value", None)
-        .get("mean", None),  # Gas concentration source term
-        "Q": config.get("source_terms", None)
-        .get("heat", None)
-        .get("value", None)
-        .get("mean", None),  # Heat source term
-        "E_kr": config.get("boundary_conditions", None)
-        .get("concentration", None)
-        .get("right", None)
-        .get("E_kr", None)
-        .get("mean", None),  # Reaction rate coefficient
-        "h_conv": config.get("boundary_conditions", None)
-        .get("temperature", None)
-        .get("right", None)
-        .get("h_conv", None)
-        .get("mean", None),  # Convective heat transfer coefficient
-        # "E_D": config.get('materials', None)[material_num-1].get('E_D', None).get('mean', None),  # Activation energy
-        # "T_0": config.get('initial_conditions', None).get('temperature', None).get("value", None).get('mean', None),  # Mean temperature
-        # "source_concentration_value": config.get('source_terms', None).get('concentration', None).get('mean', None),  # Mean source value
-        # "left_bc_concentration_value": config.get('boundary_conditions', None).get('concentration', None).get('left', None).get('mean', None),  # Mean left boundary condition value
-        # "right_bc_concentration_value": config.get('boundary_conditions', None).get('concentration', None).get('right', None).get('mean', None),  # Mean right boundary condition value
+    # Candidate uncertain parameters. Keep only those fully defined in YAML.
+    parameter_specs = {
+        "D_0": {
+            "mean": _nested(material_cfg, "D_0", "mean"),
+            "relative_stdev": _nested(material_cfg, "D_0", "relative_stdev"),
+            "pdf": _nested(material_cfg, "D_0", "pdf") or "uniform",
+        },
+        "kappa": {
+            "mean": _nested(material_cfg, "thermal_conductivity", "mean"),
+            "relative_stdev": _nested(material_cfg, "thermal_conductivity", "relative_stdev"),
+            "pdf": _nested(material_cfg, "thermal_conductivity", "pdf") or "uniform",
+        },
+        "G": {
+            "mean": _nested(config, "source_terms", "concentration", "value", "mean"),
+            "relative_stdev": _nested(config, "source_terms", "concentration", "value", "relative_stdev"),
+            "pdf": _nested(config, "source_terms", "concentration", "value", "pdf") or "uniform",
+        },
+        "Q": {
+            "mean": _nested(config, "source_terms", "heat", "value", "mean"),
+            "relative_stdev": _nested(config, "source_terms", "heat", "value", "relative_stdev"),
+            "pdf": _nested(config, "source_terms", "heat", "value", "pdf") or "uniform",
+        },
+        "E_kr": {
+            "mean": _nested(config, "boundary_conditions", "concentration", "right", "E_kr", "mean"),
+            "relative_stdev": _nested(config, "boundary_conditions", "concentration", "right", "E_kr", "relative_stdev"),
+            "pdf": _nested(config, "boundary_conditions", "concentration", "right", "E_kr", "pdf") or "uniform",
+        },
+        "h_conv": {
+            "mean": _nested(config, "boundary_conditions", "temperature", "right", "h_conv", "mean"),
+            "relative_stdev": _nested(config, "boundary_conditions", "temperature", "right", "h_conv", "relative_stdev"),
+            "pdf": _nested(config, "boundary_conditions", "temperature", "right", "h_conv", "pdf") or "uniform",
+        },
     }
-    # TODO read means and default from the configuration file - alternatively, parse the whole YAML UQ file and get the means from there
+
+    if CoV is not None and (CoV < 0.0 or CoV > 1.0):
+        raise ValueError("Coefficient of variation (CoV) must be in the range [0, 1].")
+
+    parameters_used = [
+        name
+        for name, spec in parameter_specs.items()
+        if spec["mean"] is not None and ((CoV is not None) or (spec["relative_stdev"] is not None))
+    ]
+
+    if not parameters_used:
+        raise ValueError("No uncertain parameters could be parsed from config for UQ campaign.")
+
+    means = {name: parameter_specs[name]["mean"] for name in parameters_used}
+    relative_stds = {
+        name: (CoV if CoV is not None else parameter_specs[name]["relative_stdev"])
+        for name in parameters_used
+    }
+    distributions = {
+        name: (distribution if distribution is not None else parameter_specs[name]["pdf"])
+        for name in parameters_used
+    }
+
+    logger.debug(f" >>> Parsed uncertain parameters: {parameters_used}")
     logger.debug(f" >>> Mean values for uncertain parameters: {means}")
-
-    # Define standard deviations for the parameters
-    if CoV is not None:
-        # use a single defined Coefficient of Variation (CoV) for all parameters, e.g. for a scan
-        if CoV < 0.0 or CoV > 1.0:
-            raise ValueError("Coefficient of variation (CoV) must be in the range [0, 1].")
-
-        relative_stds = {
-            name: CoV for name in parameters_used
-        }  # Create a dictionary with the same CoV for all parameters
-    else:
-        # parse the YAML UQ file to get the CoV for each parameter
-        relative_stds = {
-            "D_0": config.get("materials", None)[material_num - 1]
-            .get("D_0", None)
-            .get("relative_stdev", None),  # Diffusion coefficient base value
-            "kappa": config.get("materials", None)[material_num - 1]
-            .get("thermal_conductivity", None)
-            .get("relative_stdev", None),  # Thermal conductivity
-            "G": config.get("source_terms", None)
-            .get("concentration", None)
-            .get("value", None)
-            .get("relative_stdev", None),  # Gas concentration source term
-            "Q": config.get("source_terms", None)
-            .get("heat", None)
-            .get("value", None)
-            .get("relative_stdev", None),  # Heat source term
-            "E_kr": config.get("boundary_conditions", None)
-            .get("concentration", None)
-            .get("right", None)
-            .get("E_kr", None)
-            .get("relative_stdev", None),  # Reaction rate coefficient
-            "h_conv": config.get("boundary_conditions", None)
-            .get("temperature", None)
-            .get("right", None)
-            .get("h_conv", None)
-            .get("relative_stdev", None),  # Convective heat transfer coefficient
-            # "E_D": config.get('materials', None)[material_num-1].get('E_D', None).get('relative_stdev', None),  # Activation energy
-            # "T_0": config.get('initial_conditions', None).get('temperature', None).get("value", None).get('relative_stdev', None),  # Mean temperature
-            # "source_concentration_value": config.get('source_terms', None).get('concentration', None).get('relative_stdev', None),
-            # "right_bc_concentration_value": config.get('boundary_conditions', None).get('right', None).get('relative_stdev', None),
-        }
     logger.debug(f" >>> Relative STDs for uncertain parameters: {relative_stds}")
-
-    # Define the distributions for uncertain parameters
-    if distribution is not None:
-        # use a single distribution for all parameters, e.g. for a scan
-        distributions = {name: distribution for name in parameters_used}
-    else:
-        # use the default distributions from the configuration file
-        distributions = {
-            "D_0": config.get("materials", None)[material_num - 1]
-            .get("D_0", None)
-            .get("pdf", None),  # Diffusion coefficient base value
-            "kappa": config.get("materials", None)[material_num - 1]
-            .get("thermal_conductivity", None)
-            .get("pdf", None),  # Thermal conductivity
-            "G": config.get("source_terms", None)
-            .get("concentration", None)
-            .get("value", None)
-            .get("pdf", None),  # Gas concentration source term
-            "Q": config.get("source_terms", None)
-            .get("heat", None)
-            .get("value", None)
-            .get("pdf", None),  # Heat source term
-            "E_kr": config.get("boundary_conditions", None)
-            .get("concentration", None)
-            .get("right", None)
-            .get("E_kr", None)
-            .get("pdf", None),  # Reaction rate coefficient
-            "h_conv": config.get("boundary_conditions", None)
-            .get("temperature", None)
-            .get("right", None)
-            .get("h_conv", None)
-            .get("pdf", None),  # Convective heat transfer coefficient
-            # "E_D": config.get('materials', None)[material_num-1].get('E_D', None).get('pdf', None),  # Activation energy
-            # "T_0": config.get('initial_conditions', None).get('temperature', None).get("value", None).get('pdf', None),  # Mean temperature
-            # "source_concentration_value": config.get('source_terms', None).get('concentration', None).get('pdf', 'normal'),
-            # "right_bc_concentration_value": config.get('boundary_conditions', None).get('right', None).get('pdf', 'normal'),
-        }
 
     logger.debug(f" >>> Distributions for uncertain parameters: {distributions}")
 
@@ -435,7 +390,7 @@ def prepare_execution_command():
     python_exe, script_path = validate_execution_setup()
 
     # Use the filename that the encoder creates (config.uq.yaml)
-    config_suffix = f" --config config.yaml "
+    config_suffix = f" --config config.yaml --campaign-mode "
 
     # - Assuring correct environment:
     # - - running activation command
@@ -784,6 +739,12 @@ def perform_uq_festim(config=None, fixed_params=None):
         parser.add_argument(
             "--config", "-c", default="config.yaml", help="Path to YAML configuration file (default: config.yaml)"
         )
+        parser.add_argument(
+            "--p-order",
+            type=int,
+            default=3,
+            help="PCE polynomial order (default: 3)",
+        )
 
         args = parser.parse_args()
         print(f"> Using arguments file: {args.config}")
@@ -799,10 +760,10 @@ def perform_uq_festim(config=None, fixed_params=None):
 
     logger.debug(f" >> Passing parameters fixed to the campaign: {fixed_params}")
 
-    # Define UQ parameters — sparse PCE, polynomial order 3
+    # Define UQ parameters — sparse PCE, polynomial order configurable via CLI
     uq_params = {
         "uq_scheme": "pce",   # 'pce' or 'qmc'
-        "p_order": 3,         # maximal polynomial order (total-degree truncation)
+        "p_order": int(args.p_order),  # maximal polynomial order (total-degree truncation)
         "sparse": True,       # sparse Smolyak quadrature grid
         "n_samples": 8,       # only used for QMC fallback
     }
