@@ -14,6 +14,7 @@ import argparse
 import os
 import sys
 import logging
+import traceback
 from datetime import datetime
 import numpy as np
 
@@ -403,8 +404,13 @@ def prepare_execution_command():
 
     print(f"Execution command line: {exec_command_line}")
 
-    # Execute the script locally - prepare the ExecuteLocal action
-    execute = ExecuteLocal(exec_command_line)
+    # Execute locally and capture each run's process output in its run directory.
+    # These filenames are resolved by EasyVVUQ relative to the per-run cwd.
+    execute = ExecuteLocal(
+        exec_command_line,
+        stdout="stdout.txt",
+        stderr="stderr.txt",
+    )
 
     return execute
 
@@ -772,6 +778,18 @@ def perform_uq_festim(config=None, fixed_params=None):
         config, config_file=args.config, fixed_params=fixed_params, uq_params=uq_params
     )
 
+    print("\n===== PRE-EXECUTION SUMMARY =====")
+    print(f"Config file: {args.config}")
+    print(f"Campaign timestamp: {campaign_timestamp}")
+    print(f"UQ scheme: {uq_params.get('uq_scheme', 'unknown')}")
+    print(f"PCE order: {uq_params.get('p_order', 'n/a')}")
+    print(f"Sparse grid: {uq_params.get('sparse', 'n/a')}")
+    print(f"Uncertain parameters: {list(distributions.keys())}")
+    print(f"QoIs: {qois}")
+    print("Execution mode: local (ExecuteLocal)")
+    print("Per-run logs: stdout.txt, stderr.txt")
+    print("===============================\n")
+
     # Create a dedicated output folder for this campaign run
     output_folder = f"festim_uq_results_{campaign_timestamp}"
     os.makedirs(output_folder, exist_ok=True)
@@ -789,9 +807,9 @@ def perform_uq_festim(config=None, fixed_params=None):
         print(f"✓ Campaign state saved: {campaign_state_filename}")
     except Exception as _e:
         logger.warning(f"Could not save campaign state via save_state(): {_e}")
-        # Fallback: dump the raw DB
-        campaign.campaign_db.dump()
-        logger.debug(f" >> Campaign database dumped (fallback). Database: {campaign.campaign_db}")
+        # Some EasyVVUQ versions have fragile DB dump/close paths.
+        # Keep campaign execution alive and continue to analysis.
+        print("i Continuing without campaign state dump due to save_state fallback issue.")
 
     # Perform the analysis — saves analysis_results pickle to output_folder
     results = analyse_uq_results(campaign, qois, sampler, uq_params=uq_params, output_folder=output_folder)
@@ -841,4 +859,5 @@ if __name__ == "__main__":
 
     except Exception as e:
         print(f"An error occurred during the UQ campaign: {e}")
+        traceback.print_exc()
         sys.exit(1)
