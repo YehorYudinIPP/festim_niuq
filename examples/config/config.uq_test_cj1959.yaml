@@ -17,6 +17,7 @@
 # ================================================================
 
 model_parameters:
+  verification_case: "cj1959"  # Explicit gate for CJ1959 verification post-processing
   transient: True               # Run as transient; steady-state reached at large t
   total_time: 8.0            # [s] Long enough to approach steady state
   problems:
@@ -45,15 +46,24 @@ materials:
   - material_id: 123456789
     material_name: "test_stuff"
     D_0:
-      mean: 1.0e-6
+      mean: 1.0
       relative_stdev: 0.05
       pdf: 'uniform'
     E_D:
       mean: 1.0
 
 simulation:
-  mesh_type: "regular"
+  mesh_type: "refined"
   n_elements: 1024
+  meshes:
+    - domain_id: 1
+      mesh_type: "refined"
+      n_elements: 1024
+      refinement:
+        rule: "linear"
+        location: "right"
+        fraction_domain: 0.15
+        fraction_elements: 0.40
 
   time_step:
     default_value: 0.01
@@ -103,7 +113,7 @@ boundary_conditions:
       species: "Tritium"
       value:
         mean: 0.0
-        relative_stdev: 0.05
+        # relative_stdev: 0.05
         pdf: 'uniform'
 
   # temperature:
