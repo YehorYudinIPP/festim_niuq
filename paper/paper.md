@@ -146,9 +146,25 @@ A number of non-intrusive parametric uncertainty quantification methods implemen
   Suitable for high-dimensional or computationally inexpensive models.
 
 ## Testing and Continuous Integration
-
+<!-- 
 [Describe the GitHub Actions CI pipeline, unit test coverage fraction, and any regression/verification tests. 
-Reference the *github/workflows* directory.]
+Reference the *github/workflows* directory.] -->
+
+The package presents a comprehensive set of tests of different types: unit tests, regression ones, tests for scientific logic, and verification cases.
+
+Testing is covered with Continous Integration (CI) logic implemented on the basis of GitHub worflows, which trigers excution of tests on each push into the *main* and *master* branches of the origin of the repositroty.
+The tests are executed for three Pytohn versions (3.9, 3.10, 3.11, 3.12).
+The testing workflow is complemented by code inspection and linting with *Pylint* functionality.
+
+There are 113 unit test for basic functionality, seven tests for scientific logic, and two regression tests.
+The test consider possible failing modes of the execution of UQ campaign, including failures of individual simulaiton runs, and tests for edge cases like division-by-zero for a center of a sample at $R=0$.
+
+The verificaiton cases include Method of Exact Solutions (MES) for diffusion problem, with two cases presented:
+
+  - Diffusion in spherical coordinates with a constant source, homogenous Dirichlet boundary conditions, and zero intial conditions. The solution for simplified mobile concentration build up in a grain is presented in [@carslaw1959conduction].
+  - Diffusion in spherical coordinates with a zero source, homogenous Dirichlet boundary conditions, and consant initial condition for concentration. The solution for simplified anealing problem is presented in [@crank1975mathematics].
+
+The testin suit implements more complex analysis for mesh convergence, as well as accuracy and convergence for Sobol indices computation using PCE method.
 
 # Overall Workflow
 
@@ -173,14 +189,13 @@ FESTIM-NIUQ process calls.](figures/flowchart_v1_light.png){#fig:workflow}
 We consider a 1-D tungsten slab of thickness $L = 2\,\mathrm{mm}$ subject to a volumetric tritium source $G$ and a fixed concentration boundary condition at $r = a$. The governing transport equation is:
 
 $$
-  \frac{\partial c}{\partial t}
-  = \nabla\cdot(D\,\nabla c)
-    + G
-    - \sum_i k_i^+\,c\,(n_i - c_{t,i})
-    + \sum_i k_i^-\,c_{t,i},
+  \frac{\partial c_{m}}{\partial t}
+  = \nabla\cdot(D\,\nabla c_{m})
+    - \sum_i \left( k_i^+\,c_{m}\,(n_i - c_{t,i}) - k_i^-\,c_{t,i} \right)
+    + \sum_j G_j,
   \label{eq:transport}$$
 
-where $c$ is the mobile hydrogen concentration, $D$ the diffusion coefficient, $G$ the generation rate, and $c_{t,i}$, $k_i^\pm$ are trap occupancy and rate constants for trap site $i$.
+where $c$ is the mobile hydrogen concentration, $D$ the diffusion coefficient, $G_j$ the generation rates for different sources of hydrogen, and $c_{t,i}$, $k_i^\pm$, $n_i$ are trap occupancy, rate constants, and density for trap site $i$.
 
 Three parameters are treated as uncertain (uniform distributions): $D$, $G$, and $C(r=a)$.
 A PCE of order 3 requires $\binom{3+3}{3} = 20$ FESTIM evaluations to resolve.
