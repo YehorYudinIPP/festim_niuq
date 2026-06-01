@@ -50,13 +50,14 @@ materials:
       relative_stdev: 0.05
       pdf: 'uniform'
     E_D:
-      mean: 1.0
+      mean: 0.0
 
 simulation:
   mesh_type: "refined"
   n_elements: 1024
   meshes:
     - domain_id: 1
+      coordinate_system: "spherical"
       mesh_type: "refined"
       n_elements: 1024
       refinement:
@@ -73,7 +74,7 @@ simulation:
 
   tolerances:
     absolute_tolerance: 
-      tritium_transport: 1.0e+6 
+      tritium_transport: 1.0e-12 
       # heat_transport: 1.0 
     relative_tolerance: 1.0e-6
 
@@ -147,7 +148,7 @@ source_terms:
     species: "Tritium"
     type: "constant"
     value:
-      mean: 1.0e+15
+      mean: 1.0
       relative_stdev: 0.10
       pdf: 'uniform'
 
