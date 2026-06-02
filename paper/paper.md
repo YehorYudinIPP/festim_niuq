@@ -42,11 +42,11 @@ Yet the material transport coefficients that govern these predictions carry subs
 
 FESTIM-NIUQ is a Python package that automates non-intrusive uncertainty quantification (UQ) for tritium transport simulations performed with the FESTIM finite-element framework [@festim2026github; @delaporte2019festim; @dark2026festim].
 The package couples FESTIM with EasyVVUQ [@richardson2020easyvvuq] and ChaosPy [@feinberg2015chaospy] to propagate parametric uncertainties through diffusion–reaction models of tritium behaviour in fusion-relevant materials.
-The user can specify probability distributions on input parameters, which includes the diffusion pre-exponential factor, thermal conductivity, volumetric tritium generation rate, and tritium surface recombination energy, or other paramaters for possibly different species.
+The user can specify probability distributions on input parameters, which include the diffusion pre-exponential factor, thermal conductivity, volumetric tritium generation rate, and tritium surface recombination energy, or other parameters for possibly different species.
 Given this specification, FESTIM-NIUQ automatically generates parameter samples, executes FESTIM simulations in parallel, and computes statistical moments and Sobol sensitivity indices [@sobol1993sensitivity; @sobol2001global] of quantities of interest, including spatially resolved concentration profiles and integral tritium inventories.  
 The entire workflow is controlled by a single YAML configuration file, which specifies model equations and theoretical terms, geometry and boundary conditions, as well as parameter values, both deterministic and uncertain, making it accessible to fusion materials scientists who have no prior UQ expertise.
 
-The *0.2.0* version of the package is available as source code at *github.com*, installable from the *PyPI* repository, and is archived at *Zenodo*.
+The *0.2.0* version of the package is available as source code on *GitHub*, installable from the *PyPI* repository, and is archived at *Zenodo*.
 The repository covers basic functionality with unit tests, provides several verification cases, and allows users to adapt it to specific needs via permissive licensing.
 
 # Statement of Need
@@ -76,9 +76,9 @@ Verification of the solver wrapper has been performed against Carslaw and Jaeger
 
 ![PCE polynomial order scan for FESTIM-NIUQ uncertainty quantification for verification transport problem.](figures/poly_order_dashboard_2x2_a4.png){#fig:pce_p_order}
 
-\autoref{fig:pce_p_order} demonstrates the dependency of the computed mean, standard deviation, Sobol indices on the polynomial order employed in the PCE study.
-Here a Smolyak sparse grid is used for a quadrature-based sample [@bungartz2004sparse].
-The problem solved is constant source, zero initial condition, homogenous Dirichlet BC diffusion in spherical coordinates [@carslaw1959conduction].
+\autoref{fig:pce_p_order} demonstrates the dependency of the computed mean, standard deviation, and Sobol indices on the polynomial order employed in the PCE study.
+Here, a Smolyak sparse grid is used for a quadrature-based sample [@bungartz2004sparse].
+The problem solved is a constant source, zero initial condition, homogenous Dirichlet BC diffusion in spherical coordinates [@carslaw1959conduction].
 
 # State of the Field
 
@@ -164,20 +164,20 @@ festim:
   script: festim_model/model.py
 ```
 
-For any scalar parameter, user can specify it as uncertain by adding sub-items containing the type of distribution of uncertainty and its numerical parameters (bounds, mean, standard deviation).
+For any scalar parameter, the user can specify it as uncertain by adding sub-items containing the type of distribution of uncertainty and its numerical parameters (bounds, mean, standard deviation).
 The model parser recognizes parameters as uncertain and tracks them for further UQ studies.
-Furthermore, user can specify type of UQ analysis to be performed and its parameters (number of samples, polynomial order, quantities to study).
+Furthermore, the user can specify the type of UQ analysis to be performed and its parameters (number of samples, polynomial order, quantities to study).
 
 # Supported UQ Methods
 
-A number of non-intrusive parametric uncertainty quantification methods implemented in EasyVVUQ is supported by the package.
+A number of non-intrusive parametric uncertainty quantification methods implemented in EasyVVUQ are supported by the package.
 
   - **Polynomial Chaos Expansion (PCE)**: Requires $\mathcal{O}(p^d)$ model evaluations for polynomial order $p$ and $d$ uncertain parameters (there is a $\binom{p+d}{d}$ method for sparse version).
   Yields analytical Sobol decomposition from the PCE coefficients [@saltelli1995about].
   - **Quasi-Monte Carlo (qMC)**: Uses Sobol sequences for low-discrepancy sampling.
   Suitable for high-dimensional or computationally inexpensive models.
 
-The data and the fitted UQ model can be used as a surrogate for original problem solution for further methods.
+The data and the fitted UQ model can be used as a surrogate for the original problem solution for further methods.
 At the moment, inverse Bayesian UQ using PCE surrogates is in implementation.
 Furthermore, a UQ method based on Rosenblatt and Cholesky methods with Finite Difference formulation [@kardos2025sensitivity] is in preparation.
 
@@ -186,21 +186,21 @@ Furthermore, a UQ method based on Rosenblatt and Cholesky methods with Finite Di
 [Describe the GitHub Actions CI pipeline, unit test coverage fraction, and any regression/verification tests. 
 Reference the *github/workflows* directory.] -->
 
-The package presents a comprehensive set of tests of different types: unit tests, regression ones, tests for scientific logic, and verification cases.
+The package presents a comprehensive set of tests of different types: unit tests, regression tests, tests for scientific logic, and verification cases.
 
 Testing is covered with Continuous Integration (CI) logic implemented on the basis of GitHub workflows, which triggers execution of tests on each push into the *main* and *master* branches of the origin of the repository.
 The tests are executed for three Python versions (3.9, 3.10, 3.11, 3.12).
 The testing workflow is complemented by code inspection and linting with *Pylint* functionality.
 
 There are 113 unit tests for basic functionality, seven tests for scientific logic, and two regression tests.
-The test consider possible failing modes of the execution of UQ campaign, including failures of individual simulation runs, and tests for edge cases like division-by-zero for a center of a sample at $R=0$.
+The tests consider possible failing modes of the execution of an UQ campaign, including failures of individual simulation runs, and tests for edge cases like division-by-zero for the center of a sample at $R=0$.
 
-The verification cases include Method of Exact Solutions (MES) for diffusion problem, with two cases presented:
+The verification cases include Method of Exact Solutions (MES) for a diffusion problem, with two cases presented:
 
-  - Diffusion in spherical coordinates with a constant source, homogenous Dirichlet boundary conditions, and zero initial conditions. The solution for simplified mobile concentration build up in a grain is presented in [@carslaw1959conduction].
-  - Diffusion in spherical coordinates with a zero source, homogenous Dirichlet boundary conditions, and constant initial condition for concentration. The solution for simplified annealing problem is presented in [@crank1975mathematics].
+  - Diffusion in spherical coordinates with a constant source, homogenous Dirichlet boundary conditions, and zero initial conditions. The solution for simplified mobile concentration build-up in a grain is presented in [@carslaw1959conduction].
+  - Diffusion in spherical coordinates with a zero source, homogenous Dirichlet boundary conditions, and constant initial condition for concentration. The solution for a simplified annealing problem is presented in [@crank1975mathematics].
 
-The testing suit implements more complex analysis for mesh convergence, as well as accuracy and convergence for Sobol indices computation using PCE method.
+The testing suite implements more complex analysis for mesh convergence, as well as accuracy and convergence for Sobol indices computation using the PCE method.
 
 # Overall Workflow
 
@@ -223,7 +223,7 @@ FESTIM-NIUQ process calls.](figures/flowchart_v1_light.png){#fig:workflow}
 ## Test Case: Tritium Inventory in a 1-D Slab
 
 We consider a 1-D ceramic slab of thickness $L$ subject to a volumetric tritium source and a fixed concentration boundary condition at $L$: $c_{m}(r = L) = const$.
-<!-- The diffusion coefficeint of gas in the materials is consant $D$. -->
+<!-- The diffusion coefficient of gas in the materials is constant $D$. -->
 <!-- $L = 2\,\mathrm{mm}$ -->
 The governing transport equation is:
 
@@ -241,14 +241,14 @@ A PCE of order 3 requires $\binom{3+3}{3} = 20$ FESTIM evaluations to resolve.
 
 ## Results
 
-The section illustrates an example of a PCE study with polynomial order $p=3$, sparse Smolyak quandrature sample applied, and with unformly distributed uncertaint paramters (coefficient of variation $=0.1$).
+The section illustrates an example of a PCE study with polynomial order $p=3$, sparse Smolyak quadrature sample applied, and with uniformly distributed uncertain parameters (coefficient of variation $=0.1$).
 \autoref{fig:results_uncertainty} shows the first-order and total-order Sobol indices and the probability density function of the tritium inventory.
-\autoref{fig:sobol} demonstrates Sobol indices of total tritium concentration and outward flux for source term  and diffusion coefficent values.
+\autoref{fig:sobol} demonstrates Sobol indices of total tritium concentration and outward flux for source term and diffusion coefficient values.
 Table \autoref{tab:moments} summarises the statistical moments for the mobile concentration.
 
-  ![Mean value, standard deviation, confidence intervals, as well as default and analytic verification values and errors of tritium inventory.](figures/cj1959_verification_dashboard_2x2.png){#fig:results_uncertainty}
+  ![Mean value, standard deviation, confidence intervals, as well as default and analytic verification values and errors of tritium inventory.](figures/cj1959_verification_dashboard_2x2_v2.png){#fig:results_uncertainty}
 
-  ![First-order (S1) and total-order (ST) Sobol sensitivity indices for the tritium inventory.](figures/cj1959_sobol_summary_1x2.png){#fig:sobol}
+  ![First-order (S1) and total-order (ST) Sobol sensitivity indices for the tritium inventory.](figures/cj1959_sobol_summary_1x2_v2.png){#fig:sobol}
 
   ![Probability density of the tritium inventory obtained from the PCE surrogate.](figures/qoi_distribution.png){#fig:pdf}
 
@@ -270,11 +270,11 @@ Table \autoref{tab:moments} summarises the statistical moments for the mobile co
 FESTIM-NIUQ was developed as part of ongoing fusion materials research at the Nuclear Futures Institute at Bangor University, where it is used to assess parametric uncertainties in lithium-ceramic breeder blanket tritium transport simulations, and is a part of the UKAEA LIBRTI programme on breeder blanket technology.
 It has been presented at the LIBRTI 2026 Conference on Breeder Blanket Technology [@yudin2026librti] and the Open Source Software for Fusion Energy 2026 conference [@yudin2026ossfe].
 <!-- and SEAVEA summer hackathon 2025 [@seaveahack2026] -->
-The work on the package has been started during the summer 2025 SEAVEA hackaton [@seavea2025hack].
+The work on the package was started during the summer 2025 SEAVEA hackathon [@seavea2025hack].
 The software forms the basis for uncertainty-aware studies of tritium trapping and release in Lithium ceramics irradiation experiments at High Flux Accelerator-Driven Neutron Facility [@bishop2024hfadnef] at the University of Birmingham, a partner project of UKAEA.
 <!-- [TODO: future publications] -->
-The work perfromed using this package is in preparation for publication in academic jounals on fusion engineering and material science.
-Furthermore, the work using the package is accepted for a contibuted talk at International Conference for Computational Science 2026 [@yudin2026iccs26].
+The work performed using this package is in preparation for publication in academic journals on fusion engineering and material science.
+Furthermore, the work using the package is accepted for a contributed talk at the International Conference on Computational Science 2026 [@yudin2026iccs26].
 
 <!-- [TODO: GitHub activity] -->
 
