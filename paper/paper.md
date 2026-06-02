@@ -53,7 +53,7 @@ The repository covers basic functionality with unit tests, provides several veri
 
 Fusion reactor components, such as tungsten first walls and beryllium covers, interact with tritium over long operational periods.
 Tritium must be carefully inventoried and managed in fusion reactor components because of its radioactivity, scarcity, and role as fuel.
-Tritium transport is governed by a coupled diffusion-reaction system with Arrhenius-type coefficients whose values are often measured with uncertainties of tens of per cent [@causey2012tritium].
+Tritium transport is governed by a coupled diffusion-reaction system with Arrhenius-type coefficients whose values are often measured with uncertainties of tens of percent [@causey2012tritium].
 Reliable safety assessments and design decisions require an understanding of how these input uncertainties propagate to predicted tritium inventories and release rates [@longhurst2011verification].
 Analysis that targets design and prediction should provide confidence intervals on top of the mean estimates for tritium inventory and release rates, since these directly affect safety licensing [@mirallesdolz2024uncertainty].
 
@@ -76,9 +76,9 @@ Verification of the solver wrapper has been performed against Carslaw and Jaeger
 
 ![PCE polynomial order scan for FESTIM-NIUQ uncertainty quantification for verification transport problem.](figures/poly_order_dashboard_2x2_a4.png){#fig:pce_p_order}
 
-\autoref{fig:pce_p_order} demonstrates the dependency of the computed mean, standard deviation, Sobol indices on the polynomial order emplyed in the PCE study.
-Here a Smolyak sparse grid is used for a quandrature-based sample [@bungartz2004sparse].
-The problem solved is constant source, zero intial condition, homogenous Dirichlet BC diffusion in spherical coordiantes [@carslaw1959conduction].
+\autoref{fig:pce_p_order} demonstrates the dependency of the computed mean, standard deviation, Sobol indices on the polynomial order employed in the PCE study.
+Here a Smolyak sparse grid is used for a quadrature-based sample [@bungartz2004sparse].
+The problem solved is constant source, zero initial condition, homogenous Dirichlet BC diffusion in spherical coordinates [@carslaw1959conduction].
 
 # State of the Field
 
@@ -109,9 +109,9 @@ Contributing a generic FESTIM integration upstream to EasyVVUQ was considered bu
 | qMC support |	*QMCSampler* + *QMCAnalysis*; in main EasyVVUQ workflow (uq_scheme: *qmc*) |	Implemented, in main UQ flow |
 | Other UQ modes |	Correlated script supports **FD** and **PCE**; **Bayesian inverse UQ** via PCE surrogate + MCMC (*emcee*)	| Under manual testing |
 | YAML configuration	| Full workflow controlled by YAML file (model + solver + UQ-relevant parameter definitions); deep nested substitution via *AdvancedYAMLEncoder* dot-path mapping	| Implemented |
-| Fusion-specific QoIs |	*tritium_concentration* profiles (**steady/transient** checkpoints), *total_tritium_release*, *total_tritium_trapping*, and support/descriptor for *tritium_inventory* |	Implemented, difference betwenn legacy and current implementation |
+| Fusion-specific QoIs |	*tritium_concentration* profiles (**steady/transient** checkpoints), *total_tritium_release*, *total_tritium_trapping*, and support/descriptor for *tritium_inventory* |	Implemented, difference between legacy and current implementation |
 | Outputs for UQ |	Profile file (*results_tritium_concentration.txt*) for campaign decoding; scalar outputs (*output.csv* / summary CSV) for scalar QoIs| 	Implemented |
-| Visualisation | Profiles for solution quantities, as function of time and space; profiles for standard deviation, quantiles, Sobol indices; colour plots against time and space, comparison and error for verification;  UQ algorithm convergence studies | Implemented, HTML dashboard for individual jobs underway |
+| Visualisation | Profiles for solution quantities, as function of time and space; profiles for standard deviation, quantiles, Sobol indices; color plots against time and space, comparison and error for verification; UQ algorithm convergence studies | Implemented, HTML dashboard for individual jobs underway |
 
 
 # Software Design
@@ -164,9 +164,9 @@ festim:
   script: festim_model/model.py
 ```
 
-For any scalar parameter, user can specify it as uncertain by adding sub-items containing the type of distribution of uncertaitny and its numerical parameters (bounds, mean, standard deviation).
-The model parser recognises parameters as uncertain and tracks them for further UQ studies.
-Furthermore, user can specify type of UQ analysis to be perfromed and its parameters (number of samples, polynomial order, quantities to study).
+For any scalar parameter, user can specify it as uncertain by adding sub-items containing the type of distribution of uncertainty and its numerical parameters (bounds, mean, standard deviation).
+The model parser recognizes parameters as uncertain and tracks them for further UQ studies.
+Furthermore, user can specify type of UQ analysis to be performed and its parameters (number of samples, polynomial order, quantities to study).
 
 # Supported UQ Methods
 
@@ -174,8 +174,12 @@ A number of non-intrusive parametric uncertainty quantification methods implemen
 
   - **Polynomial Chaos Expansion (PCE)**: Requires $\mathcal{O}(p^d)$ model evaluations for polynomial order $p$ and $d$ uncertain parameters (there is a $\binom{p+d}{d}$ method for sparse version).
   Yields analytical Sobol decomposition from the PCE coefficients [@saltelli1995about].
-  - **Quasi-Monte Carlo (qMC)**: Uses Sobol sequences for low-discrepancy sampling. 
+  - **Quasi-Monte Carlo (qMC)**: Uses Sobol sequences for low-discrepancy sampling.
   Suitable for high-dimensional or computationally inexpensive models.
+
+The data and the fitted UQ model can be used as a surrogate for original problem solution for further methods.
+At the moment, inverse Bayesian UQ using PCE surrogates is in implementation.
+Furthermore, a UQ method based on Rosenblatt and Cholesky methods with Finite Difference formulation [@kardos2025sensitivity] is in preparation.
 
 ## Testing and Continuous Integration
 <!-- 
@@ -184,19 +188,19 @@ Reference the *github/workflows* directory.] -->
 
 The package presents a comprehensive set of tests of different types: unit tests, regression ones, tests for scientific logic, and verification cases.
 
-Testing is covered with Continous Integration (CI) logic implemented on the basis of GitHub worflows, which trigers excution of tests on each push into the *main* and *master* branches of the origin of the repositroty.
-The tests are executed for three Pytohn versions (3.9, 3.10, 3.11, 3.12).
+Testing is covered with Continuous Integration (CI) logic implemented on the basis of GitHub workflows, which triggers execution of tests on each push into the *main* and *master* branches of the origin of the repository.
+The tests are executed for three Python versions (3.9, 3.10, 3.11, 3.12).
 The testing workflow is complemented by code inspection and linting with *Pylint* functionality.
 
-There are 113 unit test for basic functionality, seven tests for scientific logic, and two regression tests.
-The test consider possible failing modes of the execution of UQ campaign, including failures of individual simulaiton runs, and tests for edge cases like division-by-zero for a center of a sample at $R=0$.
+There are 113 unit tests for basic functionality, seven tests for scientific logic, and two regression tests.
+The test consider possible failing modes of the execution of UQ campaign, including failures of individual simulation runs, and tests for edge cases like division-by-zero for a center of a sample at $R=0$.
 
-The verificaiton cases include Method of Exact Solutions (MES) for diffusion problem, with two cases presented:
+The verification cases include Method of Exact Solutions (MES) for diffusion problem, with two cases presented:
 
-  - Diffusion in spherical coordinates with a constant source, homogenous Dirichlet boundary conditions, and zero intial conditions. The solution for simplified mobile concentration build up in a grain is presented in [@carslaw1959conduction].
-  - Diffusion in spherical coordinates with a zero source, homogenous Dirichlet boundary conditions, and consant initial condition for concentration. The solution for simplified anealing problem is presented in [@crank1975mathematics].
+  - Diffusion in spherical coordinates with a constant source, homogenous Dirichlet boundary conditions, and zero initial conditions. The solution for simplified mobile concentration build up in a grain is presented in [@carslaw1959conduction].
+  - Diffusion in spherical coordinates with a zero source, homogenous Dirichlet boundary conditions, and constant initial condition for concentration. The solution for simplified annealing problem is presented in [@crank1975mathematics].
 
-The testin suit implements more complex analysis for mesh convergence, as well as accuracy and convergence for Sobol indices computation using PCE method.
+The testing suit implements more complex analysis for mesh convergence, as well as accuracy and convergence for Sobol indices computation using PCE method.
 
 # Overall Workflow
 
@@ -206,9 +210,9 @@ At a high level, FESTIM-NIUQ performs five steps:
   1. **Campaign setup**: Parse a YAML configuration file specifying uncertain parameters, their probability distributions, the sampling strategy, and the FESTIM model entry point.
   2. **Ensemble generation**: Use EasyVVUQ to build a parameter ensemble. Instantiate one FESTIM input deck per sample and populate the individual run directories with varied files and links to shared files, with mapping to the original sampling plan.
   3. **Simulation execution**: Run the ensemble sequentially (PC) or in parallel on an HPC cluster via the SEAVEA Toolkit [@groen2021vecmatk].
-  4. **Post-processing**: Collect outputs, compute statistical moments (mean, variance) and Sobol sensitivity indices for the selected quantity of interest (QoI). 
+  4. **Post-processing**: Collect outputs, compute statistical moments (mean, variance) and Sobol sensitivity indices for the selected quantity of interest (QoI).
   Save the results of the campaign as a SQLite database of runs and a Pickle file of uncertainty analysis results.
-  5. **Reporting**: Print moments to the CLI and write publication-ready Sobol-index figures.
+  5. **Reporting**: Print moments to the CLI and write publication-ready Sobol index figures.
 
 ![Schematic of the FESTIM-NIUQ uncertainty quantification pipeline.
 Dashed lines indicate EasyVVUQ data flow. Solid lines indicate
@@ -218,7 +222,10 @@ FESTIM-NIUQ process calls.](figures/flowchart_v1_light.png){#fig:workflow}
 
 ## Test Case: Tritium Inventory in a 1-D Slab
 
-We consider a 1-D tungsten slab of thickness $L = 2\,\mathrm{mm}$ subject to a volumetric tritium source $G$ and a fixed concentration boundary condition at $r = a$. The governing transport equation is:
+We consider a 1-D ceramic slab of thickness $L$ subject to a volumetric tritium source and a fixed concentration boundary condition at $L$: $c_{m}(r = L) = const$.
+<!-- The diffusion coefficeint of gas in the materials is consant $D$. -->
+<!-- $L = 2\,\mathrm{mm}$ -->
+The governing transport equation is:
 
 $$
   \frac{\partial c_{m}}{\partial t}
@@ -227,16 +234,16 @@ $$
     + \sum_j G_j,
   \label{eq:transport}$$
 
-where $c$ is the mobile hydrogen concentration, $D$ the diffusion coefficient, $G_j$ the generation rates for different sources of hydrogen, and $c_{t,i}$, $k_i^\pm$, $n_i$ are trap occupancy, rate constants, and density for trap site $i$.
+where $c_{m}$ is the mobile hydrogen concentration, $D$ the diffusion coefficient, $G_j$ the generation rates for different sources of hydrogen, and $c_{t,i}$, $k_i^\pm$, $n_i$ are trap occupancy, rate constants, and density for trap site $i$.
 
-Three parameters are treated as uncertain (uniform distributions): $D$, $G$, and $C(r=a)$.
+Three parameters are treated as uncertain (uniform distributions): $D$, $G$, and $C(r=L)$.
 A PCE of order 3 requires $\binom{3+3}{3} = 20$ FESTIM evaluations to resolve.
 
 ## Results
 
-The section demosntrates an example for PCE study with polynomial order $p=3$, sparse Smolyak quandrature sample applied, and with unformly distributed uncertaint paramters (coefficient of variation $=0.1$).
+The section illustrates an example of a PCE study with polynomial order $p=3$, sparse Smolyak quandrature sample applied, and with unformly distributed uncertaint paramters (coefficient of variation $=0.1$).
 \autoref{fig:results_uncertainty} shows the first-order and total-order Sobol indices and the probability density function of the tritium inventory.
-\autoref{fig:sobol} demonstrated Sobol indeces of total tritium concentration and outward flux for source term  and diffusion coefficent values.
+\autoref{fig:sobol} demonstrates Sobol indices of total tritium concentration and outward flux for source term  and diffusion coefficent values.
 Table \autoref{tab:moments} summarises the statistical moments for the mobile concentration.
 
   ![Mean value, standard deviation, confidence intervals, as well as default and analytic verification values and errors of tritium inventory.](figures/cj1959_verification_dashboard_2x2.png){#fig:results_uncertainty}
@@ -263,12 +270,11 @@ Table \autoref{tab:moments} summarises the statistical moments for the mobile co
 FESTIM-NIUQ was developed as part of ongoing fusion materials research at the Nuclear Futures Institute at Bangor University, where it is used to assess parametric uncertainties in lithium-ceramic breeder blanket tritium transport simulations, and is a part of the UKAEA LIBRTI programme on breeder blanket technology.
 It has been presented at the LIBRTI 2026 Conference on Breeder Blanket Technology [@yudin2026librti] and the Open Source Software for Fusion Energy 2026 conference [@yudin2026ossfe].
 <!-- and SEAVEA summer hackathon 2025 [@seaveahack2026] -->
-The work on the package has been started during the summer 2025 SEAVEA hackaton [@seavea2025hack]
-It forms the basis for uncertainty-aware studies of tritium trapping and release in Lithium ceramics irradiation experiments at High Flux Accelerator-Driven Neutron Facility [@bishop2024hfadnef] at the University of Birmingham, a partner project of UKAEA.
-
+The work on the package has been started during the summer 2025 SEAVEA hackaton [@seavea2025hack].
+The software forms the basis for uncertainty-aware studies of tritium trapping and release in Lithium ceramics irradiation experiments at High Flux Accelerator-Driven Neutron Facility [@bishop2024hfadnef] at the University of Birmingham, a partner project of UKAEA.
 <!-- [TODO: future publications] -->
-The work perfromed using this package is in preparation for publication in academic jounals on fusion engineering and material science. 
-Furthermore, the work using the package is accepted for a contibuted talk at International Conference for Computational Science 2026[@yudin2026iccs26].
+The work perfromed using this package is in preparation for publication in academic jounals on fusion engineering and material science.
+Furthermore, the work using the package is accepted for a contibuted talk at International Conference for Computational Science 2026 [@yudin2026iccs26].
 
 <!-- [TODO: GitHub activity] -->
 
