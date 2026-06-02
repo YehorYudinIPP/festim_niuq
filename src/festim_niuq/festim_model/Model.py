@@ -1068,8 +1068,15 @@ class Model(BaseModel):
         # Specifying number of physical dimensions of the model
         self.n_dimensions = int(config.get("geometry", {}).get("dimensionality", 1))
 
-        # Specifying type of coordinate system: cartesian, cylindrical (polar), spherical
-        self.coordinate_system_type = str(config.get("geometry", {}).get("coordinate_system", "cartesian"))
+        # Specifying type of coordinate system: cartesian, cylindrical, spherical.
+        # Allow optional mesh-level override, otherwise use geometry-level value.
+        self.coordinate_system_type = str(config.get("geometry", {}).get("coordinate_system", "cartesian")).lower()
+        supported_coordinate_systems = ("cartesian", "cylindrical", "spherical")
+        if self.coordinate_system_type not in supported_coordinate_systems:
+            raise ValueError(
+                f"Unsupported coordinate system: '{self.coordinate_system_type}'. "
+                f"Supported types: {supported_coordinate_systems}"
+            )
 
         # Specifying type of mesh
         sim_cfg = config.get("simulation", {})
@@ -1252,9 +1259,17 @@ class Model(BaseModel):
                     raise ValueError(f"Unknown mesh type: {self.mesh_type}")
 
                 self.vertices = vertices
-                self.meshes[id] = F.Mesh1D(vertices)
-                # TODO: add spherical coordinates
-                # TODO: add refined meshes
+                mesh_coordinate_system = str(
+                    config_mesh.get("coordinate_system", self.coordinate_system_type)
+                ).lower()
+                if mesh_coordinate_system not in supported_coordinate_systems:
+                    raise ValueError(
+                        f"Unsupported mesh coordinate system: '{mesh_coordinate_system}'. "
+                        f"Supported types: {supported_coordinate_systems}"
+                    )
+
+                self.meshes[id] = F.Mesh1D(vertices, coordinate_system=mesh_coordinate_system)
+                print(f" > Mesh coordinate system for domain {id}: {mesh_coordinate_system}")
 
                 # For 1D problem, map names of the surfaces to their id-s
                 self.surface_map = {"left": {"festim_id": 1, "loc_id": 1}, "right": {"festim_id": 2, "loc_id": 2}}
@@ -1771,12 +1786,13 @@ class Model(BaseModel):
                         )
                     )
 
-                    # Specify bespoke export for 1D profiles, for tritium concentration
+                    # Use FESTIM's profile export for transient 1D runs, including spherical meshes.
+                    profile_times = self.milestone_times if self.transient else None
                     problem["festim_problem"].exports.append(
-                        ProfileExport(
+                        F.Profile1DExport(
                             field=problem["festim_problem"].species[0],
-                            volume=self.domain_volumes[1],  # Assuming domain ID 1 for the profile export
-                            # filename=f"{self.result_folder}/tritium_concentration_profile.txt",
+                            subdomain=self.domain_volumes[1],
+                            times=profile_times,
                         )
                     )
 
@@ -1845,26 +1861,38 @@ class Model(BaseModel):
                 # --- transient: extract profiles at milestone times ---
                 profile_export = None
                 for export in problem["festim_problem"].exports:
-                    if isinstance(export, ProfileExport):
+                    if isinstance(export, (ProfileExport, F.Profile1DExport)):
                         profile_export = export
                         break
 
                 if profile_export is not None and len(profile_export.data) > 0:
-                    all_profiles = np.array(profile_export.data)  # (n_steps, n_vertices)
-                    n_profiles = len(all_profiles)
+                    all_profiles = np.asarray(
+                        [np.asarray(profile, dtype=float).reshape(-1) for profile in profile_export.data]
+                    )
+                    n_profiles = all_profiles.shape[0]
+
+                    x_profile = getattr(profile_export, "x", None)
+                    if x_profile is None:
+                        x_profile = np.asarray(self.vertices)
+                    else:
+                        x_profile = np.asarray(x_profile, dtype=float).reshape(-1)
+                        if x_profile.size != all_profiles.shape[1]:
+                            x_profile = np.asarray(self.vertices)
 
                     # Estimate the time of each stored profile.
                     # ProfileExport.compute() is called after each solve step,
                     # so the first entry corresponds to t = dt, not t = 0.
                     dt_cfg = float(self.config.get("simulation", {}).get("time_step", {}).get("default_value", 0.01))
-                    profile_times = np.arange(1, n_profiles + 1) * dt_cfg
+                    profile_times = np.asarray(getattr(profile_export, "t", []), dtype=float)
+                    if profile_times.size != n_profiles:
+                        profile_times = np.arange(1, n_profiles + 1) * dt_cfg
 
                     # Fall back to linspace when the estimate overshoots
                     if n_profiles > 0 and abs(profile_times[-1] - self.total_time) > dt_cfg:
                         profile_times = np.linspace(dt_cfg, self.total_time, n_profiles)
 
                     # Map milestone times to the closest stored profile
-                    n_verts = len(self.vertices)
+                    n_verts = all_profiles.shape[1]
                     milestone_profiles = np.zeros((n_verts, len(self.milestone_times)))
                     for i, t_m in enumerate(self.milestone_times):
                         idx = int(np.argmin(np.abs(profile_times - t_m)))
@@ -1873,15 +1901,15 @@ class Model(BaseModel):
                             milestone_profiles[:, i] = prof
                         else:
                             milestone_profiles[:, i] = np.interp(
-                                self.vertices,
-                                np.linspace(0, self.vertices[-1], len(prof)),
+                                x_profile,
+                                np.linspace(0, x_profile[-1], len(prof)),
                                 prof,
                             )
 
                     self.results[qoi_name] = milestone_profiles
 
                     # Persist profile CSV for the UQ decoder
-                    self._save_profile_file(qoi_name, milestone_profiles)
+                    self._save_profile_file(qoi_name, milestone_profiles, x_coords=x_profile)
 
                     # Compute total tritium release
                     self._compute_total_tritium_release(qoi_name, milestone_profiles)
@@ -1902,11 +1930,18 @@ class Model(BaseModel):
                     self._compute_total_tritium_trapping(final_state)
                     self._save_summary_csv()
 
-    def _save_profile_file(self, qoi_name, milestone_profiles):
+    def _save_profile_file(self, qoi_name, milestone_profiles, x_coords=None):
         """Save milestone-time profiles to a CSV understood by the UQ decoder."""
         os.makedirs(self.result_folder, exist_ok=True)
 
-        data = np.column_stack((self.vertices, milestone_profiles))
+        if x_coords is None:
+            x_vals = np.asarray(self.vertices)
+        else:
+            x_vals = np.asarray(x_coords, dtype=float).reshape(-1)
+            if x_vals.size != milestone_profiles.shape[0]:
+                x_vals = np.asarray(self.vertices)
+
+        data = np.column_stack((x_vals, milestone_profiles))
         time_headers = [f"t={float(t):.2e}s" for t in self.milestone_times]
         header = "x," + ",".join(time_headers)
 
