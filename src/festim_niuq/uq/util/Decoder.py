@@ -8,6 +8,7 @@ when only scalar QoIs are required (e.g. total tritium release and trapping).
 """
 import os
 import csv
+import numpy as np
 
 
 class ScalarCSVDecoder:
@@ -132,4 +133,148 @@ class ScalarCSVDecoder:
         return cls(
             target_filename=data["target_filename"],
             output_columns=data.get("output_columns", []),
+        )
+
+
+class MultiOutputDecoder:
+    """Decoder that combines profile and flux outputs into one QoI dictionary.
+
+    This decoder reads two FESTIM outputs from a run directory:
+    - concentration profile file with columns ``x, t=...``
+    - outer-surface flux time series file with columns
+      ``time, total_hydrogen_flux_rmax``
+
+    It returns a single dictionary that EasyVVUQ can collate/analyse, with
+    profile QoIs (arrays over radius) and flux QoIs (scalars at requested
+    milestone times).
+    """
+
+    def __init__(
+        self,
+        profile_filename="results/test/results_tritium_concentration.txt",
+        flux_filename="results/test/total_hydrogen_flux_rmax.txt",
+        concentration_qois=None,
+        flux_qois=None,
+        missing_flux_value=np.nan,
+    ):
+        self.profile_filename = profile_filename
+        self.flux_filename = flux_filename
+        self.concentration_qois = concentration_qois or []
+        self.flux_qois = flux_qois or []
+        self.missing_flux_value = float(missing_flux_value)
+        # EasyVVUQ compatibility: some code paths inspect decoder metadata.
+        self.target_filename = profile_filename
+        self.output_columns = list(self.concentration_qois) + list(self.flux_qois)
+
+    @staticmethod
+    def _read_csv_with_header(filepath):
+        if not os.path.isfile(filepath):
+            return [], None
+
+        with open(filepath, "r", newline="") as fh:
+            header_line = fh.readline().strip()
+
+        header_line = header_line.lstrip("#").strip()
+        headers = [h.strip() for h in header_line.split(",")] if header_line else []
+
+        data = np.genfromtxt(filepath, delimiter=",", skip_header=1)
+        if data.size == 0:
+            return headers, None
+        if data.ndim == 1:
+            data = data.reshape(1, -1)
+        return headers, data
+
+    @staticmethod
+    def _parse_flux_time_label(qoi_name):
+        if not isinstance(qoi_name, str):
+            return None
+        if not (qoi_name.startswith("flux_t=") and qoi_name.endswith("s")):
+            return None
+        try:
+            return float(qoi_name.split("=", 1)[1].rstrip("s"))
+        except Exception:
+            return None
+
+    def parse_sim_output(self, run_info=None, run_dir=None):
+        if run_info is not None:
+            run_dir = run_info.get("run_dir", run_dir or ".")
+        elif run_dir is None:
+            run_dir = "."
+
+        result = {}
+
+        # --- concentration profile QoIs ---
+        profile_path = os.path.join(run_dir, self.profile_filename)
+        profile_headers, profile_data = self._read_csv_with_header(profile_path)
+        profile_index = {name: i for i, name in enumerate(profile_headers)}
+
+        for qoi in self.concentration_qois:
+            if profile_data is None:
+                result[qoi] = None
+                continue
+            idx = profile_index.get(qoi)
+            if idx is None or idx >= profile_data.shape[1]:
+                result[qoi] = None
+            else:
+                # EasyVVUQ external-run import serializes outputs to JSON, so keep
+                # concentration profiles as plain Python lists rather than ndarrays.
+                result[qoi] = np.asarray(profile_data[:, idx], dtype=float).tolist()
+
+        # --- flux QoIs (scalar per requested milestone time) ---
+        flux_path = os.path.join(run_dir, self.flux_filename)
+        flux_headers, flux_data = self._read_csv_with_header(flux_path)
+        flux_index = {name: i for i, name in enumerate(flux_headers)}
+
+        if flux_data is None:
+            for qoi in self.flux_qois:
+                result[qoi] = self.missing_flux_value
+            return result
+
+        # Expected format: time,total_hydrogen_flux_rmax
+        t_idx = flux_index.get("time", 0)
+        f_idx = flux_index.get("total_hydrogen_flux_rmax", 1 if flux_data.shape[1] > 1 else 0)
+
+        if t_idx >= flux_data.shape[1] or f_idx >= flux_data.shape[1]:
+            for qoi in self.flux_qois:
+                result[qoi] = self.missing_flux_value
+            return result
+
+        t_vals = np.asarray(flux_data[:, t_idx], dtype=float).reshape(-1)
+        f_vals = np.asarray(flux_data[:, f_idx], dtype=float).reshape(-1)
+
+        for qoi in self.flux_qois:
+            t_target = self._parse_flux_time_label(qoi)
+            if t_target is None or t_vals.size == 0:
+                result[qoi] = self.missing_flux_value
+                continue
+            idx = int(np.argmin(np.abs(t_vals - t_target)))
+            result[qoi] = float(f_vals[idx]) if idx < f_vals.size else self.missing_flux_value
+
+        return result
+
+    def get_restart_dict(self):
+        return {
+            "profile_filename": self.profile_filename,
+            "flux_filename": self.flux_filename,
+            "concentration_qois": self.concentration_qois,
+            "flux_qois": self.flux_qois,
+            "missing_flux_value": self.missing_flux_value,
+        }
+
+    @staticmethod
+    def element_version():
+        return "0.1"
+
+    @staticmethod
+    def element_name():
+        return "MultiOutputDecoder"
+
+    @classmethod
+    def deserialize(cls, data):
+        return cls(
+            profile_filename=data.get("profile_filename", "results/test/results_tritium_concentration.txt"),
+            flux_filename=data.get("flux_filename", "results/test/total_hydrogen_flux_rmax.txt"),
+            concentration_qois=data.get("concentration_qois", []),
+            flux_qois=data.get("flux_qois", []),
+            missing_flux_value=data.get("missing_flux_value", np.nan),
         )
