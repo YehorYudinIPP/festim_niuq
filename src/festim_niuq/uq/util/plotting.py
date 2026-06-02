@@ -18,6 +18,7 @@ import itertools
 import json
 import logging
 import os
+import re
 
 from .utils import add_timestamp_to_filename
 
@@ -109,10 +110,16 @@ class UQPlotter:
             # Add more scale types if needed
         }
 
-        self.quantity = "concentration"  # Default quantity to plot
+        self.quantity = "tritium_concentration"  # Default quantity to plot
+
+    @staticmethod
+    def _format_label_with_unit(name: str, unit: str = "") -> str:
+        if not unit:
+            return f"{name}"
+        return f"{name} [${unit}$]"
 
     def plot_unc_vs_r(
-        self, r, y, sy, y10, y90, qoi_name: str, foldername: str = "", filename: str = "", runs_info=None
+        self, r, y, sy, y10, y90, y01=None, y99=None, qoi_name: str = "", foldername: str = "", filename: str = "", runs_info=None
     ):
         """
         Plot uncertainty in the results as a function of radius (spatial coordinates).
@@ -123,6 +130,8 @@ class UQPlotter:
         - sy: array of standard deviation values at each radius
         - y10: array of 10% quantile values at each radius
         - y90: array of 90% quantile values at each radius
+        - y01: array of 1% quantile values at each radius (optional)
+        - y99: array of 99% quantile values at each radius (optional)
         - qoi_name: name of the quantity of interest (QoI) for labeling
         - foldername: folder to save the plot
         - filename: name of the file to save the plot
@@ -148,6 +157,13 @@ class UQPlotter:
 
             # Plotting the standard deviation as a shaded area
             axs[i].fill_between(r, y - sy, y + sy, alpha=0.3, label="+/- STD")
+
+            # Plotting the 1% and 99% quantiles as a wide shaded area.
+            if y01 is not None and y99 is not None:
+                y01_arr = np.asarray(y01)
+                y99_arr = np.asarray(y99)
+                if y01_arr.shape == y99_arr.shape and np.all(np.isfinite(y01_arr)) and np.all(np.isfinite(y99_arr)):
+                    axs[i].fill_between(r, y01_arr, y99_arr, alpha=0.12, label="1%-99%")
 
             # Plotting the 10% and 90% quantiles as a shaded area
             axs[i].fill_between(r, y10, y90, alpha=0.1, label="10% - 90%")
@@ -192,9 +208,9 @@ class UQPlotter:
             axs[i].set_title(f"Uncertainty at {qoi_name} as a function of radius, in '{plot_func_name}' scale")
             length_unit = self.quantities_descriptor.get("x", {}).get("unit", "m")
             axs[i].set_xlabel(f"Radius, [{length_unit}]")
-            axs[i].set_ylabel(
-                f"{self.quantities_descriptor[self.quantity]['name']} ${self.quantities_descriptor[self.quantity]['unit']}$ at {qoi_name}"
-            )
+            qty_name = self.quantities_descriptor.get(self.quantity, {}).get("name", self.quantity)
+            qty_unit = self.quantities_descriptor.get(self.quantity, {}).get("unit", "")
+            axs[i].set_ylabel(f"{self._format_label_with_unit(qty_name, qty_unit)} at {qoi_name}")
 
             axs[i].legend(loc="best")
             axs[i].grid(True)
@@ -295,6 +311,131 @@ class UQPlotter:
             fig.savefig(f"{foldername}/bespoke_{filename_base}_{qoi_name}_first_order_sobols.pdf")
             plt.close()
 
+        return 0
+
+    def _parse_time_from_qoi(self, qoi_name):
+        """Extract time value from QoI labels like 't=1.00e-01s'."""
+        if not isinstance(qoi_name, str):
+            return None
+        m = re.match(r"^t=([0-9eE+\-.]+)s$", qoi_name)
+        if not m:
+            return None
+        try:
+            return float(m.group(1))
+        except ValueError:
+            return None
+
+    def _group_qois_for_sobol_heatmap(self, qoi_name_s):
+        """Group QoIs into columns for heatmap blocks.
+
+        If all QoIs are transient labels ('t=...s'), they are treated as one
+        output quantity (single column). Otherwise each QoI is a separate column.
+        """
+        qoi_name_s = list(qoi_name_s or [])
+        if qoi_name_s and all(self._parse_time_from_qoi(q) is not None for q in qoi_name_s):
+            return {"tritium_concentration": qoi_name_s}
+        return {str(q): [q] for q in qoi_name_s}
+
+    def plot_sobols_first_heatmap_blocks(self, results, r, qoi_name_s, foldername="", filename_base="sobols_first_heatmap"):
+        """Plot Sobol index colormaps on (radius,time) blocks.
+
+        Rows correspond to uncertain parameters, columns correspond to uncertain
+        output QoI groups.
+        """
+        groups = self._group_qois_for_sobol_heatmap(qoi_name_s)
+        if not groups:
+            return 0
+
+        # Collect uncertain parameter names from available Sobol outputs.
+        param_names = []
+        for q in qoi_name_s:
+            try:
+                s1 = results.sobols_first(q)
+            except Exception:
+                s1 = None
+            if s1:
+                for p in s1.keys():
+                    if p not in param_names:
+                        param_names.append(p)
+
+        if not param_names:
+            print("No first-order Sobol data available for heatmap blocks.")
+            return 0
+
+        r = np.asarray(r, dtype=float)
+        if r.ndim != 1 or r.size == 0:
+            raise ValueError("Radius array 'r' must be a non-empty 1D array for Sobol heatmaps.")
+
+        n_rows = len(param_names)
+        n_cols = len(groups)
+        fig, axes = plt.subplots(n_rows, n_cols, figsize=(5.5 * n_cols, 3.6 * n_rows), squeeze=False)
+
+        for col_idx, (qoi_group_name, qoi_group_members) in enumerate(groups.items()):
+            # Build a sorted (time, qoi, sobol_dict) sequence for this group.
+            entries = []
+            for q in qoi_group_members:
+                t_val = self._parse_time_from_qoi(q)
+                if t_val is None:
+                    continue
+                try:
+                    s1 = results.sobols_first(q)
+                except Exception:
+                    s1 = None
+                if s1:
+                    entries.append((t_val, q, s1))
+
+            entries.sort(key=lambda item: item[0])
+
+            if not entries:
+                for row_idx, p_name in enumerate(param_names):
+                    ax = axes[row_idx, col_idx]
+                    ax.text(0.5, 0.5, "No transient Sobol data", ha="center", va="center", transform=ax.transAxes)
+                    ax.set_axis_off()
+                continue
+
+            t_vals = np.asarray([item[0] for item in entries], dtype=float)
+
+            for row_idx, p_name in enumerate(param_names):
+                ax = axes[row_idx, col_idx]
+                z = np.full((len(t_vals), len(r)), np.nan, dtype=float)
+
+                for i_t, (_, _, sobol_dict) in enumerate(entries):
+                    sobol_values = sobol_dict.get(p_name, None)
+                    if sobol_values is None:
+                        continue
+                    sobol_values = np.asarray(sobol_values, dtype=float).reshape(-1)
+                    if sobol_values.size == len(r):
+                        z[i_t, :] = sobol_values
+                    elif sobol_values.size > 1:
+                        z[i_t, :] = np.interp(
+                            np.linspace(0.0, 1.0, len(r)),
+                            np.linspace(0.0, 1.0, sobol_values.size),
+                            sobol_values,
+                        )
+
+                z_plot = np.nan_to_num(z, nan=0.0, posinf=0.0, neginf=0.0)
+                pcm = ax.pcolormesh(r, t_vals, z_plot, shading="auto", vmin=0.0, vmax=1.0, cmap="viridis")
+                cbar = fig.colorbar(pcm, ax=ax)
+                cbar.set_label("Sobol index")
+
+                if row_idx == 0:
+                    ax.set_title(f"QoI: {qoi_group_name}")
+                if row_idx == n_rows - 1:
+                    ax.set_xlabel("Radius [m]")
+
+                param_label = self.parameters_descriptor.get(p_name, {}).get("name", p_name)
+                ax.set_ylabel(f"Time [s]\n{param_label}")
+                ax.grid(False)
+
+        fig.suptitle("First-order Sobol Indices on (radius, time) blocks", fontsize=14)
+        fig.tight_layout(rect=[0.0, 0.0, 1.0, 0.98])
+
+        if filename_base.endswith(".pdf") or filename_base.endswith(".png"):
+            out_name = filename_base
+        else:
+            out_name = f"{filename_base}.pdf"
+        fig.savefig(f"{foldername}/{out_name}")
+        plt.close(fig)
         return 0
 
     def plot_sobols_seconds_vs_r(self, r, sobols_second, qoi_name_s, foldername="", filename_base=""):
@@ -431,10 +572,12 @@ class UQPlotter:
 
             # Default plotting of the moments
             # print(f" >> Plotting moments for QoI with EasyVVUQ: {qoi}")
+            qty_name = self.quantities_descriptor.get(qoi, {'name': qoi}).get('name', qoi)
+            qty_unit = self.quantities_descriptor.get(qoi, {'unit': ''}).get('unit', '')
             results.plot_moments(
                 qoi=qoi,
-                ylabel=f"{self.quantities_descriptor.get(qoi, {'name': qoi}).get('name', qoi)} [${self.quantities_descriptor.get(qoi, {'unit': ''}).get('unit', '')}$], {qoi}",
-                xlabel=f"Radius, #vertices",
+                ylabel=f"{self._format_label_with_unit(qty_name, qty_unit)}, {qoi}",
+                xlabel="Radius, #vertices",
                 filename=f"{plot_folder_name}/{moments_vsr_filename}",
             )
             print(f" >>> Finished plotting moments for QoI with EasyVVUQ: {qoi}")
@@ -454,6 +597,8 @@ class UQPlotter:
                 sy,
                 y10,
                 y90,
+                y01,
+                y99,
                 qoi_name=qoi,
                 foldername=plot_folder_name,
                 filename=moments_vsr_filename,
@@ -522,9 +667,18 @@ class UQPlotter:
             rs, sobols_second, qois, foldername=plot_folder_name, filename_base="sobols_second_vs_r"
         )
 
+        # Sobol colormap blocks in (radius,time): rows=uncertain parameters, columns=QoI groups.
+        self.plot_sobols_first_heatmap_blocks(
+            results,
+            rs,
+            qois,
+            foldername=plot_folder_name,
+            filename_base=add_timestamp_to_filename("sobols_first_blocks_r_vs_t.pdf", plot_timestamp),
+        )
+
         return 0
 
-    def plot_unc_vs_t(self, r_at_r, t_s, y_at_r, sy_at_r, y10_at_r, y90_at_r, foldername="", filename=""):
+    def plot_unc_vs_t(self, r_at_r, t_s, y_at_r, sy_at_r, y10_at_r, y90_at_r, y01_at_r=None, y99_at_r=None, foldername="", filename=""):
         """
         Plot uncertainty in the results as a function of time.
         """
@@ -535,6 +689,11 @@ class UQPlotter:
         ax.fill_between(
             t_s, np.array(y_at_r) - np.array(sy_at_r), np.array(y_at_r) + np.array(sy_at_r), alpha=0.3, label="+/- STD"
         )
+        if y01_at_r is not None and y99_at_r is not None:
+            y01_arr = np.asarray(y01_at_r)
+            y99_arr = np.asarray(y99_at_r)
+            if y01_arr.shape == y99_arr.shape and np.all(np.isfinite(y01_arr)) and np.all(np.isfinite(y99_arr)):
+                ax.fill_between(t_s, y01_arr, y99_arr, alpha=0.12, label="1%-99%")
         ax.fill_between(t_s, y10_at_r, y90_at_r, alpha=0.1, label="10% - 90%")
 
         ax.set_title(f"Uncertainty as a function of time at r={r_at_r}")
@@ -583,6 +742,8 @@ class UQPlotter:
         # Read the results for all times and align data for plotting against time
         y_s = []
         sy_s = []
+        y01_s = []
+        y99_s = []
         y10_s = []
         y90_s = []
         r_s = []
@@ -603,8 +764,16 @@ class UQPlotter:
             )  # Extract time from QoI names, strp 's' at the end and '='
             y_s.append(results.describe(qoi, "mean"))
             sy_s.append(results.describe(qoi, "std"))
+            try:
+                y01_s.append(results.describe(qoi, "1%"))
+            except Exception:
+                y01_s.append(np.full_like(np.asarray(y_s[-1]), np.nan, dtype=float))
             y10_s.append(results.describe(qoi, "10%"))
             y90_s.append(results.describe(qoi, "90%"))
+            try:
+                y99_s.append(results.describe(qoi, "99%"))
+            except Exception:
+                y99_s.append(np.full_like(np.asarray(y_s[-1]), np.nan, dtype=float))
             s1 = results.sobols_first(qoi)  # returing a dict {input_param: (list of) Sobol index values}
             for i, param_name in enumerate(distributions.keys()):
                 # Assuming each distribution is a valid QoI descriptor
@@ -622,8 +791,10 @@ class UQPlotter:
             # Extract r_ind-th element from each time step (array) to get time series at fixed radius
             y_at_r = [y_timestep[r_ind] for y_timestep in y_s]
             sy_at_r = [sy_timestep[r_ind] for sy_timestep in sy_s]
+            y01_at_r = [y01_timestep[r_ind] for y01_timestep in y01_s]
             y10_at_r = [y10_timestep[r_ind] for y10_timestep in y10_s]
             y90_at_r = [y90_timestep[r_ind] for y90_timestep in y90_s]
+            y99_at_r = [y99_timestep[r_ind] for y99_timestep in y99_s]
             r_at_r = [r_timestep[r_ind] for r_timestep in r_s]  # Assuming r_s is a list of lists with radius values
             # TODO check if r_at_r changes with time, or is constant
 
@@ -635,6 +806,8 @@ class UQPlotter:
                 sy_at_r,
                 y10_at_r,
                 y90_at_r,
+                y01_at_r,
+                y99_at_r,
                 foldername=plot_folder_name,
                 filename=moments_vst_filename,
             )
@@ -768,7 +941,7 @@ class UQPlotter:
             qty_unit = self.quantities_descriptor.get(self.quantity, {}).get("unit", "")
             axs[i].set_title(f"Uncertainty (correlated FD) at {qoi_name}\n'{plot_func_name}' scale")
             axs[i].set_xlabel("Radius [m]")
-            ylabel = f"{qty_name} [${qty_unit}$]" if qty_unit else f"{qty_name}"
+            ylabel = self._format_label_with_unit(qty_name, qty_unit)
             axs[i].set_ylabel(ylabel)
             axs[i].legend(loc="best")
             axs[i].grid(True)
@@ -805,7 +978,7 @@ class UQPlotter:
         ax.set_xlabel("Time [s]")
         qty_name = self.quantities_descriptor.get(self.quantity, {}).get("name", self.quantity)
         qty_unit = self.quantities_descriptor.get(self.quantity, {}).get("unit", "")
-        ylabel = f"{qty_name} [${qty_unit}$]" if qty_unit else f"{qty_name}"
+        ylabel = self._format_label_with_unit(qty_name, qty_unit)
         ax.set_ylabel(ylabel)
         ax.legend(loc="best")
         ax.grid(True)
