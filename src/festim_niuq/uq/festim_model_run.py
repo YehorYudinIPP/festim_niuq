@@ -174,15 +174,40 @@ def save_results_for_uq(results, model, write_profile_fallback=True, make_plots=
     else:
         final_trapping = extract_tritium_inventory(results, model)
 
+    flux_times, total_flux_rmax = estimate_total_hydrogen_flux_rmax(results, model)
+    results['total_hydrogen_flux_rmax'] = flux_times
+
     output_file = "output.csv"
+    include_flux_in_output = bool(model.config.get("simulation", {}).get("include_outer_flux_in_output_csv", False))
     with open(output_file, "w", newline="") as csvfile:
         writer = csv.writer(csvfile)
-        writer.writerow(['total_tritium_release', 'total_tritium_trapping'])
-        writer.writerow([final_release, final_trapping])
+        if include_flux_in_output:
+            writer.writerow(['total_tritium_release', 'total_tritium_trapping', 'total_hydrogen_flux_rmax'])
+            writer.writerow([final_release, final_trapping, total_flux_rmax])
+        else:
+            writer.writerow(['total_tritium_release', 'total_tritium_trapping'])
+            writer.writerow([final_release, final_trapping])
 
     print(f"Results saved to {output_file}")
     print(f"Total tritium release (final): {final_release:.2e}")
     print(f"Total tritium trapping (final): {final_trapping:.2e}")
+    print(f"Total hydrogen flux at R=R_max (final): {total_flux_rmax:.2e}")
+
+    flux_file = os.path.join(model.result_folder, "total_hydrogen_flux_rmax.txt")
+    os.makedirs(model.result_folder, exist_ok=True)
+    if flux_times is not None and np.asarray(flux_times).size > 0:
+        milestone_times = getattr(model, "milestone_times", []) or []
+        if len(milestone_times) == len(flux_times):
+            flux_data = np.column_stack((np.asarray(milestone_times, dtype=float), np.asarray(flux_times, dtype=float)))
+            header = "time,total_hydrogen_flux_rmax"
+        else:
+            flux_data = np.asarray(flux_times, dtype=float).reshape(-1, 1)
+            header = "total_hydrogen_flux_rmax"
+    else:
+        flux_data = np.array([[total_flux_rmax]])
+        header = "total_hydrogen_flux_rmax"
+    np.savetxt(flux_file, flux_data, header=header, delimiter=",", comments="")
+    print(f"Total hydrogen flux at R=R_max saved to {flux_file}")
 
     if write_profile_fallback:
         # ---- profile CSV (should already exist from Model._export_results) ----
@@ -394,6 +419,76 @@ def extract_tritium_inventory(results, model):
         inventory = 1.0e20
 
     return inventory
+
+
+def estimate_total_hydrogen_flux_rmax(results, model):
+    """Estimate total outward hydrogen flux at the outer surface (R=R_max).
+
+    The estimate uses a global mass balance for the domain:
+
+        dI/dt = S - Phi_out
+
+    where ``I`` is total in-domain inventory, ``S`` is volumetric source
+    integrated over the domain, and ``Phi_out`` is total outward flux through
+    the boundary. In spherical geometry, the center boundary has zero area, so
+    this corresponds to flux through ``R=R_max``.
+
+    Returns
+    -------
+    tuple
+        ``(flux_timeseries, final_flux)`` where ``flux_timeseries`` is a 1-D
+        numpy array for transient runs (or ``None`` for steady-state), and
+        ``final_flux`` is a scalar float.
+    """
+    milestone_times = np.asarray(getattr(model, "milestone_times", []) or [], dtype=float)
+    vertices = np.asarray(model.vertices, dtype=float)
+
+    coordinate_system = getattr(model, "coordinate_system_type", "cartesian")
+    if coordinate_system == "spherical":
+        weight = 4.0 * np.pi * vertices**2
+    elif coordinate_system == "cylindrical":
+        weight = 2.0 * np.pi * vertices
+    else:
+        weight = np.ones_like(vertices)
+
+    # Volumetric source rate integrated over domain.
+    src_cfg = model.config.get("source_terms", {}).get("concentration", {})
+    src_val_raw = src_cfg.get("value", {})
+    src_value = float(src_val_raw.get("mean", 0.0)) if isinstance(src_val_raw, dict) else float(src_val_raw)
+    source_rate = float(np.trapz(src_value * weight, x=vertices))
+
+    conc = np.asarray(results.get("tritium_concentration", None))
+    if conc.size == 0:
+        return None, source_rate
+
+    if conc.ndim == 1:
+        # Steady-state: dI/dt ~= 0, so outward flux ~= integrated source.
+        return None, source_rate
+
+    if conc.ndim != 2:
+        conc = conc.reshape(conc.shape[0], -1)
+
+    # Accept both (n_vertices, n_times) and transposed layouts.
+    if conc.shape[0] != len(vertices) and conc.shape[1] == len(vertices):
+        conc = conc.T
+    elif conc.shape[0] != len(vertices):
+        return None, source_rate
+
+    n_times = conc.shape[1]
+    if milestone_times.size != n_times:
+        milestone_times = np.arange(n_times, dtype=float)
+
+    inventories = np.array([np.trapz(conc[:, i] * weight, x=vertices) for i in range(n_times)], dtype=float)
+
+    # Numerical derivative of inventory in time.
+    if n_times > 1:
+        d_inventory_dt = np.gradient(inventories, milestone_times)
+        flux_out = source_rate - d_inventory_dt
+        final_flux = float(flux_out[-1])
+        return flux_out, final_flux
+
+    # Single time sample: no derivative estimate available.
+    return np.array([source_rate], dtype=float), source_rate
 
 
 if __name__ == "__main__":
