@@ -242,7 +242,9 @@ $$
 
 where $c_{m}$ is the mobile hydrogen concentration, $D$ the diffusion coefficient, $G_j$ the generation rates for different sources of hydrogen, and $c_{t,i}$, $k_i^\pm$, $n_i$ are trap occupancy, rate constants, and density for trap site $i$.
 
-Here, in \autoref{eq:transport}, we take single species of hydrogen (tritium), homogenous BC $C(r=R)=0$, constant tritium generation $G$, constant isotropic diffusion coefficient $D$ as a function of external parameter - temperature, $D(T)= D_{0}\exp(\frac{E_{a}}{k_{B} T})$ via Arrhenius law, spherical coordinates, hence differential operator in form $ \nabla \cdot (D \nabla C) = D \left( \frac{\partial^{2}C}{\partial r^{2}} + \frac{2}{r} \frac{\partial C}{\partial r} \right)$, and no trapping.
+Here, in \autoref{eq:transport}, we take single species of hydrogen (tritium), homogenous BC $C(r=R)=0$, constant tritium generation $G$, constant isotropic diffusion coefficient $D$, and no trapping.
+Diffusion is a function of temperature, $ D(T)= D_{0}\exp(\frac{E_{a}}{k_{B} T}) $ via Arrhenius law. 
+Spherical coordinates are used, hence differential operator in form $ \nabla \cdot (D \nabla C) = D ( \frac{\partial^{2} C}{\partial r^{2}} + \frac{2}{r} \frac{\partial C}{\partial r} ) $.
 
 
 
