@@ -15,8 +15,10 @@ import os
 import sys
 import logging
 import traceback
+import math
 from datetime import datetime
 import numpy as np
+from pathlib import Path
 
 import pickle
 
@@ -28,6 +30,7 @@ import matplotlib.pyplot as plt
 
 # Import custom YAML encoders
 from .util.Encoder import YAMLEncoder, AdvancedYAMLEncoder
+from .util.Decoder import MultiOutputDecoder
 
 import chaospy as cp
 import easyvvuq as uq
@@ -38,8 +41,185 @@ from easyvvuq.actions import QCGPJPool, EasyVVUQBasicTemplate, EasyVVUQParallelT
 # local imports
 from .util.utils import load_config, add_timestamp_to_filename, get_festim_python, validate_execution_setup
 from .util.plotting import UQPlotter
+from .interactive_run_viewer import discover_run_dirs, read_run_data, generate_html
 
 logger = logging.getLogger(__name__)
+
+
+def _parse_transient_time_label(qoi: str) -> float | None:
+    if not isinstance(qoi, str):
+        return None
+    if not (qoi.startswith("t=") and qoi.endswith("s")):
+        return None
+    try:
+        return float(qoi.split("=", 1)[1].rstrip("s"))
+    except Exception:
+        return None
+
+
+def _parse_flux_time_label(qoi: str) -> float | None:
+    if not isinstance(qoi, str):
+        return None
+    if not (qoi.startswith("flux_t=") and qoi.endswith("s")):
+        return None
+    try:
+        return float(qoi.split("=", 1)[1].rstrip("s"))
+    except Exception:
+        return None
+
+
+def _plot_flux_uq_vs_time(results, distributions, flux_qois, plot_folder_name, plot_timestamp):
+    """Plot outer-surface flux uncertainty and Sobol indices versus time."""
+    entries = []
+    for q in flux_qois:
+        t = _parse_flux_time_label(q)
+        if t is not None:
+            entries.append((t, q))
+    if not entries:
+        return
+    entries.sort(key=lambda item: item[0])
+
+    times = []
+    mean_s = []
+    std_s = []
+    p01_s = []
+    p99_s = []
+    sobol_series = {p: [] for p in distributions.keys()}
+
+    def _to_scalar(val):
+        arr = np.asarray(val, dtype=float)
+        return float(arr.reshape(-1)[0]) if arr.size > 0 else np.nan
+
+    for t, q in entries:
+        try:
+            mean_v = _to_scalar(results.describe(q, "mean"))
+        except Exception:
+            continue
+
+        try:
+            std_v = _to_scalar(results.describe(q, "std"))
+        except Exception:
+            std_v = 0.0
+
+        try:
+            p01_v = _to_scalar(results.describe(q, "1%"))
+        except Exception:
+            p01_v = np.nan
+
+        try:
+            p99_v = _to_scalar(results.describe(q, "99%"))
+        except Exception:
+            p99_v = np.nan
+
+        times.append(float(t))
+        mean_s.append(mean_v)
+        std_s.append(std_v)
+        p01_s.append(p01_v)
+        p99_s.append(p99_v)
+
+        try:
+            s1 = results.sobols_first(q)
+        except Exception:
+            s1 = None
+
+        for p in sobol_series.keys():
+            vals = (s1 or {}).get(p, None) if isinstance(s1, dict) else None
+            if vals is None:
+                sobol_series[p].append(np.nan)
+            else:
+                sobol_series[p].append(_to_scalar(vals))
+
+    if not times:
+        return
+
+    t_arr = np.asarray(times, dtype=float)
+    mean_arr = np.asarray(mean_s, dtype=float)
+    std_arr = np.asarray(std_s, dtype=float)
+    p01_arr = np.asarray(p01_s, dtype=float)
+    p99_arr = np.asarray(p99_s, dtype=float)
+
+    fig, ax = plt.subplots(figsize=(10, 6))
+    ax.plot(t_arr, mean_arr, marker="o", label="flux mean")
+    ax.fill_between(t_arr, mean_arr - std_arr, mean_arr + std_arr, alpha=0.2, label="+/- STD")
+    if np.all(np.isfinite(p01_arr)) and np.all(np.isfinite(p99_arr)):
+        ax.fill_between(t_arr, p01_arr, p99_arr, alpha=0.12, color="tab:green", label="1%-99%")
+    ax.set_title("Outer-surface Flux vs Time (UQ)")
+    ax.set_xlabel("Time [s]")
+    ax.set_ylabel("Total hydrogen flux at R=R_max")
+    ax.grid(True)
+    if np.all(t_arr > 0):
+        ax.set_xscale("log")
+    ax.legend(loc="best")
+    out_unc = os.path.join(
+        plot_folder_name,
+        add_timestamp_to_filename("flux_rmax_uncertainty_vs_time.png", plot_timestamp),
+    )
+    fig.savefig(out_unc, dpi=150, bbox_inches="tight")
+    plt.close(fig)
+
+    fig, ax = plt.subplots(figsize=(10, 6))
+    any_curve = False
+    for p, y in sobol_series.items():
+        y_arr = np.asarray(y, dtype=float)
+        if np.all(np.isnan(y_arr)):
+            continue
+        any_curve = True
+        ax.plot(t_arr, y_arr, marker="o", label=f"S1({p})")
+    if any_curve:
+        ax.set_title("First-order Sobol for Flux vs Time")
+        ax.set_xlabel("Time [s]")
+        ax.set_ylabel("Sobol index")
+        ax.set_ylim(0.0, 1.0)
+        ax.grid(True)
+        if np.all(t_arr > 0):
+            ax.set_xscale("log")
+        ax.legend(loc="best")
+        out_s1 = os.path.join(
+            plot_folder_name,
+            add_timestamp_to_filename("flux_rmax_sobols_vs_time.png", plot_timestamp),
+        )
+        fig.savefig(out_s1, dpi=150, bbox_inches="tight")
+    plt.close(fig)
+
+
+def _generate_uq_dashboard_for_campaign(campaign_timestamp: str, output_folder: str):
+    """Generate interactive HTML dashboard for the campaign run set."""
+    campaign_prefix = f"festim_campaign_{campaign_timestamp}_"
+    cwd = os.getcwd()
+    candidate_dirs = []
+    for d in os.listdir(cwd):
+        p = os.path.join(cwd, d)
+        if os.path.isdir(p) and d.startswith(campaign_prefix):
+            if os.path.isdir(os.path.join(p, "runs")):
+                candidate_dirs.append(p)
+
+    if not candidate_dirs:
+        print(f"Skipping dashboard generation: no campaign run directory found for prefix '{campaign_prefix}'.")
+        return
+
+    # Use the most recently modified campaign folder if multiple are present.
+    campaign_dir = max(candidate_dirs, key=lambda p: os.path.getmtime(p))
+    runs_root = os.path.join(campaign_dir, "runs")
+
+    found = discover_run_dirs(runs_root)
+    if not found:
+        print(f"Skipping dashboard generation: no run directories under {runs_root}")
+        return
+
+    run_data_list = []
+    for run_id, run_dir in found:
+        params, x, profiles = read_run_data(run_dir)
+        if profiles:
+            run_data_list.append((run_id, params, x, profiles))
+
+    if not run_data_list:
+        print("Skipping dashboard generation: no usable run profile data found.")
+        return
+
+    os.makedirs(output_folder, exist_ok=True)
+    out_html = os.path.join(output_folder, f"uq_campaign_dashboard_{campaign_timestamp}.html")
+    generate_html(run_data_list, out_html)
+    print(f"✓ UQ dashboard saved: {out_html}")
 
 
 def save_statistics_log(results, qois, plot_folder_name, plot_timestamp):
@@ -132,7 +312,192 @@ def save_statistics_log(results, qois, plot_folder_name, plot_timestamp):
     print(f"Statistics log saved to: {log_filename}")
 
 
-def visualisation_of_results(results, distributions, qois, plot_folder_name, plot_timestamp, runs_info=None):
+def _plot_cj1959_uq_dashboard_2x2(results, qois, rs, cfg, plot_folder_name):
+    """Create CJ1959 UQ 2x2 dashboard for campaign outputs when case matches."""
+    try:
+        verification_case = str((cfg.get("model_parameters", {}) or {}).get("verification_case", "")).lower()
+    except Exception:
+        verification_case = ""
+    if "cj1959" not in verification_case:
+        return
+
+    repo_root = Path(__file__).resolve().parents[3]
+    tests_dir = repo_root / "tests"
+    if str(tests_dir) not in sys.path:
+        sys.path.insert(0, str(tests_dir))
+
+    try:
+        from verification.gfederici1991 import CarlsJaeger1959
+    except Exception as exc:
+        print(f"Skipping CJ1959 2x2 dashboard: cannot import verification module ({exc})")
+        return
+
+    geometry_cfg = cfg.get("geometry", {}) or {}
+    domains = geometry_cfg.get("domains", [{}]) or [{}]
+    materials = cfg.get("materials", []) or [{}]
+    domain_material_id = (domains[0] or {}).get("material", None)
+    material_cfg = next((m for m in materials if m.get("material_id", None) == domain_material_id), materials[0] if materials else {})
+
+    d0 = float((material_cfg.get("D_0", {}) or {}).get("mean", 1.0))
+    e_d = float((material_cfg.get("E_D", {}) or {}).get("mean", 0.0))
+    temperature = float(
+        (((cfg.get("initial_conditions", {}) or {}).get("temperature", {}) or {}).get("value", {}) or {}).get(
+            "mean", (cfg.get("model_parameters", {}) or {}).get("T_0", 300.0)
+        )
+    )
+    k_b_ev_per_k = 8.617333262145e-5
+    D = d0 * math.exp(-e_d / (k_b_ev_per_k * temperature)) if temperature > 0.0 else d0
+    source_terms_cfg = cfg.get("source_terms", {}) or {}
+    concentration_cfg = source_terms_cfg.get("concentration", {}) or {}
+    source_value_cfg = concentration_cfg.get("value", {}) or {}
+    source_mean = source_value_cfg.get("mean", 1.0)
+    G = float(source_mean)
+    a = float((domains[0] or {}).get("length", 1.0))
+
+    transient_qois = []
+    for q in qois:
+        if isinstance(q, str) and q.startswith("t=") and q.endswith("s"):
+            try:
+                transient_qois.append((float(q.split("=", 1)[1].rstrip("s")), q))
+            except Exception:
+                pass
+    if not transient_qois:
+        return
+    transient_qois.sort(key=lambda it: it[0])
+
+    r = np.asarray(rs, dtype=float)
+    if r.ndim != 1 or r.size == 0:
+        return
+    if r.size > 1 and np.any(np.diff(r) < 0.0):
+        order = np.argsort(r)
+        r = r[order]
+    else:
+        order = np.arange(r.size, dtype=int)
+    center_idx = int(np.argmin(np.abs(r)))
+
+    t_last, q_last = transient_qois[-1]
+    try:
+        mean_last = np.asarray(results.describe(q_last, "mean"), dtype=float)
+        std_last = np.asarray(results.describe(q_last, "std"), dtype=float)
+    except Exception:
+        return
+    if mean_last.size != r.size:
+        return
+    if std_last.shape != mean_last.shape:
+        std_last = np.zeros_like(mean_last)
+
+    mean_last = mean_last[order]
+    std_last = std_last[order]
+    ana_last = np.asarray(CarlsJaeger1959(t=t_last, D=D, G=G, a=a, r=r), dtype=float)
+
+    err_last = np.abs(mean_last - ana_last)
+    err_last_lo = np.abs((mean_last - std_last) - ana_last)
+    err_last_hi = np.abs((mean_last + std_last) - ana_last)
+    err_last_min = np.minimum(err_last_lo, err_last_hi)
+    err_last_max = np.maximum(err_last_lo, err_last_hi)
+
+    times = []
+    c_mean = []
+    c_std = []
+    c_ana = []
+    l2_err = []
+    l2_err_min = []
+    l2_err_max = []
+    for t, q in transient_qois:
+        try:
+            mean_prof = np.asarray(results.describe(q, "mean"), dtype=float)
+            std_prof = np.asarray(results.describe(q, "std"), dtype=float)
+        except Exception:
+            continue
+        if mean_prof.size != r.size:
+            continue
+        if std_prof.shape != mean_prof.shape:
+            std_prof = np.zeros_like(mean_prof)
+        mean_prof = mean_prof[order]
+        std_prof = std_prof[order]
+        ana_prof = np.asarray(CarlsJaeger1959(t=t, D=D, G=G, a=a, r=r), dtype=float)
+        l2_c = float(np.sqrt(np.trapz((mean_prof - ana_prof) ** 2, x=r)))
+        l2_lo = float(np.sqrt(np.trapz(((mean_prof - std_prof) - ana_prof) ** 2, x=r)))
+        l2_hi = float(np.sqrt(np.trapz(((mean_prof + std_prof) - ana_prof) ** 2, x=r)))
+        times.append(float(t))
+        c_mean.append(float(mean_prof[center_idx]))
+        c_std.append(float(std_prof[center_idx]))
+        c_ana.append(float(ana_prof[center_idx]))
+        l2_err.append(l2_c)
+        l2_err_min.append(min(l2_lo, l2_hi))
+        l2_err_max.append(max(l2_lo, l2_hi))
+
+    if not times:
+        return
+
+    t_arr = np.asarray(times, dtype=float)
+    c_mean = np.asarray(c_mean, dtype=float)
+    c_std = np.asarray(c_std, dtype=float)
+    c_ana = np.asarray(c_ana, dtype=float)
+
+    l2_err = np.asarray(l2_err, dtype=float)
+    l2_err_min = np.asarray(l2_err_min, dtype=float)
+    l2_err_max = np.asarray(l2_err_max, dtype=float)
+
+    floor = np.finfo(float).tiny
+    fig, axes = plt.subplots(2, 2, figsize=(14, 10))
+
+    ax = axes[0, 0]
+    ax.plot(r, ana_last, color="tab:blue", label="CJ1959 analytic")
+    ax.plot(r, mean_last, "--", color="tab:orange", label="UQ mean")
+    ax.fill_between(r, mean_last - std_last, mean_last + std_last, alpha=0.2, color="tab:orange", label="+/- STD")
+    ax.set_title(f"(1,1) Concentration vs Radius at t={t_last:.2e}s")
+    ax.set_xlabel("Radius r [m]")
+    ax.set_ylabel("Concentration")
+    ax.grid(True)
+    ax.legend(loc="best")
+
+    ax = axes[0, 1]
+    ax.plot(r, np.maximum(err_last, floor), color="tab:red", label="|UQ mean - analytic|")
+    ax.fill_between(r, np.maximum(err_last_min, floor), np.maximum(err_last_max, floor), alpha=0.2, color="tab:red", label="error from +/- STD")
+    ax.set_title(f"(1,2) Error vs Radius at t={t_last:.2e}s")
+    ax.set_xlabel("Radius r [m]")
+    ax.set_ylabel("Absolute Error")
+    ax.set_yscale("log")
+    ax.grid(True)
+    ax.legend(loc="best")
+
+    ax = axes[1, 0]
+    ax.plot(t_arr, c_ana, marker="o", color="tab:blue", label="CJ1959 analytic @ r=0")
+    ax.plot(t_arr, c_mean, "--", marker="s", color="tab:orange", label="UQ mean @ r=0")
+    ax.fill_between(t_arr, c_mean - c_std, c_mean + c_std, alpha=0.2, color="tab:orange", label="+/- STD")
+    ax.set_title("(2,1) Concentration vs Time at r=0")
+    ax.set_xlabel("Time [s]")
+    ax.set_ylabel("Concentration")
+    ax.grid(True)
+    ax.legend(loc="best")
+
+    ax = axes[1, 1]
+    ax.plot(t_arr, np.maximum(l2_err, floor), marker="d", color="tab:red", label="L2 error")
+    ax.fill_between(
+        t_arr,
+        np.maximum(l2_err_min, floor),
+        np.maximum(l2_err_max, floor),
+        alpha=0.2,
+        color="tab:red",
+        label="L2 error from +/- STD",
+    )
+    ax.set_title("(2,2) L2 Error vs Time")
+    ax.set_xlabel("Time [s]")
+    ax.set_ylabel("Absolute Error")
+    ax.set_yscale("log")
+    ax.grid(True)
+    ax.legend(loc="best")
+
+    fig.suptitle("CJ1959 Verification Dashboard (UQ 2x2)", fontsize=14)
+    fig.tight_layout(rect=[0.0, 0.0, 1.0, 0.97])
+    out = os.path.join(plot_folder_name, "cj1959_verification_dashboard_2x2.png")
+    fig.savefig(out, dpi=170, bbox_inches="tight")
+    plt.close(fig)
+    print(f"✓ CJ1959 UQ dashboard saved: {out}")
+
+
+def visualisation_of_results(results, distributions, qois, plot_folder_name, plot_timestamp, runs_info=None, config=None):
     """
     Visualise the results of the EasyVVUQ campaign.
     This function is a placeholder for future visualisation methods.
@@ -174,15 +539,35 @@ def visualisation_of_results(results, distributions, qois, plot_folder_name, plo
             print(f"Using provided runs info: {runs_info}")
             runs_info = list(runs_info)
 
-    # Plotting statistics of the results as a function of radius (spatial coordinates)
-    uqplotter = UQPlotter()
-    uqplotter.plot_stats_vs_r(results, qois[1:], plot_folder_name, plot_timestamp, rs=rs, runs_info=runs_info)
+    concentration_qois = [q for q in qois[1:] if _parse_transient_time_label(q) is not None or q == "t=steady"]
+    flux_qois = [q for q in qois[1:] if _parse_flux_time_label(q) is not None]
 
-    # # Bespoke plotting of uncertainty and Sobol indices in QoI as a function of TIME - not for steady state simulations
-    # plot_stats_vs_t(results, distributions, qois[1:], plot_folder_name, plot_timestamp, rs=rs)
+    # Plotting statistics of concentration QoIs as a function of radius
+    uqplotter = UQPlotter()
+    if concentration_qois:
+        uqplotter.plot_stats_vs_r(results, concentration_qois, plot_folder_name, plot_timestamp, rs=rs, runs_info=runs_info)
+
+    # Bespoke plotting of uncertainty and Sobol indices as a function of time
+    # for transient QoIs (e.g. t=...s columns).
+    transient_qois = [q for q in concentration_qois if _parse_transient_time_label(q) is not None]
+    if transient_qois:
+        uqplotter.plot_stats_vs_t(
+            results,
+            distributions,
+            transient_qois,
+            plot_folder_name,
+            plot_timestamp,
+            rs=rs,
+        )
+
+    if flux_qois:
+        _plot_flux_uq_vs_time(results, distributions, flux_qois, plot_folder_name, plot_timestamp)
+
+    if config is not None:
+        _plot_cj1959_uq_dashboard_2x2(results, qois[1:], rs, config, plot_folder_name)
 
     # Save statistics log file
-    save_statistics_log(results, qois[1:], plot_folder_name, plot_timestamp)
+    save_statistics_log(results, concentration_qois + flux_qois, plot_folder_name, plot_timestamp)
 
     print(f"Plots saved in folder: {plot_folder_name}")
     return 0
@@ -323,7 +708,7 @@ def define_parameter_uncertainty(config, CoV=None, distribution=None):
     return parameters_distributions
 
 
-def define_festim_model_parameters():
+def define_festim_model_parameters(config=None):
     """
     Define the FESTIM model parameters and their default values.
     """
@@ -361,21 +746,16 @@ def define_festim_model_parameters():
         # "right_bc_concentration_value": {"type": "float", "default": 1.0e15},  # Boundary condition value at the right (outer) surface of the sample
     }
 
-    # Define  output parameters / the quantities of interest (QoIs)
-    # TODO: read an (example) output file to get the QoI names
-    qois = [
-        # "tritium_inventory",
-        "x",  # Mainly for (a) reading the vertices for postprocessing, (b) checking that grid has not changed
-        # "t=1.00e-01s",
-        # "t=2.00e-01s",
-        # "t=5.00e-01s",
-        # "t=1.00e+00s",
-        # "t=5.00e+00s",
-        # "t=1.00e+01s",
-        # "t=2.50e+01s",
-        "t=steady",  # Steady state value, if simulation for performed for a stationary model
-        # "t=final" # Final values extracted from the model
-    ]
+    # Define output parameters / QoIs from config where possible.
+    qois = ["x"]
+    model_params = (config or {}).get("model_parameters", {}) if isinstance(config, dict) else {}
+    transient = bool(model_params.get("transient", False))
+    milestone_times = ((config or {}).get("simulation", {}) or {}).get("milestone_times", []) if isinstance(config, dict) else []
+    if transient and milestone_times:
+        qois.extend([f"t={float(t):.2e}s" for t in milestone_times])
+        qois.extend([f"flux_t={float(t):.2e}s" for t in milestone_times])
+    else:
+        qois.append("t=steady")
 
     # print(f"Model parameters defined: {parameters}")
     # print(f"QoIs defined: {qois}")
@@ -404,13 +784,9 @@ def prepare_execution_command():
 
     print(f"Execution command line: {exec_command_line}")
 
-    # Execute locally and capture each run's process output in its run directory.
-    # These filenames are resolved by EasyVVUQ relative to the per-run cwd.
-    execute = ExecuteLocal(
-        exec_command_line,
-        stdout="stdout.txt",
-        stderr="stderr.txt",
-    )
+    # Execute locally. Passing stdout/stderr filenames triggers a known
+    # EasyVVUQ execute_local bug in some versions (missing close symbol).
+    execute = ExecuteLocal(exec_command_line)
 
     return execute
 
@@ -421,7 +797,7 @@ def prepare_uq_campaign(config, config_file, fixed_params=None, uq_params=None):
     """
 
     # Define the model input and output parameters
-    parameters, qois = define_festim_model_parameters()
+    parameters, qois = define_festim_model_parameters(config=config)
 
     # TODO rearange FESTIM data output, figure out how to specify multiple quantities at different times, all vs a coordinate
 
@@ -497,11 +873,14 @@ def prepare_uq_campaign(config, config_file, fixed_params=None, uq_params=None):
 
     # TODO change the output and decoder to YAML (for UQ derived quantities) or other format (?)
 
-    decoder = uq.decoders.SimpleCSV(
-        # target_filename="output.csv", # option for synthetic diagnostics specifically chosen for UQ
-        target_filename="results/results_tritium_concentration.txt",  # Results from the base data of a simulation, FESTIM1.4 version of TXT outputs for 1D data
-        # target_filename="results/results_tritium_concentration.csv",  # Results from the base data of a simulation, FESTIM 2.0 version of CSV outputs for 1D data
-        output_columns=qois,
+    output_dir = str(config.get("simulation", {}).get("output_directory", "results/test")).rstrip("/")
+    concentration_qois = [q for q in qois if q == "x" or _parse_transient_time_label(q) is not None or q == "t=steady"]
+    flux_qois = [q for q in qois if _parse_flux_time_label(q) is not None]
+    decoder = MultiOutputDecoder(
+        profile_filename=f"{output_dir}/results_tritium_concentration.txt",
+        flux_filename=f"{output_dir}/total_hydrogen_flux_rmax.txt",
+        concentration_qois=concentration_qois,
+        flux_qois=flux_qois,
     )
 
     print(f"Decoder prepared: {decoder}")
@@ -711,7 +1090,32 @@ def analyse_uq_results(campaign, qois, sampler, uq_params=None, output_folder=No
     # Display the results of the analysis
     for qoi in qois[1:]:
         print(f"Results for {qoi}:")
-        print(results.describe(qoi))
+        try:
+            print(results.describe(qoi))
+        except Exception as exc:
+            # Some EasyVVUQ/Chaospy combinations may fail to build output
+            # distributions for a QoI; keep campaign flow alive and print
+            # available scalar/vector statistics instead.
+            logger.warning(f"Could not print full describe() for {qoi}: {exc}")
+            print(f"  Full describe unavailable: {exc}")
+            printed_any = False
+            for stat_name in ["mean", "std", "min", "max", "1%", "10%", "median", "90%", "99%"]:
+                try:
+                    stat_values = results.describe(qoi, stat_name)
+                except Exception:
+                    continue
+                if stat_values is None:
+                    continue
+                printed_any = True
+                arr = np.asarray(stat_values)
+                if arr.ndim == 0:
+                    print(f"  {stat_name}: {arr.item()}")
+                else:
+                    print(
+                        f"  {stat_name}: shape={arr.shape}, min={np.min(arr):.6e}, max={np.max(arr):.6e}, avg={np.mean(arr):.6e}"
+                    )
+            if not printed_any:
+                print("  No fallback statistics available for this QoI.")
         print("\n")
 
     return results
@@ -751,6 +1155,11 @@ def perform_uq_festim(config=None, fixed_params=None):
             default=3,
             help="PCE polynomial order (default: 3)",
         )
+        parser.add_argument(
+            "--full-tensor",
+            action="store_true",
+            help="Use full tensor-product quadrature for PCE (default: sparse Smolyak)",
+        )
 
         args = parser.parse_args()
         print(f"> Using arguments file: {args.config}")
@@ -770,7 +1179,7 @@ def perform_uq_festim(config=None, fixed_params=None):
     uq_params = {
         "uq_scheme": "pce",   # 'pce' or 'qmc'
         "p_order": int(args.p_order),  # maximal polynomial order (total-degree truncation)
-        "sparse": True,       # sparse Smolyak quadrature grid
+        "sparse": not bool(args.full_tensor),  # sparse Smolyak by default; full tensor if requested
         "n_samples": 8,       # only used for QMC fallback
     }
 
@@ -834,7 +1243,11 @@ def perform_uq_festim(config=None, fixed_params=None):
         plot_folder,
         plot_timestamp=campaign_timestamp,
         runs_info=runs,
+        config=config,
     )
+
+    # Generate interactive dashboard from individual campaign runs.
+    _generate_uq_dashboard_for_campaign(campaign_timestamp, output_folder)
 
     print(f"\nFESTIM UQ campaign completed successfully!")
     print(f"✓ All outputs in: {output_folder}")
@@ -847,15 +1260,8 @@ if __name__ == "__main__":
     This will execute the UQ campaign when the script is run directly.
     """
     try:
-        # Simple case: run with default parameters
-        # perform_uq_festim()
-
-        # More complex case: run with a scan over a fixed parameter, e.g. sample length
-        fixed_params = {
-            "length": 5.0e-4,  # Length of the sample in meters
-            "tritium_transport_absolute_tolerance": 1.0e7,  # Absolute tolerance for tritium transport solver
-        }
-        perform_uq_festim(fixed_params=fixed_params)
+        # Run with parameters from the provided YAML config by default.
+        perform_uq_festim()
 
     except Exception as e:
         print(f"An error occurred during the UQ campaign: {e}")
