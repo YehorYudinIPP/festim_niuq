@@ -38,7 +38,7 @@ bibliography: paper.bib
 
 Tritium is a radioactive isotope of hydrogen that will be both the fuel and a safety-critical inventory item in future fusion power plants.
 Accurate predictions of tritium transport through fusion reactor components, such as lithium-ceramic breeder blankets and plasma-facing components, are essential for ensuring the fuel cycle performance and for assessing safety and reactor design.
-Yet the material transport coefficients governing these predictions are subject to substantial experimental uncertainty, and their ab initio estimates may also contain uncertainties that must be accounted for.
+However, the material transport coefficients governing these predictions are subject to substantial experimental uncertainty, and their ab initio estimates may also contain uncertainties that must be accounted for.
 
 FESTIM-NIUQ is a Python package that automates non-intrusive uncertainty quantification (UQ) for tritium transport simulations performed with the FESTIM finite-element framework [@festim2026github; @delaporte2019festim; @dark2026festim].
 The package couples FESTIM with EasyVVUQ [@richardson2020easyvvuq] and ChaosPy [@feinberg2015chaospy] to propagate parametric uncertainties through diffusion–reaction models of tritium behaviour in fusion-relevant materials.
@@ -101,22 +101,22 @@ Contributing a generic FESTIM integration upstream to EasyVVUQ was considered bu
 
 | Functionality    | Package support | Status    |
 |------------------|:---------------:|:---------:|
-| FESTIM integration  | Wrapper for FESTIM **2.0** (*Model*), legacy FESTIM **1.4** (*Model_legacy*) |	Implemented, updates considered |
-| Physics model types |	*tritium_transport* (hydrogen/tritium transport), *heat_transport*, and transient coupled heat+tritium model |	Implemented (coupled transient path present) |
-| Dimensionality / geometry |	1D implementation, coordinate systems: **cartesian / cylindrical / spherical** | 1D implemented; 2D/3D requires manual adaptation |
-| Mesh |	Regular and refined 1D meshes (**linear/quadratic refinement** options) |	Implemented |
-| BCs |	Concentration: **dirichlet, neumann, surface_reaction**; Temperature: **dirichlet, neumann, convective_flux, radiative_flux, combined_flux** | Implemented |
-| Source terms | Concentration *particle* source and *heat* source | Implemented, constant sources |
-| Uncertain parameters | Parsed uncertain candidates: $D_0$, $\kappa$, $G$, $Q$, $E_{kr}$, $h_{conv}$ (from *YAML mean, relative_stdev, pdf*) |	Implemented |
-| Parameter distributions |	Lookup includes **uniform, normal, lognormal, beta, gamma, exponential** |	Implemented |
-| Correlated-parameter UQ	| Correlated workflow via multivariate normal (*Rosenblatt/Cholesky*-style handling), currently for $D_{0}$ + *thermal_conductivity* | Specialized script - needs further support |
-| PCE support |	*PCESampler* + *PCEAnalysis*; Sobol first/total, moments, quantiles | Implemented, utilization for Bayesian surrogate underway |
-| qMC support |	*QMCSampler* + *QMCAnalysis*; in main EasyVVUQ workflow (uq_scheme: *qmc*) |	Implemented, in main UQ flow |
-| Other UQ modes |	Correlated script supports **FD** and **PCE**; **Bayesian inverse UQ** via PCE surrogate + MCMC (*emcee*)	| Under manual testing |
-| YAML configuration	| Full workflow controlled by YAML file (model + solver + UQ-relevant parameter definitions); deep nested substitution via *AdvancedYAMLEncoder* dot-path mapping	| Implemented |
-| Fusion-specific QoIs |	*tritium_concentration* profiles (**steady/transient** checkpoints), *total_tritium_release*, *total_tritium_trapping*, and support/descriptor for *tritium_inventory* |	Implemented, difference between legacy and current implementation |
-| Outputs for UQ |	Profile file (*results_tritium_concentration.txt*) for campaign decoding; scalar outputs (*output.csv* / summary CSV) for scalar QoIs| 	Implemented |
-| Visualisation | Profiles for solution quantities, as function of time and space; profiles for standard deviation, quantiles, Sobol indices; color plots against time and space, comparison and error for verification; UQ algorithm convergence studies | Implemented, HTML dashboard for individual jobs underway |
+| FESTIM integration  | Wrapper for FESTIM **2.0** (*Model*), legacy FESTIM **1.4** (*Model_legacy*). |	Implemented, updates considered |
+| Physics model types |	*tritium_transport* (hydrogen/tritium transport), *heat_transport*, and transient coupled heat+tritium model. |	Implemented (coupled transient path present) |
+| Dimensionality / geometry |	1D implementation, coordinate systems: **cartesian / cylindrical / spherical**. | 1D implemented; 2D/3D requires manual adaptation |
+| Mesh |	Regular and refined 1D meshes (**linear/quadratic refinement** options). |	Implemented |
+| BCs |	Concentration: *dirichlet, neumann, surface_reaction*; Temperature: *dirichlet, neumann, convective_flux, radiative_flux, combined_flux*. | Implemented |
+| Source terms | Concentration *particle* source and *heat* source. | Implemented, constant sources |
+| Uncertain parameters | Parsed uncertain candidates: $D_0$, $\kappa$, $G$, $Q$, $E_{kr}$, $h_{conv}$ (from *YAML: mean, relative_stdev, pdf*). |	Implemented |
+| Parameter distributions |	Lookup includes **uniform, normal, log-normal, beta, gamma, exponential**. |	Implemented |
+| Correlated-parameter UQ	| Correlated workflow via multivariate normal (*Rosenblatt/Cholesky*-style handling), currently for $D_{0}$ + *thermal_conductivity*. | Specialized script - needs further support |
+| PCE support |	*PCESampler* + *PCEAnalysis*; Sobol first/total, moments, quantiles. | Implemented, utilization for Bayesian surrogate underway |
+| qMC support |	*QMCSampler* + *QMCAnalysis*; in main EasyVVUQ workflow (uq_scheme: *qmc*). |	Implemented, in main UQ flow |
+| Other UQ modes |	Correlated script supports **FD** and **PCE**; **Bayesian inverse UQ** via PCE surrogate + MCMC (*emcee*).	| Under manual testing |
+| YAML configuration	| Full workflow controlled by YAML file (model + solver + UQ-relevant parameter definitions); deep nested substitution via *AdvancedYAMLEncoder* dot-path mapping.	| Implemented |
+| Fusion-specific QoIs |	*tritium_concentration* profiles (**steady/transient** checkpoints), *total_tritium_release*, *total_tritium_trapping*, and support/descriptor for *tritium_inventory*. |	Implemented, difference between legacy and current implementation |
+| Outputs for UQ |	Profile file (*results_tritium_concentration.txt*) for campaign decoding; scalar outputs (*output.csv* / summary CSV) for scalar QoIs. | 	Implemented |
+| Visualisation | Profiles for solution quantities, as function of time and space; profiles for standard deviation, quantiles, Sobol indices; color plots against time and space, comparison and error for verification; UQ algorithm convergence studies. | Implemented, HTML dashboard for individual jobs underway |
 
 
 # Software Design
@@ -141,11 +141,12 @@ On workstations, the same campaign runs locally using `joblib` multiprocessing w
 
 ## Configuration Interface
 
-All UQ settings are controlled through a YAML configuration file \autoref{lst:yaml}
+All UQ settings are controlled through a YAML configuration file, as the example in this section indicates.
 
-: Example UQ configuration (*config.uq.yaml*). \label{lst:yaml}
+<!-- \autoref{lst:yaml} -->
+<!-- : Example UQ configuration (*config.uq.yaml*). \label{lst:yaml} -->
 
-```python
+```yaml
 parameters:
   D:
     type: Uniform
@@ -233,13 +234,7 @@ We consider a 1-D ceramic ball of radius $R$ subject to a volumetric tritium sou
 <!-- $L = 2\,\mathrm{mm}$ -->
 The governing transport equation is:
 
-$$
-  \frac{\partial c_{m}}{\partial t} =
-     \nabla\cdot(D\,\nabla c_{m})
-    - \sum_i \left( k_i^+\,c_{m}\,(n_i - c_{t,i}) - k_i^-\,c_{t,i} \right)
-    + \sum_j G_j,
-  \label{eq:transport}
-$$
+$$ \frac{\partial c_{m}}{\partial t} = \nabla\cdot(D\,\nabla c_{m}) - \sum_i \left( k_i^+\,c_{m}\,(n_i - c_{t,i}) - k_i^-\,c_{t,i} \right) + \sum_j G_j \label{eq:transport} $$
 
 where $c_{m}$ is the mobile hydrogen concentration, $D$ the diffusion coefficient, $G_j$ the generation rates for different sources of hydrogen, and $c_{t,i}$, $k_i^\pm$, $n_i$ are trap occupancy, rate constants, and density for trap site $i$.
 
@@ -296,7 +291,7 @@ Furthermore, the work using the package is accepted for a contributed talk at th
 # AI Usage Disclosure
 
 Agentic AI tools (GitHub Copilot, including the copilot-swe-agent) were used during the development of FESTIM-NIUQ.
-AI assistance was employed to implement additional functionality, automated testing, documentation, nd project scaffolding after the initial core software was developed by the authors.  
+AI assistance was employed to implement additional functionality, automated testing, documentation, and project scaffolding after the initial core software was developed by the authors.  
 All AI-generated code and documentation were reviewed and validated by the human authors for correctness and scientific accuracy.
 AI tools (Claude Sonet and Opus 4.7) were used to prepare, brainstorm, draft, and review the manuscript text.
 
