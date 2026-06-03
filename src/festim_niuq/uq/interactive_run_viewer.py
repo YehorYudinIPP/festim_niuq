@@ -134,14 +134,38 @@ def _extract_uncertain_params(cfg):
 def _find_result_file(run_dir):
     """Locate the primary result CSV/TXT in *run_dir*."""
     candidates = [
+        os.path.join(run_dir, "results", "test", "results_tritium_concentration.txt"),
+        os.path.join(run_dir, "results", "test", "results_tritium_concentration.csv"),
         os.path.join(run_dir, "results", "results_tritium_concentration.txt"),
         os.path.join(run_dir, "results", "results_tritium_concentration.csv"),
+        # output.csv is scalar-only fallback; keep it last.
         os.path.join(run_dir, "output.csv"),
     ]
     for c in candidates:
         if os.path.isfile(c):
             return c
-    # Fallback: first .txt or .csv in results/ or run dir
+
+    # Fallback 1: recursively search under results/ for profile-like files.
+    results_root = os.path.join(run_dir, "results")
+    if os.path.isdir(results_root):
+        profile_hits = []
+        for root, _dirs, files in os.walk(results_root):
+            for f in files:
+                if not f.endswith((".txt", ".csv")):
+                    continue
+                p = os.path.join(root, f)
+                score = 0
+                f_lower = f.lower()
+                if "results_tritium_concentration" in f_lower:
+                    score += 10
+                if "profile" in f_lower:
+                    score += 3
+                profile_hits.append((score, p))
+        if profile_hits:
+            profile_hits.sort(key=lambda it: (-it[0], it[1]))
+            return profile_hits[0][1]
+
+    # Fallback 2: first .txt or .csv in run dir
     for search_dir in [os.path.join(run_dir, "results"), run_dir]:
         if os.path.isdir(search_dir):
             for f in sorted(os.listdir(search_dir)):
@@ -497,6 +521,14 @@ function matchesSelection(run, selection) {{
 
 // ===== Plot Update =====
 function updatePlot() {{
+  if (typeof Plotly === 'undefined') {{
+    const el = document.getElementById('plot-area');
+    if (el) {{
+      el.innerHTML = '<div style="padding:1rem;color:#b00020;font-size:0.9rem;">Plotly failed to load. This viewer needs network access to cdn.plot.ly, or open the file in a browser environment where external scripts are allowed.</div>';
+    }}
+    return;
+  }}
+
   const qoi = document.getElementById('sel-qoi').value;
   selectedQoi = qoi;
   const sel = getSelectedParams();
