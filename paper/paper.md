@@ -49,7 +49,7 @@ The entire workflow is controlled by a single YAML configuration file, which spe
 The *0.2.0* version of the package is available as source code on *GitHub*, installable from the *PyPI* repository, and is archived at *Zenodo*.
 The repository covers basic functionality with unit tests, provides several verification cases, and allows users to adapt it to specific needs via permissive licensing.
 
-The repository page contains a mini wiki to track the functionality, numerical particularities etc., project page for future plans, as well as a discussion page.
+The repository page contains a mini wiki to track the functionality, numerical particularities, etc., project page for future plans, as well as a discussion page.
 
 # Statement of Need
 
@@ -66,7 +66,7 @@ This barrier is high enough that most published tritium transport studies report
 
 <!-- [TODO: Cite UQ studies on hydrogen transport that used manual/ad-hoc methods to further motivate automation.] -->
 
-Alternative approaches to tritium transport modelling are applying Stochastic Tools Module [@slaughter2023moose] to code TMAP8 [@simon2025tmap8], which requires utilizing MOOSE framework for the entire workflow including uncertainty analysis, physics simulation, surrogate training, and sensitivity analysis.
+Alternative approaches to tritium transport modelling are applying Stochastic Tools Module [@slaughter2023moose] to the code TMAP8 [@simon2025tmap8], which requires utilizing MOOSE framework for the entire workflow including uncertainty analysis, physics simulation, surrogate training, and sensitivity analysis.
 
 FESTIM-NIUQ removes the barrier for UQ application in the FESTIM user community [@delaporte2024festim] by providing a ready-to-use pipeline that handles every step between a YAML configuration file and publication-quality sensitivity-index plots.
 The package is designed to be extended: new uncertain parameters, boundary conditions, or coordinate geometries are added by editing the configuration file rather than modifying the Python source code.
@@ -234,23 +234,22 @@ The governing transport equation is:
 
 $$
   \frac{\partial c_{m}}{\partial t} =
-    %  \nabla\cdot(D\,\nabla c_{m})
-    \nabla \cdot (D(T)\nabla c_{m})
+     \nabla\cdot(D\,\nabla c_{m})
     - \sum_i \left( k_i^+\,c_{m}\,(n_i - c_{t,i}) - k_i^-\,c_{t,i} \right)
     + \sum_j G_j,
   \label{eq:transport}
 $$
 
-where $c_{m}$ is the mobile hydrogen concentration, $D$ the diffusion coefficient, $G_j$ the generation rates for different sources of hydrogen, and $c_{t,i}$, $k_i^\pm$, $n_i$ are trap occupancy, rate constants, and density for trap site $i$. 
+where $c_{m}$ is the mobile hydrogen concentration, $D$ the diffusion coefficient, $G_j$ the generation rates for different sources of hydrogen, and $c_{t,i}$, $k_i^\pm$, $n_i$ are trap occupancy, rate constants, and density for trap site $i$.
 
-Here, in \autoref{eq:transport}, we take single species of hydrogen (tritium), homogenous BC $C(r=R)=0$, constant isotropic diffusion coefficient $D$ as a function of external parameter - temperature, $D(T)= D_{0}\exp(\frac{E_{a}}{k_{B} T})$ via Arrhenius law, and spherical coordinates, hence differential operator in form $ \nabla \cdot (D \nabla C) = D \left( \frac{\partial^{2}C}{\partial r^{2}} + \frac{2}{r} \frac{\partial C}{\partial r} \right)$, and no trapping.
+Here, in \autoref{eq:transport}, we take single species of hydrogen (tritium), homogenous BC $C(r=R)=0$, constant tritium generation $G$, constant isotropic diffusion coefficient $D$ as a function of external parameter - temperature, $D(T)= D_{0}\exp(\frac{E_{a}}{k_{B} T})$ via Arrhenius law, spherical coordinates, hence differential operator in form $ \nabla \cdot (D \nabla C) = D \left( \frac{\partial^{2}C}{\partial r^{2}} + \frac{2}{r} \frac{\partial C}{\partial r} \right)$, and no trapping.
 
 
 
 <!-- Three parameters are treated as uncertain (uniform distributions): $D$, $G$, and $C(r=L)$. -->
 <!-- A PCE of order 3 requires $\binom{3+3}{3} = 20$ FESTIM evaluations to resolve. -->
 Two parameters are treated as uncertain with uniform distributions (coefficient of variation equal $0.1$): $D$, $G$.
-A PCE study of order 3 with sparse grids require $\binom{3+2}{3} = 10$ FESTIM evaluations to resolve.
+A PCE study of order 3 with sparse grids require $\binom{3+2}{2} = 10$ FESTIM evaluations to resolve.
 
 ## Results
 
@@ -271,9 +270,9 @@ Table \autoref{tab:moments} summarises the statistical moments for the mobile co
 
 | Statistic                | Value | Units     |
 |--------------------------|:-----:|:---------:|
-| Mean $\mu(C_{m})$               | $1.92 \cdot 10^{-1}$  | arb. un.   |
-| Std. deviation, $\sigma(C_{m})$ | $7.14 \cdot 10^{-2}$  | arb. un.  |
-| Coefficient of variation | $0.372$  |   --      |
+| Mean $\mu(C_{m})$               | $1.92 \cdot 10^{-1}$ | arb. un. |
+| Std. deviation, $\sigma(C_{m})$ | $7.14 \cdot 10^{-2}$ | arb. un. |
+| Coefficient of variation | $0.372$  |   --   |
 <!-- | Mean $\mu$               | todo  | $m^{-3}$  |
 | Std. deviation, $\sigma$ | todo  | $m^{-3}$  |
 | Coefficient of variation | todo  |   --      | -->
@@ -301,7 +300,7 @@ AI tools (Claude Sonet and Opus 4.7) were used for preparing, brainstorming, dra
 # Acknowledgements
 
 This work was carried out at the Nuclear Futures Institute, Bangor University.  
-The work is funded by the UKAEA LIBRTI programme project.
-The authors thank the FESTIM development team for their open-source solver and responsive support, as well as members of the SEAVEA consortium for maintaining the VVUQ toolkit used in the work.
+The work is funded by the UKAEA LIBRTI programme as a feeder stream project.
+The authors thank the FESTIM development team for their open-source code and the responsive support, as well as members of the SEAVEA consortium for maintaining the VVUQ toolkit used in the work.
 
 # References
