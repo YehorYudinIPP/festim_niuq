@@ -49,6 +49,8 @@ The entire workflow is controlled by a single YAML configuration file, which spe
 The *0.2.0* version of the package is available as source code on *GitHub*, installable from the *PyPI* repository, and is archived at *Zenodo*.
 The repository covers basic functionality with unit tests, provides several verification cases, and allows users to adapt it to specific needs via permissive licensing.
 
+The repository page contains a mini wiki to track the functionality, numerical particularities etc., project page for future plans, as well as a discussion page.
+
 # Statement of Need
 
 Fusion reactor components, such as tungsten first walls and beryllium covers, interact with tritium over long operational periods.
@@ -62,9 +64,11 @@ Analysis that targets design and prediction should provide confidence intervals 
 Although general-purpose UQ frameworks exist (see *State of the Field* below), coupling any of them to a finite-element tritium transport solver requires non-trivial engineering: writing a solver-specific parameter encoder, an output decoder, a subprocess execution harness, and post-processing and plotting utilities.
 This barrier is high enough that most published tritium transport studies report only deterministic results at nominal parameter values, forgoing systematic UQ entirely.
 
-[TODO: Cite UQ studies on hydrogen transport that used manual/ad-hoc methods to further motivate automation.]
+<!-- [TODO: Cite UQ studies on hydrogen transport that used manual/ad-hoc methods to further motivate automation.] -->
 
-FESTIM-NIUQ removes this barrier for the FESTIM user community [@delaporte2024festim] by providing a ready-to-use pipeline that handles every step between a YAML configuration file and publication-quality sensitivity-index plots.
+Alternative approaches to tritium transport modelling are applying Stochastic Tools Module [@slaughter2023moose] to code TMAP8 [@simon2025tmap8], which requires utilizing MOOSE framework for the entire workflow including uncertainty analysis, physics simulation, surrogate training, and sensitivity analysis.
+
+FESTIM-NIUQ removes the barrier for UQ application in the FESTIM user community [@delaporte2024festim] by providing a ready-to-use pipeline that handles every step between a YAML configuration file and publication-quality sensitivity-index plots.
 The package is designed to be extended: new uncertain parameters, boundary conditions, or coordinate geometries are added by editing the configuration file rather than modifying the Python source code.
 <!-- FESTIM-NIUQ has been used in ongoing research at the Nuclear Futures Institute, Bangor University, to assess parametric uncertainties in lithium-ceramic breeder blanket tritium transport simulations, and it has been presented at the UKAEA Technical Meeting [@ukaea2026meeting] and the Open-Source Software for Fusion Energy Workshop (OSSFE 2026) [@ossfe2026]. -->
 
@@ -102,7 +106,7 @@ Contributing a generic FESTIM integration upstream to EasyVVUQ was considered bu
 | Mesh |	Regular and refined 1D meshes (**linear/quadratic refinement** options) |	Implemented |
 | BCs |	Concentration: **dirichlet, neumann, surface_reaction**; Temperature: **dirichlet, neumann, convective_flux, radiative_flux, combined_flux** | Implemented |
 | Source terms | Concentration *particle* source and *heat* source | Implemented, constant sources |
-| Uncertain parameters (main UQ flow)	| Parsed uncertain candidates: $D_0$, $\kappa$, $G$, $Q$, $E_{kr}$, $h_{conv}$ (from *YAML mean, relative_stdev, pdf*) |	Implemented |
+| Uncertain parameters | Parsed uncertain candidates: $D_0$, $\kappa$, $G$, $Q$, $E_{kr}$, $h_{conv}$ (from *YAML mean, relative_stdev, pdf*) |	Implemented |
 | Parameter distributions |	Lookup includes **uniform, normal, lognormal, beta, gamma, exponential** |	Implemented |
 | Correlated-parameter UQ	| Correlated workflow via multivariate normal (*Rosenblatt/Cholesky*-style handling), currently for $D_{0}$ + *thermal_conductivity* | Specialized script - needs further support |
 | PCE support |	*PCESampler* + *PCEAnalysis*; Sobol first/total, moments, quantiles | Implemented, utilization for Bayesian surrogate underway |
@@ -220,24 +224,33 @@ FESTIM-NIUQ process calls.](figures/flowchart_v1_light.png){#fig:workflow}
 
 # Example Application
 
-## Test Case: Tritium Inventory in a 1-D Slab
+<!-- ## Test Case: Tritium Inventory in a 1-D Slab -->
+## Test Case: Tritium Inventory in an isotropic kernel: 1-D spherical geometry
 
-We consider a 1-D ceramic slab of thickness $L$ subject to a volumetric tritium source and a fixed concentration boundary condition at $L$: $c_{m}(r = L) = const$.
+We consider a 1-D ceramic ball of radius $R$ subject to a volumetric tritium source and a fixed concentration boundary condition at $L$: $c_{m}(r = R) = const$.
 <!-- The diffusion coefficient of gas in the materials is constant $D$. -->
 <!-- $L = 2\,\mathrm{mm}$ -->
 The governing transport equation is:
 
 $$
-  \frac{\partial c_{m}}{\partial t}
-  = \nabla\cdot(D\,\nabla c_{m})
+  \frac{\partial c_{m}}{\partial t} =
+    %  \nabla\cdot(D\,\nabla c_{m})
+    \nabla \cdot (D(T)\nabla c_{m})
     - \sum_i \left( k_i^+\,c_{m}\,(n_i - c_{t,i}) - k_i^-\,c_{t,i} \right)
     + \sum_j G_j,
-  \label{eq:transport}$$
+  \label{eq:transport}
+$$
 
-where $c_{m}$ is the mobile hydrogen concentration, $D$ the diffusion coefficient, $G_j$ the generation rates for different sources of hydrogen, and $c_{t,i}$, $k_i^\pm$, $n_i$ are trap occupancy, rate constants, and density for trap site $i$.
+where $c_{m}$ is the mobile hydrogen concentration, $D$ the diffusion coefficient, $G_j$ the generation rates for different sources of hydrogen, and $c_{t,i}$, $k_i^\pm$, $n_i$ are trap occupancy, rate constants, and density for trap site $i$. 
 
-Three parameters are treated as uncertain (uniform distributions): $D$, $G$, and $C(r=L)$.
-A PCE of order 3 requires $\binom{3+3}{3} = 20$ FESTIM evaluations to resolve.
+Here, in \autoref{eq:transport}, we take single species of hydrogen (tritium), homogenous BC $C(r=R)=0$, constant isotropic diffusion coefficient $D$ as a function of external parameter - temperature, $D(T)= D_{0}\exp(\frac{E_{a}}{k_{B} T})$ via Arrhenius law, and spherical coordinates, hence differential operator in form $ \nabla \cdot (D \nabla C) = D \left( \frac{\partial^{2}C}{\partial r^{2}} + \frac{2}{r} \frac{\partial C}{\partial r} \right)$, and no trapping.
+
+
+
+<!-- Three parameters are treated as uncertain (uniform distributions): $D$, $G$, and $C(r=L)$. -->
+<!-- A PCE of order 3 requires $\binom{3+3}{3} = 20$ FESTIM evaluations to resolve. -->
+Two parameters are treated as uncertain with uniform distributions (coefficient of variation equal $0.1$): $D$, $G$.
+A PCE study of order 3 with sparse grids require $\binom{3+2}{3} = 10$ FESTIM evaluations to resolve.
 
 ## Results
 
