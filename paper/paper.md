@@ -82,7 +82,7 @@ Verification of the solver wrapper has been performed against Carslaw and Jaeger
 Here, a Smolyak sparse grid is used for a quadrature-based sample [@bungartz2004sparse].
 The problem solved is a constant source, zero initial condition, homogenous Dirichlet BC, and diffusion in spherical coordinates [@carslaw1959conduction].
 
-![Polynomial Chaos Expansion polynomial order scan for FESTIM-NIUQ uncertainty quantification campaign applied to verification transport problem. $S_1(D_0)$ and $S_1(G)$ represent the first-order Sobol indices for diffusion coefficient and source term magnitude.](figures/poly_order_dashboard_2x2_a4.png){#fig:pce_p_order}
+![Polynomial Chaos Expansion polynomial order scan for FESTIM-NIUQ uncertainty quantification campaign applied to verification transport problem. $S_1(D_0)$ and $S_1(G)$ represent the first-order Sobol indices for diffusion coefficient and source term magnitude.](figures/poly_order_dashboard_2x2_a4_v2.png){#fig:pce_p_order}
 
 # State of the Field
 
@@ -260,9 +260,9 @@ The section illustrates an example of a PCE study with polynomial order $p=3$, a
 \autoref{fig:sobol} demonstrates Sobol indices of total tritium concentration and outward flux for source term and diffusion coefficient values.
 \autoref{tab:moments} summarises the statistical moments for the mobile concentration.
 
-  ![Mean value, standard deviation, confidence intervals, as well as default and analytic verification values and errors of tritium inventory.](figures/cj1959_verification_dashboard_2x2_v2.png){#fig:results_uncertainty}
+  ![Mean value, standard deviation, confidence intervals, as well as default and analytic verification values and errors of tritium inventory.](figures/cj1959_verification_dashboard_2x2_v3.png){#fig:results_uncertainty}
 
-  ![First-order ($S_1$) and total-order ($S_T$) Sobol sensitivity indices for the tritium inventory.](figures/cj1959_sobol_summary_1x2_v2.png){#fig:sobol}
+  ![First-order ($S_1$) and total-order ($S_T$) Sobol sensitivity indices for the tritium inventory.](figures/cj1959_sobol_summary_1x2_v3.png){#fig:sobol}
 
   <!-- ![Probability density of the tritium inventory obtained from the PCE surrogate.](figures/qoi_distribution.png){#fig:pdf} -->
 
