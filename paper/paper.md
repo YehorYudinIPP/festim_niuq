@@ -36,8 +36,9 @@ bibliography: paper.bib
 
 # Summary
 
-Tritium is a radioactive isotope of hydrogen that will be both the fuel and a safety-critical inventory item in future fusion power plants.
-Accurate predictions of tritium transport through fusion reactor components, such as lithium-ceramic breeder blankets and plasma-facing components, are essential for ensuring the fuel cycle performance and for assessing safety and reactor design.
+Tritium is a crucial fuel component of future fusion power plants.
+Owing to its radioactivity, it is also of critical safety importance and its inventory in fusion power plants must be strictly monitored.
+Accurate predictions of tritium transport through fusion reactor components, such as breeder blankets and plasma-facing components, are essential for ensuring sufficient fuel cycle performance, monitoring its efficiency, and for assessing safety and reactor design.
 However, the material transport coefficients governing these predictions are subject to substantial experimental uncertainty, and their ab initio estimates may also contain uncertainties that must be accounted for.
 
 FESTIM-NIUQ is a Python package that automates non-intrusive uncertainty quantification (NIUQ) for tritium transport simulations performed with the FESTIM (Finite Elements Simulation of Tritium in Materials) framework [@festim2026github; @delaporte2019festim; @dark2026festim].
@@ -53,8 +54,8 @@ The repository page contains a mini-wiki to track functionality, numerical detai
 
 # Statement of Need
 
-Fusion reactor components, such as tungsten first walls and beryllium covers, interact with tritium over long operational periods.
 Tritium must be carefully inventoried and managed in fusion reactor components due to its radioactivity, scarcity, and role as a fuel.
+Fusion reactor components, such as tungsten and beryllium first walls, interact with tritium over long operational periods.
 Tritium transport is governed by a coupled diffusion-reaction system with Arrhenius-type coefficients whose values are often measured with uncertainties of tens of per cent [@causey2012tritium].
 Reliable safety assessments and design decisions require an understanding of how uncertainties in these inputs propagate into predicted tritium inventories and release rates [@longhurst2011verification].
 Analysis that targets design and prediction should provide confidence intervals in addition to the mean estimates for tritium inventory and release rates, since these directly affect safety licensing [@mirallesdolz2024uncertainty].
@@ -66,7 +67,8 @@ This barrier is high enough that most published tritium transport studies report
 
 <!-- [TODO: Cite UQ studies on hydrogen transport that used manual/ad-hoc methods to further motivate automation.] -->
 
-Alternative approaches to tritium transport modelling are applying the Stochastic Tools Module [@slaughter2023moose] to the code TMAP8 [@simon2025tmap8], which requires utilising the MOOSE framework for the entire workflow, including uncertainty analysis, physics simulation, surrogate training, and sensitivity analysis.
+Alternative approaches to tritium transport modelling are applying the Stochastic Tools Module [@slaughter2023moose] to the code TMAP8 [@simon2025tmap8].
+This approach requires utilising the MOOSE framework for the entire workflow, including uncertainty analysis, physics simulation, surrogate training, and sensitivity analysis.
 
 FESTIM-NIUQ removes the barrier to UQ applications in the FESTIM user community [@delaporte2024festim] by providing a ready-to-use pipeline that handles every step from a YAML configuration file to publication-quality sensitivity-index plots.
 The package is designed to be extended: new uncertain parameters, boundary conditions, or coordinate geometries are added by editing the configuration file rather than modifying the Python source code.
