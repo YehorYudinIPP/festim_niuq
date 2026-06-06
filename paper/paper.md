@@ -67,7 +67,7 @@ This barrier is high enough that most published tritium transport studies report
 
 <!-- [TODO: Cite UQ studies on hydrogen transport that used manual/ad-hoc methods to further motivate automation.] -->
 
-Alternative approaches to tritium transport modelling are applying the Stochastic Tools Module [@slaughter2023moose] to the code TMAP8 [@simon2025tmap8].
+One of the alternative approaches to tritium transport modelling is to apply the Stochastic Tools Module [@slaughter2023moose] to the code TMAP8 [@simon2025tmap8].
 This approach requires utilising the MOOSE framework for the entire workflow, including uncertainty analysis, physics simulation, surrogate training, and sensitivity analysis.
 
 FESTIM-NIUQ removes the barrier to UQ applications in the FESTIM user community [@delaporte2024festim] by providing a ready-to-use pipeline that handles every step from a YAML configuration file to publication-quality sensitivity-index plots.
@@ -132,7 +132,7 @@ This design decouples the UQ layer from the solver internals, allowing users to 
 
 The package consists of three layers:
 
-1. **Model wrapper** (`festim_model/`): Encapsulates FESTIM model configuration, execution, and result export for both FESTIM 2.0 (DOLFINx-based [@dolfinx]) and the legacy FESTIM 1.x API.
+1. **Model wrapper** (`festim_model/`): Encapsulates FESTIM model configuration, execution, and result export for both FESTIM 2.0 (DOLFINx-based [@baratta2023dolfinx]) and the legacy FESTIM 1.x API.
 The model is constructed out of the following elements: geometry, mesh, material properties, boundary conditions, solver settings.
 2. **UQ orchestration** (`uq/`): Manages parameter sampling, campaign execution, and analysis using EasyVVUQ and ChaosPy.
 Contains encoder/decoder classes to access generic FESTIM models.
