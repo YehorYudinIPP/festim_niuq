@@ -98,31 +98,73 @@ EasyVVUQ [@richardson2020easyvvuq] from the SEAVEA Toolkit provides a flexible V
 FESTIM-NIUQ fills this niche by providing pre-built YAML-based encoders with deep nested parameter substitution via dot-notation paths, CSV decoders, a subprocess execution harness, and publication-quality plotting routines, all tailored to the FESTIM data model.  The result is that a user can launch a complete UQ campaign with a single command and configuration file without writing any Python code.
 
 Contributing a generic FESTIM integration upstream to EasyVVUQ was considered but rejected because the integration requires FESTIM-specific knowledge of its configuration schema, output file formats, and coordinate-system conventions.  Maintaining it as a standalone package allows independent versioning aligned with FESTIM releases and keeps the EasyVVUQ core free of solver-specific logic.
-\autoref{tag:functionality} summarises the capabilities provided by the package.
+\autoref{tab:functionality} summarises the capabilities provided by the package.
 
 <!-- [TODO: table summary of existing tools: FESTIM integration, PCE support, YAML config, fusion-specific QoIs] -->
 
-: Overview of the functionality implemented in the FESTIM-NIUQ. \label{tab:functionality}
+: Overview of the functionality implemented in FESTIM-NIUQ. \label{tab:functionality}
 
-| Functionality    | Package support | Status    |
-|------------------|:---------------:|:---------:|
-| FESTIM integration  | Wrapper for FESTIM **2.0** (*Model*), legacy FESTIM **1.4** (*Model_legacy*). |	Implemented, updates considered |
-| Physics model types |	*tritium_transport* (hydrogen/tritium transport), *heat_transport*, and transient coupled heat+tritium model. |	Implemented (coupled transient path present) |
-| Dimensionality / geometry |	1D implementation, coordinate systems: **cartesian / cylindrical / spherical**. | 1D implemented; 2D/3D requires manual adaptation |
-| Mesh |	Regular and refined 1D meshes (**linear/quadratic refinement** options). |	Implemented |
-| BCs |	Concentration: *dirichlet, neumann, surface_reaction*; Temperature: *dirichlet, neumann, convective_flux, radiative_flux, combined_flux*. | Implemented |
-| Source terms | Concentration *particle* source and *heat* source. | Implemented, constant sources |
-| Uncertain parameters | Parsed uncertain candidates: $D_0$, $\kappa$, $G$, $Q$, $E_{kr}$, $h_{conv}$ (from *YAML: mean, relative_stdev, pdf*). |	Implemented |
-| Parameter distributions |	Lookup includes **uniform, normal, log-normal, beta, gamma, exponential**. |	Implemented |
-| Correlated-parameter UQ	| Correlated workflow via multivariate normal (*Rosenblatt/Cholesky*-style handling), currently for $D_{0}$ + *thermal_conductivity*. | Specialized script - needs further support |
-| PCE support |	*PCESampler* + *PCEAnalysis*; Sobol first/total, moments, quantiles. | Implemented, utilization for Bayesian surrogate underway |
-| qMC support |	*QMCSampler* + *QMCAnalysis*; in main EasyVVUQ workflow (uq_scheme: *qmc*). |	Implemented, in main UQ flow |
-| Other UQ modes |	Correlated script supports **FD** and **PCE**; **Bayesian inverse UQ** via PCE surrogate + MCMC (*emcee*).	| Under manual testing |
-| YAML configuration	| Full workflow controlled by YAML file (model + solver + UQ-relevant parameter definitions); deep nested substitution via *AdvancedYAMLEncoder* dot-path mapping.	| Implemented |
-| Fusion-specific QoIs |	*tritium_concentration* profiles (**steady/transient** checkpoints), *total_tritium_release*, *total_tritium_trapping*, and support/descriptor for *tritium_inventory*. |	Implemented, difference between legacy and current implementation |
-| Outputs for UQ |	Profile file (*results_tritium_concentration.txt*) for campaign decoding; scalar outputs (*output.csv* / summary CSV) for scalar QoIs. | 	Implemented |
-| Visualisation | Profiles for solution quantities, as function of time and space; profiles for standard deviation, quantiles, Sobol indices; color plots against time and space, comparison and error for verification; UQ algorithm convergence studies. | Implemented, HTML dashboard for individual jobs underway |
-
++------------------------------+------------------------------------------------------+------------------------------------+
+| **Functionality**            | **Package support**                                  | **Status**                         |
++==============================+======================================================+====================================+
+| FESTIM integration           | Wrapper for FESTIM **2.0** (*Model*), legacy         | Implemented, updates considered    |
+|                              | FESTIM **1.4** (*Model_legacy*).                     |                                    |
++------------------------------+------------------------------------------------------+------------------------------------+
+| Physics model types          | *tritium_transport* (hydrogen/tritium transport),    | Implemented (coupled transient     |
+|                              | *heat_transport*, and transient coupled              | path present)                      |
+|                              | heat+tritium model.                                  |                                    |
++------------------------------+------------------------------------------------------+------------------------------------+
+| Dimensionality / geometry    | 1D implementation, coordinate systems:               | 1D implemented; 2D/3D requires     |
+|                              | **cartesian / cylindrical / spherical**.             | manual adaptation                  |
++------------------------------+------------------------------------------------------+------------------------------------+
+| Mesh                         | Regular and refined 1D meshes                        | Implemented                        |
+|                              | (**linear/quadratic refinement** options).           |                                    |
++------------------------------+------------------------------------------------------+------------------------------------+
+| Boundary conditions          | Concentration: *dirichlet*, *neumann*,               | Implemented                        |
+|                              | *surface_reaction*; Temperature: *dirichlet*,        |                                    |
+|                              | *neumann*, *convective_flux*, *radiative_flux*,      |                                    |
+|                              | *combined_flux*.                                     |                                    |
++------------------------------+------------------------------------------------------+------------------------------------+
+| Source terms                 | Concentration *particle* source and *heat* source.   | Implemented, constant sources      |
++------------------------------+------------------------------------------------------+------------------------------------+
+| Uncertain parameters         | Parsed uncertain candidates: $D_0$, $\kappa$, $G$,   | Implemented                        |
+|                              | $Q$, $E_{kr}$, $h_{conv}$ (from *YAML*:              |                                    |
+|                              | *mean*, *relative_stdev*, *pdf*).                    |                                    |
++------------------------------+------------------------------------------------------+------------------------------------+
+| Parameter distributions      | Lookup includes **uniform**, **normal**,             | Implemented                        |
+|                              | **log-normal**, **beta**, **gamma**, **exponential**.|                                    |
++------------------------------+------------------------------------------------------+------------------------------------+
+| Correlated-parameter UQ      | Correlated workflow via multivariate normal          | Specialised script;                |
+|                              | (*Rosenblatt/Cholesky*-style handling), currently    | needs further support              |
+|                              | for $D_0$ + *thermal_conductivity*.                  |                                    |
++------------------------------+------------------------------------------------------+------------------------------------+
+| PCE support                  | *PCESampler* + *PCEAnalysis*; Sobol first/total      | Implemented; Bayesian surrogate    |
+|                              | indices, moments, quantiles.                         | utilisation underway               |
++------------------------------+------------------------------------------------------+------------------------------------+
+| qMC support                  | *QMCSampler* + *QMCAnalysis*; in main EasyVVUQ       | Implemented, in main UQ flow       |
+|                              | workflow (*uq_scheme: qmc*).                         |                                    |
++------------------------------+------------------------------------------------------+------------------------------------+
+| Other UQ modes               | Correlated script supports **FD** and **PCE**;       | Under manual testing               |
+|                              | **Bayesian inverse UQ** via PCE surrogate +          |                                    |
+|                              | MCMC (*emcee*).                                      |                                    |
++------------------------------+------------------------------------------------------+------------------------------------+
+| YAML configuration           | Full workflow controlled by YAML (model + solver +   | Implemented                        |
+|                              | UQ parameter definitions); deep nested substitution  |                                    |
+|                              | via *AdvancedYAMLEncoder* dot-path mapping.          |                                    |
++------------------------------+------------------------------------------------------+------------------------------------+
+| Fusion-specific QoIs         | *tritium_concentration* profiles (**steady/          | Implemented; differences between   |
+|                              | transient** checkpoints), *total_tritium_release*,   | legacy and current implementation  |
+|                              | *total_tritium_trapping*, *tritium_inventory*.       |                                    |
++------------------------------+------------------------------------------------------+------------------------------------+
+| Outputs for UQ               | Profile file (*results_tritium_concentration.txt*)   | Implemented                        |
+|                              | for campaign decoding; scalar outputs                |                                    |
+|                              | (*output.csv* / summary CSV) for scalar QoIs.        |                                    |
++------------------------------+------------------------------------------------------+------------------------------------+
+| Visualisation                | Profiles for solution quantities vs. time and space; | Implemented; HTML dashboard        |
+|                              | std. deviation, quantiles, Sobol index profiles;     | for individual jobs underway       |
+|                              | colour plots, verification comparisons,              |                                    |
+|                              | UQ convergence studies.                              |                                    |
++------------------------------+------------------------------------------------------+------------------------------------+
 
 # Software Design
 
@@ -136,7 +178,7 @@ The package consists of three layers:
 The model is constructed out of the following elements: geometry, mesh, material properties, boundary conditions, solver settings.
 2. **UQ orchestration** (`uq/`): Manages parameter sampling, campaign execution, and analysis using EasyVVUQ and ChaosPy.
 Contains encoder/decoder classes to access generic FESTIM models.
-Supports Polynomial Chaos Expansion (PCE), Quasi-Monte Carlo (QMC), and Bayesian inverse UQ via PCE surrogate and MCMC.
+Supports Polynomial Chaos Expansion (PCE), Quasi-Monte Carlo (qMC), and Bayesian inverse UQ via PCE surrogate and MCMC.
 3. **Utilities** (`uq/util/`): Custom YAML encoders that perform deep nested parameter substitution via dot-notation paths, CSV decoders, and publication-quality plotting routines for Sobol indices and statistical profile bands.
 
 The `AdvancedYAMLEncoder` replaces parameter values at arbitrary nesting levels in YAML configuration files without requiring Jinja templates, thereby simplifying the workflow and reducing the risk of template syntax errors.
@@ -228,7 +270,7 @@ At a high level, FESTIM-NIUQ performs five steps:
 
 ![Schematic of the FESTIM-NIUQ uncertainty quantification pipeline.
 Dashed lines indicate EasyVVUQ data flow. Solid lines indicate
-FESTIM-NIUQ process calls.](figures/flowchart_v1_light.png){#fig:workflow}
+FESTIM-NIUQ process calls.](figures/flowchart_v4_light.png){#fig:workflow}
 
 # Example Application
 
@@ -262,7 +304,7 @@ The section illustrates an example of a PCE study with polynomial order $p=3$, a
 \autoref{fig:sobol} demonstrates Sobol indices of total tritium concentration and outward flux for source term and diffusion coefficient values.
 \autoref{tab:moments} summarises the statistical moments for the mobile concentration.
 
-  ![Mean value, standard deviation, confidence intervals, as well as default and analytic verification values and errors of tritium inventory.](figures/cj1959_verification_dashboard_2x2_v3.png){#fig:results_uncertainty}
+  ![Mean value, standard deviation, confidence intervals, as well as default and analytic verification values and errors of tritium inventory.](figures/cj1959_verification_dashboard_2x2_v4.png){#fig:results_uncertainty}
 
   ![First-order ($S_1$) and total-order ($S_T$) Sobol sensitivity indices for the tritium inventory.](figures/cj1959_sobol_summary_1x2_v3.png){#fig:sobol}
 
