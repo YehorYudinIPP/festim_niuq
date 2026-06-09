@@ -334,13 +334,14 @@ A PCE study of order 3 with sparse grids requires $\binom{3+2}{2} = 10$ FESTIM e
 The section illustrates an example of a PCE study with polynomial order $p=3$, a sparse Smolyak quadrature sample, and with uniformly distributed uncertain parameters (coefficient of variation $=0.1$).
 \autoref{fig:results_uncertainty} shows the first-order and total-order Sobol indices and the probability density function of the tritium inventory.
 \autoref{fig:sobol} demonstrates Sobol indices of total tritium concentration and outward flux for source term and diffusion coefficient values.
+\autoref{fig:histogram} indicates a detailed statistics of the selected QoIs using a PCE surrogate.
 \autoref{tab:moments} summarises the statistical moments for the mobile concentration.
 
   ![Mean value, standard deviation, confidence intervals, as well as default and analytic verification values and errors of tritium inventory.](figures/cj1959_verification_dashboard_2x2_v4.png){#fig:results_uncertainty}
 
   ![First-order ($S_1$) and total-order ($S_T$) Sobol sensitivity indices for the tritium inventory.](figures/cj1959_sobol_summary_1x2_v3.png){#fig:sobol}
 
-  <!-- ![Probability density of the tritium inventory obtained from the PCE surrogate.](figures/qoi_distribution.png){#fig:pdf} -->
+  ![Histogram for probability density of the tritium inventory and flux obtained from the PCE surrogate using 20000 samples.](figures/pce_pdf_reconstruction_last_time_center_flux_v2.png){#fig:histogram}
 
   <!-- ![UQ results for the 1-D tungsten slab test case. [TODO: Update captions with actual quantitative findings]](figures:a.png){#fig:results} -->
 
@@ -348,9 +349,13 @@ The section illustrates an example of a PCE study with polynomial order $p=3$, a
 
 | Statistic                | Value | Units     |
 |--------------------------|:-----:|:---------:|
-| Mean $\mu(C_{m})$               | $1.92 \cdot 10^{-1}$ | arb. un. |
-| Std. deviation, $\sigma(C_{m})$ | $7.14 \cdot 10^{-2}$ | arb. un. |
+| Mean $\mu(C_{m})$               | $1.92 \cdot 10^{-1}$ | arb. un. ($m^{-3}) |
+| Std. deviation, $\sigma(C_{m})$ | $7.14 \cdot 10^{-2}$ | arb. un. ($m^{-3}) |
 | Coefficient of variation | $0.372$  |   --   |
+| | |
+| Mean $\mu(\Phi_{m})$               | $5.08$ | arb. un. ($m^{-2} s^{-1}) |
+| Std. deviation, $\sigma(\Phi_{m})$ | $1.71$ | arb. un. ($m^{-2} s^{-1}) |
+| Coefficient of variation | $0.336$  |   --   |
 <!-- | Mean $\mu$               | todo  | $m^{-3}$  |
 | Std. deviation, $\sigma$ | todo  | $m^{-3}$  |
 | Coefficient of variation | todo  |   --      | -->
