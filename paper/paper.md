@@ -83,10 +83,10 @@ The problem solved is a constant source, zero initial condition, homogenous Diri
 
 # State of the Field
 
-Several general-purpose UQ frameworks exist, including Dakota [@adams2021dakota], OpenTURNS [@baudin2017openturns], UQLab [@marelli2014uqlab], SALib [@herman2017salib], and ChaosPy [@feinberg2015chaospy].
+Several general-purpose UQ frameworks exist, including *Dakota* [@adams2021dakota], *OpenTURNS* [@baudin2017openturns], *UQLab* [@marelli2014uqlab], *SALib* [@herman2017salib], and *ChaosPy* [@feinberg2015chaospy].
 While powerful, these tools require users to write bespoke glue code, which includes parameter encoders, solver wrappers, and output decoders for each specific solver, which is a significant effort for finite-element tritium transport problems.
 <!-- involving nested *YAML* configurations, *VTX* result files, and subprocess execution. -->
-Each of the specific hydrogen and tritium transport frameworks, alternative codes including TMAP8 [@simon2025tmap8], TESSIM-X [@schmid2012tessim], SAETTA [@hattab2025saetta] and HIIPC [@sanghiipc], each with different physical scope, model specifics and assumptions, numerical backend, and input formats.
+Each of the specific hydrogen and tritium transport frameworks, alternative codes including *TMAP8* [@simon2025tmap8], *TESSIM-X* [@schmid2012tessim], *SAETTA* [@hattab2025saetta] and *HIIPC* [@sanghiipc], each with different physical scope, model specifics and assumptions, numerical backend, and input formats.
 They would require adapting UQ tools for the specific use case.
 However, the experience of applying generic UQ methods for hydrogen transport provides a pathway to adopting these methods in the field.
 
@@ -167,11 +167,11 @@ Maintaining it as a standalone package allows independent versioning aligned wit
 +----------------------------+---------------------------------------------------------+--------------------------------+
 | Other UQ modes             | Correlated script supports **FD** and **PCE**;          | Under manual testing           |
 |                            | **Bayesian inverse UQ** via PCE surrogate +             |                                |
-|                            | MCMC (*emcee*).                                         |                                |
+|                            | MCMC (`emcee`).                                         |                                |
 +----------------------------+---------------------------------------------------------+--------------------------------+
 |                            |                                                         |                                |
 +----------------------------+---------------------------------------------------------+--------------------------------+
-| *YAML* configuration         | Full workflow controlled by *YAML* (model + solver +      | Implemented                    |
+| *YAML* configuration       | Full workflow controlled by *YAML* (model + solver +    | Implemented                    |
 |                            | UQ parameter definitions); deep nested substitution     |                                |
 |                            | via *AdvancedYAMLEncoder* dot-path mapping.             |                                |
 +----------------------------+---------------------------------------------------------+--------------------------------+
@@ -215,7 +215,7 @@ Contains encoder/decoder classes to access generic *FESTIM* models.
 Supports Polynomial Chaos Expansion (PCE), Quasi-Monte Carlo (qMC), and Bayesian inverse UQ via PCE surrogate and MCMC.
 3. **Utilities** (`uq/util/`): Custom *YAML* encoders that perform deep nested parameter substitution via dot-notation paths, *CSV* decoders, and publication-quality plotting routines for Sobol indices and statistical profile bands.
 
-The `AdvancedYAMLEncoder` replaces parameter values at arbitrary nesting levels in *YAML* configuration files without requiring *Jinja* templates, thereby simplifying the workflow and reducing the risk of template syntax errors.
+The `AdvancedYAMLEncoder` replaces parameter values at arbitrary nesting levels in *YAML* configuration files without requiring `Jinja` templates, thereby simplifying the workflow and reducing the risk of template syntax errors.
 Support for correlated parameters is provided via Cholesky decomposition of user-specified covariance matrices.
 
 For high-performance computing environments, *FESTIM-NIUQ* integrates with *QCG-PilotJob* to enable embarrassingly parallel sample evaluation on cluster resources, and includes *SLURM* submission scripts for common HPC platforms.  
@@ -297,7 +297,7 @@ At a high level, *FESTIM-NIUQ* performs five steps:
 
   1. **Campaign setup**: Parse a *YAML* configuration file specifying uncertain parameters, their probability distributions, the sampling strategy, and the *FESTIM* model entry point.
   2. **Ensemble generation**: Use EasyVVUQ to build a parameter ensemble. Instantiate one *FESTIM* input deck per sample and populate the individual run directories with varied files and links to shared files, mapping them to the original sampling plan.
-  3. **Simulation execution**: Run the ensemble sequentially (PC) or in parallel on an HPC cluster via the SEAVEA Toolkit [@groen2021vecmatk].
+  3. **Simulation execution**: Run the ensemble sequentially (PC) or in parallel on an HPC cluster via the *SEAVEA Toolkit* [@groen2021vecmatk].
   4. **Post-processing**: Collect outputs, compute statistical moments (mean, variance) and Sobol sensitivity indices for the selected quantity of interest (QoI).
   Save the results of the campaign as a SQLite database of runs and a Pickle file of uncertainty analysis results.
   5. **Reporting**: Print moments to the CLI and write publication-ready Sobol index figures.
