@@ -37,8 +37,8 @@ bibliography: paper.bib
 # Summary
 
 Tritium is a crucial fuel component of future fusion power plants.
-Owing to its radioactivity, it is also of critical safety importance and its inventory in fusion power plants must be strictly monitored.
-Accurate predictions of tritium transport through fusion reactor components, such as breeder blankets and plasma-facing components, are essential for ensuring sufficient fuel cycle performance, monitoring its efficiency, and for assessing safety and reactor design.
+Owing to its radioactivity, it is also of critical safety importance, and its inventory in fusion power plants must be strictly monitored.
+Accurate predictions of tritium transport through fusion reactor components, such as breeder blankets and plasma-facing components, are essential for ensuring sufficient fuel cycle performance, monitoring its efficiency, and assessing safety and reactor design.
 However, the material transport coefficients governing these predictions are subject to substantial experimental uncertainty, and their ab initio estimates may also contain uncertainties that must be accounted for.
 
 *FESTIM-NIUQ* is a Python package that automates non-intrusive uncertainty quantification (NIUQ) for tritium transport simulations performed with the *FESTIM* (Finite Elements Simulation of Tritium in Materials) framework [@festim2026github; @delaporte2019festim; @dark2026festim].
@@ -197,7 +197,7 @@ Maintaining it as a standalone package allows independent versioning aligned wit
 
 <!-- [TODO: Cite UQ studies on hydrogen transport that used manual/ad-hoc methods to further motivate automation.] -->
 
-One of the alternative approaches to tritium transport modelling is to apply the *Stochastic Tools Module* [@slaughter2023moose] to the code *TMAP8* [@simon2025tmap8].
+One alternative approach to tritium transport modelling is to apply the *Stochastic Tools Module* [@slaughter2023moose] to the *TMAP8* code [@simon2025tmap8].
 This approach requires utilising the *MOOSE* framework for the entire workflow, including uncertainty analysis, physics simulation, surrogate training, and sensitivity analysis.
 
 # Software Design
@@ -209,7 +209,7 @@ This design decouples the UQ layer from the solver internals, allowing users to 
 The package consists of three layers:
 
 1. **Model wrapper** (`festim_model/`): Encapsulates *FESTIM* model configuration, execution, and result export for both *FESTIM* 2.0 (*DOLFINx*-based [@baratta2023dolfinx]) and the legacy *FESTIM* 1.x API.
-The model is constructed out of the following elements: geometry, mesh, material properties, boundary conditions, solver settings.
+The model is constructed out of the following elements: geometry, mesh, material properties, boundary conditions, and solver settings.
 2. **UQ orchestration** (`uq/`): Manages parameter sampling, campaign execution, and analysis using *EasyVVUQ* and *ChaosPy*.
 Contains encoder/decoder classes to access generic *FESTIM* models.
 Supports Polynomial Chaos Expansion (PCE), Quasi-Monte Carlo (qMC), and Bayesian inverse UQ via PCE surrogate and MCMC.
@@ -343,9 +343,9 @@ The section illustrates an example of a PCE study with polynomial order $p=3$, a
 
   ![Mean value, standard deviation, confidence intervals, as well as default and analytic verification values and errors of tritium inventory.](figures/cj1959_verification_dashboard_2x2_v4.png){#fig:results_uncertainty}
 
-  ![First-order ($S_1$) and total-order ($S_T$) Sobol sensitivity indices for the tritium inventory.](figures/cj1959_sobol_summary_1x2_v3.png){#fig:sobol}
+  ![First-order ($S_1$) and total-order ($S_T$) Sobol sensitivity indices for the tritium inventory and release.](figures/cj1959_sobol_summary_1x2_v3.png){#fig:sobol}
 
-  ![Histogram for probability density of the tritium inventory and flux obtained from the PCE surrogate using 20000 samples.](figures/pce_pdf_reconstruction_last_time_center_flux_v3.png){#fig:histogram}
+  ![Histogram for probability density of the tritium concentration and flux obtained from the PCE surrogate using 20000 samples.](figures/pce_pdf_reconstruction_last_time_center_flux_v3.png){#fig:histogram}
 
   <!-- ![UQ results for the 1-D tungsten slab test case. [TODO: Update captions with actual quantitative findings]](figures:a.png){#fig:results} -->
 
@@ -367,11 +367,11 @@ The section illustrates an example of a PCE study with polynomial order $p=3$, a
 # Research Impact Statement
 
 *FESTIM-NIUQ* was developed as part of ongoing fusion materials research at the Nuclear Futures Institute at Bangor University.
-It is a part of *TRIMAX*, Tririum Reaction Integrated Multiphysics Analysis eXperiment, an initiative on creating a multiscale and multiphysics uncertainty-aware modelling suite for tritium breeding and tritium-exposed materials.
+It is part of *TRIMAX*, Tririum Reaction Integrated Multiphysics Analysis eXperiment, an initiative to create a multiscale, multiphysics, uncertainty-aware modelling suite for tritium breeding and tritium-exposed materials.
 This initiative is a part of the UKAEA LIBRTI programme on breeder blanket technology.
 
-The code is used to assess parametric uncertainties in lithium ceramic breeder blanket tritium transport simulations.
-The immediate results are used to inform downstream high fidelity simulations with TRIMAX on sensitivities to wide spectrum of independent parameters and form a prior believe on the uncertainties of the crucial quantities, allowing for quick specification of the model, frictionless performance of parametric studies, and updating information on uncertain parameters.
+The code is used to assess parametric uncertainties in tritium transport simulations of lithium ceramic breeder blankets.
+The immediate results are used to inform downstream high-fidelity simulations with TRIMAX on sensitivities to a wide spectrum of independent parameters and form a prior belief on the uncertainties of the crucial quantities, allowing for quick specification of the model, frictionless performance of parametric studies, and updating information on uncertain parameters.
 
 The work has been presented at the LIBRTI 2026 Conference on Breeder Blanket Technology [@yudin2026librti] and the Open Source Software for Fusion Energy 2026 conference [@yudin2026ossfe].
 <!-- and SEAVEA summer hackathon 2025 [@seaveahack2026] -->
@@ -386,7 +386,7 @@ Furthermore, the work using the package is accepted for a contributed talk at th
 # AI Usage Disclosure
 
 Agentic AI tools (GitHub Copilot, including the copilot-swe-agent) were used during the development of *FESTIM-NIUQ*.
-AI assistance was employed to implement additional functionality, automated testing, documentation, and project scaffolding after the initial core software was developed by the authors.  
+AI assistance was employed to implement additional functionality, automate testing, document, and scaffold the project after the authors developed the initial core software.
 All AI-generated code and documentation were reviewed and validated by the human authors for correctness and scientific accuracy.
 AI tools (Claude Sonet and Opus 4.7) were used to prepare, brainstorm, draft, and review the manuscript text.
 
