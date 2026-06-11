@@ -88,7 +88,7 @@ While powerful, these tools require users to write bespoke glue code, which incl
 <!-- involving nested *YAML* configurations, *VTX* result files, and subprocess execution. -->
 Each of the specific hydrogen and tritium transport frameworks, alternative codes including *TMAP8* [@simon2025tmap8], *TESSIM-X* [@schmid2012tessim], *SAETTA* [@hattab2025saetta] and *HIIPC* [@sanghiipc], each with different physical scope, model specifics and assumptions, numerical backend, and input formats.
 They would require adapting UQ tools for the specific use case.
-However, the experience of applying generic UQ methods for hydrogen transport provides a pathway to adopting these methods in the field.
+However, the experience of applying generic UQ methods for hydrogen/tritium transport provides a pathway to adopting these methods in the field.
 
 *EasyVVUQ* [@richardson2020easyvvuq] from the SEAVEA Toolkit provides a flexible VVUQ workflow engine and reduces this burden, but the user must still implement solver-specific encoder and decoder classes.
 *FESTIM-NIUQ* fills this niche by providing pre-built *YAML*-based encoders with deep nested parameter substitution via dot-notation paths, *CSV* decoders, a subprocess execution harness, and publication-quality plotting routines, all tailored to the *FESTIM* data model.
@@ -304,7 +304,7 @@ At a high level, *FESTIM-NIUQ* performs five steps:
 
 ![Schematic of the *FESTIM-NIUQ* uncertainty quantification pipeline.
 Dashed lines indicate *EasyVVUQ* data flow. Solid lines indicate
-*FESTIM-NIUQ* process calls.](figures/flowchart_light_v7.png){#fig:workflow}
+*FESTIM-NIUQ* process calls.](figures/flowchart_light_v8.png){#fig:workflow}
 
 # Example Application
 
@@ -323,7 +323,7 @@ The governing transport equation is:
 where $c_{m}$ is the mobile hydrogen concentration, $D$ the diffusion coefficient, $G_j$ the generation rates for different sources of hydrogen, and $c_{t,i}$, $k_i^\pm$, $n_i$ are trap occupancy, rate constants, and density for trap site $i$.
 
 Here, in \autoref{eq:transport}, we take a single species of hydrogen (tritium), homogenous BC $C(r=R)=0$, constant tritium generation $G$, constant isotropic diffusion coefficient $D$, and no trapping.
-Diffusion is a function of temperature $T$ via Arrhenius law $D(T) = D_0 \exp( \frac{E_a}{k_B T} )$, where $D_0$ is diffusion coefficient prefactor, $E_a$ is activation energy, $k_B$ is Boltzmann constant.
+Diffusion is a function of temperature $T$ via Arrhenius law $D(T) = D_0 \exp( \frac{E_a}{k_B T} )$, where $D_0$ is diffusion coefficient prefactor, $E_a$ is activation energy, $k_B$ is the Boltzmann constant.
 Spherical coordinates are used, hence differential operator in form $\nabla \cdot (D \nabla C) = D ( \frac{\partial^{2} C}{\partial r^{2}} + \frac{2}{r} \frac{\partial C}{\partial r} )$.
 
 
@@ -341,11 +341,11 @@ The section illustrates an example of a PCE study with polynomial order $p=3$, a
 \autoref{fig:histogram} indicates a detailed statistics of the selected QoIs using a PCE surrogate.
 \autoref{tab:moments} summarises the statistical moments for the mobile concentration.
 
-  ![Mean value, standard deviation, confidence intervals, as well as default and analytic verification values and errors of tritium inventory.](figures/cj1959_verification_dashboard_2x2_v4.png){#fig:results_uncertainty}
+  ![Mean value, standard deviation, confidence intervals, as well as default and analytic verification values and errors of tritium inventory.](figures/cj1959_verification_dashboard_2x2_v5.png){#fig:results_uncertainty}
 
-  ![First-order ($S_1$) and total-order ($S_T$) Sobol sensitivity indices for the tritium inventory and release.](figures/cj1959_sobol_summary_1x2_v3.png){#fig:sobol}
+  ![First-order ($S_1$) and total-order ($S_T$) Sobol sensitivity indices for the tritium inventory and release.](figures/cj1959_sobol_summary_1x2_v4.png){#fig:sobol}
 
-  ![Histogram for probability density of the tritium concentration and flux obtained from the PCE surrogate using 20000 samples.](figures/pce_pdf_reconstruction_last_time_center_flux_v3.png){#fig:histogram}
+  ![Histogram for probability density of the tritium concentration and flux obtained from the PCE surrogate using 20000 samples.](figures/pce_pdf_reconstruction_last_time_center_flux_v4.png){#fig:histogram}
 
   <!-- ![UQ results for the 1-D tungsten slab test case. [TODO: Update captions with actual quantitative findings]](figures:a.png){#fig:results} -->
 
@@ -367,7 +367,7 @@ The section illustrates an example of a PCE study with polynomial order $p=3$, a
 # Research Impact Statement
 
 *FESTIM-NIUQ* was developed as part of ongoing fusion materials research at the Nuclear Futures Institute at Bangor University.
-It is part of *TRIMAX*, Tririum Reaction Integrated Multiphysics Analysis eXperiment, an initiative to create a multiscale, multiphysics, uncertainty-aware modelling suite for tritium breeding and tritium-exposed materials.
+It is part of *TRIMAX*, Tritium Reaction Integrated Multiphysics Analysis eXperiment, an initiative to create a multiscale, multiphysics, uncertainty-aware modelling suite for tritium breeding and tritium-exposed materials.
 This initiative is a part of the UKAEA LIBRTI programme on breeder blanket technology.
 
 The code is used to assess parametric uncertainties in tritium transport simulations of lithium ceramic breeder blankets.
