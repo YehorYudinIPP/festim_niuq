@@ -393,7 +393,7 @@ AI tools (Claude Sonet and Opus 4.7) were used to prepare, brainstorm, draft, an
 # Acknowledgements
 
 This work was carried out at the Nuclear Futures Institute, Bangor University.  
-The work is funded by the UKAEA LIBRTI programme as a feeder stream project.
+This work is part of the UKAEA’s Lithium Breeding Tritium Innovation (LIBRTI) programme, funded by the Department of Energy Security and Net Zero, as announced by the UK Government in October 2023.
 The authors thank the *FESTIM* development team for their open-source code and responsive support, and the members of the SEAVEA consortium for maintaining the VVUQ toolkit used in this work.
 
 # References
