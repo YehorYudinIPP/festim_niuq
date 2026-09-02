@@ -77,9 +77,9 @@ Verification of the solver wrapper has been performed against Carslaw and Jaeger
 
 \autoref{fig:pce_p_order} demonstrates the dependency of the computed mean, standard deviation, and Sobol indices (partial variance due to variation of a single parameter or subset of parameters) on the polynomial order employed in the PCE study.
 Here, a Smolyak sparse grid is used for a quadrature-based sample [@bungartz2004sparse].
-The problem solved is a constant source, zero initial condition, homogenous Dirichlet BC, and diffusion in spherical coordinates [@carslaw1959conduction].
+The problem solved is a constant source, zero initial condition, homogeneous Dirichlet BC, and diffusion in spherical coordinates [@carslaw1959conduction].
 
-![Polynomial Chaos Expansion polynomial order scan for *FESTIM-NIUQ* uncertainty quantification campaign applied to verification transport problem. $S_1(D_0)$ and $S_1(G)$ represent the first-order Sobol indices for diffusion coefficient and source term magnitude.](figures/poly_order_dashboard_2x2_a4_v2.png){#fig:pce_p_order}
+![Polynomial Chaos Expansion polynomial order scan for *FESTIM-NIUQ* uncertainty quantification campaign applied to verification transport problem. $S_1(D_0)$ and $S_1(G)$ represent the first-order Sobol indices for the diffusion coefficient and source term magnitude.](figures/poly_order_dashboard_2x2_a4_v2.png){#fig:pce_p_order}
 
 # State of the Field
 
@@ -267,7 +267,7 @@ A number of non-intrusive parametric uncertainty quantification methods implemen
 
 The data and the fitted UQ model can serve as a surrogate for the solution of the original problem in subsequent methods.
 At the moment, inverse Bayesian UQ using PCE surrogates is in implementation.
-Furthermore, a UQ method based on Rosenblatt and Cholesky methods with Finite Difference formulation [@kardos2025sensitivity] is in preparation.
+Furthermore, a UQ method based on Rosenblatt and Cholesky methods with a Finite Difference formulation [@kardos2025sensitivity] is in preparation.
 
 ## Testing and Continuous Integration
 <!-- 
@@ -276,14 +276,14 @@ Reference the *github/workflows* directory.] -->
 
 The package presents a comprehensive set of tests of different types: unit tests, regression tests, tests for scientific logic, and verification cases.
 
-Testing is covered by Continuous Integration (CI) logic implemented using *GitHub* workflows, which triggers test execution on each push to the main and master branches of the repository's origin.
+Testing is covered by Continuous Integration (CI) logic implemented using *GitHub* workflows, which trigger test execution on each push to the main and master branches of the repository's origin.
 The tests are executed for three Python versions (3.9, 3.10, 3.11, 3.12).
 The testing workflow is complemented by code inspection and linting using *Pylint*.
 
 There are 113 unit tests for basic functionality, seven tests for scientific logic, and two regression tests.
 The tests consider possible failure modes in executing a UQ campaign, including failures of individual simulation runs, and test edge cases such as division by zero at the centre of a sample at $R=0$.
 
-The verification cases include Method of Exact Solutions (MES) for a diffusion problem, with two cases presented:
+The verification cases include the Method of Exact Solutions (MES) for a diffusion problem, with two cases presented:
 
   - Diffusion in spherical coordinates with a constant source, homogeneous Dirichlet boundary conditions, and zero initial conditions. The solution for simplified mobile concentration build-up in a grain is presented in [@carslaw1959conduction].
   - Diffusion in spherical coordinates with a zero source, homogeneous Dirichlet boundary conditions, and constant initial condition for concentration. The solution for a simplified annealing problem is presented in [@crank1975mathematics].
@@ -322,7 +322,7 @@ The governing transport equation is:
 
 where $c_{m}$ is the mobile hydrogen concentration, $D$ the diffusion coefficient, $G_j$ the generation rates for different sources of hydrogen, and $c_{t,i}$, $k_i^\pm$, $n_i$ are trap occupancy, rate constants, and density for trap site $i$.
 
-Here, in \autoref{eq:transport}, we take a single species of hydrogen (tritium), homogenous BC $C(r=R)=0$, constant tritium generation $G$, constant isotropic diffusion coefficient $D$, and no trapping.
+Here, in \autoref{eq:transport}, we take a single species of hydrogen (tritium), homogeneous BC $C(r=R)=0$, constant tritium generation $G$, constant isotropic diffusion coefficient $D$, and no trapping.
 Diffusion is a function of temperature $T$ via Arrhenius law $D(T) = D_0 \exp( \frac{E_a}{k_B T} )$, where $D_0$ is diffusion coefficient prefactor, $E_a$ is activation energy, $k_B$ is the Boltzmann constant.
 Spherical coordinates are used, hence differential operator in form $\nabla \cdot (D \nabla C) = D ( \frac{\partial^{2} C}{\partial r^{2}} + \frac{2}{r} \frac{\partial C}{\partial r} )$.
 
@@ -335,10 +335,10 @@ A PCE study of order 3 with sparse grids requires $\binom{3+2}{2} = 10$ *FESTIM*
 
 ## Results
 
-The section illustrates an example of a PCE study with polynomial order $p=3$, a sparse Smolyak quadrature sample, and with uniformly distributed uncertain parameters (coefficient of variation $=0.1$).
+The section illustrates an example of a PCE study with polynomial order $p=3$, a sparse Smolyak quadrature sample, and uniformly distributed uncertain parameters (coefficient of variation $=0.1$).
 \autoref{fig:results_uncertainty} shows the first-order and total-order Sobol indices and the probability density function of the tritium inventory.
 \autoref{fig:sobol} demonstrates Sobol indices of total tritium concentration and outward flux for source term and diffusion coefficient values.
-\autoref{fig:histogram} indicates a detailed statistics of the selected QoIs using a PCE surrogate.
+\autoref{fig:histogram} indicates detailed statistics of the selected QoIs using a PCE surrogate.
 \autoref{tab:moments} summarises the statistical moments for the mobile concentration.
 
   ![Mean value, standard deviation, confidence intervals, as well as default and analytic verification values and errors of tritium inventory.](figures/cj1959_verification_dashboard_2x2_v5.png){#fig:results_uncertainty}
@@ -376,10 +376,10 @@ The immediate results are used to inform downstream high-fidelity simulations wi
 The work has been presented at the LIBRTI 2026 Conference on Breeder Blanket Technology [@yudin2026librti] and the Open Source Software for Fusion Energy 2026 conference [@yudin2026ossfe].
 <!-- and SEAVEA summer hackathon 2025 [@seaveahack2026] -->
 Work on the package began during the summer 2025 SEAVEA hackathon [@seavea2025hack].
-The software forms the basis for uncertainty-aware studies of tritium trapping and release in Lithium ceramics irradiation experiments at High Flux Accelerator-Driven Neutron Facility [@bishop2024hfadnef] at the University of Birmingham, a partner project of UKAEA.
+The software forms the basis for uncertainty-aware studies of tritium trapping and release in Lithium ceramics irradiation experiments at the High Flux Accelerator-Driven Neutron Facility [@bishop2024hfadnef] at the University of Birmingham, a partner project of UKAEA.
 <!-- [TODO: future publications] -->
-The work performed using this package is in preparation for publication in academic journals on fusion engineering and material science.
-Furthermore, the work using the package is accepted for a contributed talk at the International Conference on Computational Science 2026 [@yudin2026iccs26].
+The work performed using this package is in preparation for publication in academic journals on fusion engineering and materials science.
+Furthermore, the work using the package was presented in a contributed talk at the International Conference on Computational Science 2026 [@yudin2026iccs26].
 
 <!-- [TODO: GitHub activity] -->
 
