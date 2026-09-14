@@ -33,9 +33,9 @@ jobs:
 
     - name: Run tests
       run: |
-        pytest tests/ -v --tb=short -x
+        pytest tests/ -v --tb=short -x -p no:pep8
 
     - name: Run tests with coverage
       if: matrix.python-version == '3.11'
       run: |
-        pytest tests/ --cov=festim_niuq --cov-report=term-missing
+        pytest tests/ --cov=festim_niuq --cov-report=term-missing -p no:pep8
