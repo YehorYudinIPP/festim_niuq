@@ -17,12 +17,12 @@ authors:
   - name: Thomas Smith
     orcid: 0000-0002-9956-4046
     affiliation: 1
-    affiliation: 1
   - name: Simon C. Middleburgh
     orcid: 0000-0003-2537-4001
     affiliation: 1
   - name: Theresa Davey
     orcid: 0000-0002-4262-1054
+    affiliation: 1
   - name: Cillian Cockrell
     orcid: 0000-0002-8501-7287
     affiliation: 1
