@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 """
 Main EasyVVUQ campaign script for FESTIM uncertainty quantification.
 

@@ -60,10 +60,15 @@ from festim_niuq.uq.easyvvuq_festim import (
     define_parameter_uncertainty,
     save_statistics_log,
 )
+import festim_niuq.uq.easyvvuq_festim as easyvvuq_festim_module
 
 
 class TestDefineFestimModelParameters:
     """Tests for define_festim_model_parameters."""
+
+    def test_module_uses_postponed_annotations_for_py39_compatibility(self):
+        annotations = easyvvuq_festim_module._parse_transient_time_label.__annotations__
+        assert annotations["return"] == "float | None"
 
     def test_returns_parameters_and_qois(self):
         parameters, qois = define_festim_model_parameters()
